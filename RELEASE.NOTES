@@ -1,18 +1,8 @@
-2013-02-27 - Snort 2.9.4.1
+2013-04-03 - Snort 2.9.4.5
 [*] Improvements
 
-* Updated File processing for partial HTTP content and MIME attachments.
+* Removed proxy information from normalized HTTP Uri to enable correct
+  matching of patterns.
 
-* Addition of new config option max_attribute_services_per_host and
-improve memory usage within attribute table.
-
-* Handle excessive overlaps in frag3.
-
-* Stream API updates to return session key for a session.
-
-* Reduce false positives for TCP window slam events.
-
-* Updates to provide better encoding for TCP packets generated for respond and react.
-
-* Disable non-ethernet decoders by default for performance reasons.
-If needed, use --enable-non-ether-decoders with configure.
+* Update to log packets to unified2 across all alerts on stream reassembled
+  packets.

@@ -514,7 +514,8 @@ static int DupStreamNode(
     Packet*,
     StreamTracker*,
     StreamSegment* left,
-    StreamSegment** retSeg);
+    StreamSegment** retSeg,
+    bool pruneOk);
 
 static uint32_t Stream5GetWscale(Packet *, uint16_t *);
 static uint32_t Stream5PacketHasWscale(Packet *);
@@ -3470,6 +3471,7 @@ static inline int _flush_to_seq_4(
     PREPROC_PROFILE_START(s5TcpFlushPerfStats);
 
     if ( htons(sp) == p->sp ) enc_flags |= ENC_FLAG_FWD;
+
 #ifdef HAVE_DAQ_ADDRESS_SPACE_ID
     if ((dir & PKT_FROM_CLIENT) || (tcpssn->daq_flags & DAQ_PKT_FLAG_NOT_FORWARDING))
     {
@@ -3485,8 +3487,9 @@ static inline int _flush_to_seq_4(
         egress_index = tcpssn->ingress_index;
         egress_group = tcpssn->ingress_group;
     }
+
     Encode_Format_With_DAQ_Info(enc_flags, p, s5_pkt, PSEUDO_PKT_TCP, ingress_index, ingress_group,
-            egress_index, egress_group, tcpssn->daq_flags, tcpssn->address_space_id);
+        egress_index, egress_group, tcpssn->daq_flags, tcpssn->address_space_id);
 #else
     Encode_Format(enc_flags, p, s5_pkt, PSEUDO_PKT_TCP);
 #endif
@@ -3507,6 +3510,7 @@ static inline int _flush_to_seq_4(
     // if not specified, set bytes to flush to what was acked
     if ( !bytes && SEQ_GT(st->r_win_base, st->seglist_base_seq) )
         bytes = st->r_win_base - st->seglist_base_seq;
+
     stop_seq = st->seglist_base_seq + bytes;
 
     do
@@ -3598,7 +3602,6 @@ static inline int _flush_to_seq_4(
 #ifdef TARGET_BASED
         s5_pkt->application_protocol_ordinal = p->application_protocol_ordinal;
 #endif
-        //s5_pkt->streamptr = (void *) st;
 
         if (st->flags & TF_MISSING_PKT)
         {
@@ -3633,11 +3636,6 @@ static inline int _flush_to_seq_4(
             do_detect = tmp_do_detect;
             do_detect_content = tmp_do_detect_content;
             PREPROC_PROFILE_END(s5TcpProcessRebuiltPerfStats);
-
-            if(event)
-            {
-                //LogStream(s);
-            }
         }
         PREPROC_PROFILE_TMPSTART(s5TcpFlushPerfStats);
 
@@ -3658,7 +3656,6 @@ static inline int _flush_to_seq_6(
     TcpSession *tcpssn, StreamTracker *st, uint32_t bytes, Packet *p,
     snort_ip_p sip, snort_ip_p dip, uint16_t sp, uint16_t dp, uint32_t dir)
 {
-    uint32_t base_seq;
     uint32_t stop_seq;
     uint32_t footprint = 0;
     uint32_t bytes_processed = 0;
@@ -3675,6 +3672,7 @@ static inline int _flush_to_seq_6(
     PREPROC_PROFILE_START(s5TcpFlushPerfStats);
 
     if ( htons(sp) == p->sp ) enc_flags |= ENC_FLAG_FWD;
+
 #ifdef HAVE_DAQ_ADDRESS_SPACE_ID
     if ((dir & PKT_FROM_CLIENT) || (tcpssn->daq_flags & DAQ_PKT_FLAG_NOT_FORWARDING))
     {
@@ -3690,8 +3688,9 @@ static inline int _flush_to_seq_6(
         egress_index = tcpssn->ingress_index;
         egress_group = tcpssn->ingress_group;
     }
+
     Encode_Format_With_DAQ_Info(enc_flags, p, s5_pkt, PSEUDO_PKT_TCP, ingress_index, ingress_group,
-            egress_index, egress_group, tcpssn->daq_flags, tcpssn->address_space_id);
+        egress_index, egress_group, tcpssn->daq_flags, tcpssn->address_space_id);
 #else
     Encode_Format(enc_flags, p, s5_pkt, PSEUDO_PKT_TCP);
 #endif
@@ -3712,19 +3711,18 @@ static inline int _flush_to_seq_6(
     // if not specified, set bytes to flush to what was acked
     if ( !bytes && SEQ_GT(st->r_win_base, st->seglist_base_seq) )
         bytes = st->r_win_base - st->seglist_base_seq;
+
     stop_seq = st->seglist_base_seq + bytes;
 
     do
     {
-        base_seq = st->seglist_base_seq;
-
-        footprint = stop_seq - base_seq;
+        footprint = stop_seq - st->seglist_base_seq; 
 
         if(footprint <= 0)
         {
             STREAM5_DEBUG_WRAP(DebugMessage(DEBUG_STREAM_STATE,
                         "Negative footprint, bailing %d (0x%X - 0x%X)\n",
-                        footprint, stop_seq, base_seq););
+                        footprint, stop_seq, st->seglist_base_seq););
             PREPROC_PROFILE_END(s5TcpFlushPerfStats);
 
             return bytes_processed;
@@ -3736,7 +3734,7 @@ static inline int _flush_to_seq_6(
             STREAM5_DEBUG_WRAP(DebugMessage(DEBUG_STREAM_STATE,
                         "Footprint less than queued bytes, "
                         "win_base: 0x%X base_seq: 0x%X\n",
-                        stop_seq, base_seq););
+                        stop_seq, st->seglist_base_seq););
         }
 #endif
 
@@ -3807,7 +3805,6 @@ static inline int _flush_to_seq_6(
 #ifdef TARGET_BASED
         s5_pkt->application_protocol_ordinal = p->application_protocol_ordinal;
 #endif
-        //s5_pkt->streamptr = (void *) st;
 
         if (st->flags & TF_MISSING_PKT)
         {
@@ -3842,11 +3839,6 @@ static inline int _flush_to_seq_6(
             do_detect = tmp_do_detect;
             do_detect_content = tmp_do_detect_content;
             PREPROC_PROFILE_END(s5TcpProcessRebuiltPerfStats);
-
-            if(event)
-            {
-                //LogStream(s);
-            }
         }
         PREPROC_PROFILE_TMPSTART(s5TcpFlushPerfStats);
 
@@ -4024,7 +4016,7 @@ static int FlushStream(
     Packet* p, StreamTracker *st, uint32_t toSeq, uint8_t *flushbuf,
     const uint8_t *flushbuf_end)
 {
-    StreamSegment *ss = NULL, *seglist;
+    StreamSegment *ss = NULL, *seglist, *sr;
     uint32_t base_seq;
     uint16_t bytes_flushed = 0;
     uint16_t bytes_skipped = 0;
@@ -4119,33 +4111,18 @@ static int FlushStream(
                 flushbuf += bytes_to_copy;
         }
 
-        if (bytes_to_copy < ss->size)
+        if ( bytes_to_copy < ss->size &&
+             DupStreamNode(p, st, ss, &sr, false) == STREAM_INSERT_OK )
         {
-            StreamSegment* sr = NULL; // right of ss
+            bytes_flushed += bytes_to_copy;
+            st->flush_count++;
 
-#ifdef NORMALIZER
-            if ( Normalize_IsEnabled(snort_conf, NORM_TCP_IPS) &&
-                 DupStreamNode(p, st, ss, &sr) == STREAM_INSERT_OK )
-            {
-                bytes_flushed += bytes_to_copy;
-                st->flush_count++;
+            ss->buffered = SL_BUF_FLUSHED;
+            ss->size = bytes_to_copy;
 
-                ss->buffered = SL_BUF_FLUSHED;
-                ss->size = bytes_to_copy;
-
-                sr->seq = toSeq;
-                sr->size -= bytes_to_copy;
-                sr->payload += bytes_to_copy;
-                sr->data = sr->payload;
-            }
-            else
-#endif
-            {
-                bytes_flushed += bytes_to_copy;
-                ss->seq = toSeq;
-                ss->size -= bytes_to_copy;
-                ss->payload += bytes_to_copy;
-            }
+            sr->seq += bytes_to_copy;
+            sr->size -= bytes_to_copy;
+            sr->payload += bytes_to_copy + (ss->payload - ss->data);
         }
         else
         {
@@ -5495,17 +5472,22 @@ static inline int SegmentFastTrack(StreamSegment *tail, TcpDataBlock *tdb)
     return 0;
 }
 
-static void *SegmentAlloc(uint32_t size, Packet *p)
+static void *SegmentAlloc(uint32_t size, Packet *p, bool pruneOk)
 {
     void *tmp;
 
     mem_in_use += size;
 
-    if (mem_in_use > s5_global_eval_config->memcap)
+    if ( mem_in_use > s5_global_eval_config->memcap )
     {
         pc.str_mem_faults++;
         sfBase.iStreamFaults++;
 
+        if ( !pruneOk )
+        {
+            mem_in_use -= size;
+            return NULL;
+        }
         /* Smack the older time'd out sessions */
         if (!PruneLWSessionCache(tcp_lws_cache, p->pkth->ts.tv_sec,
                     (Stream5LWSession*)p->ssnptr, 0))
@@ -5582,8 +5564,8 @@ static int AddStreamNode(StreamTracker *st, Packet *p,
     }
 #endif
 
-    ss = (StreamSegment *) SegmentAlloc(sizeof(StreamSegment), p);
-    ss->pktOrig = ss->pkt = (uint8_t *) SegmentAlloc(p->pkth->caplen + SPARC_TWIDDLE, p);
+    ss = (StreamSegment *) SegmentAlloc(sizeof(StreamSegment), p, true);
+    ss->pktOrig = ss->pkt = (uint8_t *) SegmentAlloc(p->pkth->caplen + SPARC_TWIDDLE, p, true);
 
     ss->caplen = p->pkth->caplen + SPARC_TWIDDLE;
     ss->pkt += SPARC_TWIDDLE;
@@ -5667,17 +5649,26 @@ static int AddStreamNode(StreamTracker *st, Packet *p,
 static int DupStreamNode(Packet *p,
         StreamTracker *st,
         StreamSegment *left,
-        StreamSegment **retSeg)
+        StreamSegment **retSeg,
+        bool pruneOk)
 {
-    StreamSegment *ss = NULL;
+    /* get a new node */
+    StreamSegment *ss = (StreamSegment *) SegmentAlloc(sizeof(StreamSegment), p, pruneOk);
 
-    /*
-     * get a new node
-     */
-    ss = (StreamSegment *) SegmentAlloc(sizeof(StreamSegment), p);
+    if ( !ss )
+        return STREAM_INSERT_FAILED;
+
     /* caplen includes SPARC_TWIDDLE HERE */
-    ss->pktOrig = ss->pkt = (uint8_t *) SegmentAlloc(left->caplen, p);
+    ss->pktOrig = ss->pkt = (uint8_t *) SegmentAlloc(left->caplen, p, pruneOk);
 
+    if ( !ss->pkt )
+    {
+        // don't Stream5DropSegment() to avoid tcp_streamsegs_released++
+        // w/o corresponding tcp_streamsegs_created++
+        mem_in_use -= sizeof(StreamSegment);
+        free(ss);
+        return STREAM_INSERT_FAILED;
+    }
     /* caplen includes SPARC_TWIDDLE HERE */
     ss->caplen = left->caplen;
     memcpy(ss->pktOrig, left->pktOrig, left->caplen);
@@ -5687,9 +5678,7 @@ static int DupStreamNode(Packet *p,
     ss->data = ss->pkt + (left->data - left->pkt);
     ss->orig_dsize = left->orig_dsize;
 
-    /*
-     * twiddle the values for overlaps
-     */
+    /* twiddle the values for overlaps */
     ss->payload = ss->data;
     ss->size = left->size;
     ss->seq = left->seq;
@@ -5992,7 +5981,7 @@ static int StreamQueue(StreamTracker *st, Packet *p, TcpDataBlock *tdb,
                          * seq by + (seq + len) and
                          * size by - (seq + len - left->seq).
                          */
-                        ret = DupStreamNode(p, st, left, &right);
+                        ret = DupStreamNode(p, st, left, &right, true);
                         if (ret != STREAM_INSERT_OK)
                         {
                             /* No warning,

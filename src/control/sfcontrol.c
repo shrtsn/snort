@@ -297,7 +297,7 @@ static void *ControlSocketProcessThread(void *arg)
     int fd;
     pthread_t tid = pthread_self();
     CSMessageHeader hdr;
-    uint32_t len, rlen;
+    uint32_t len;
     uint8_t *data = NULL;
     ThreadElement **it;
     int rval;

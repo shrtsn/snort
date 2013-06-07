@@ -208,6 +208,8 @@ int hi_client_norm(HI_SESSION *Session)
     int iCookieBufSize = MAX_URI;
     int iPostBufSize = MAX_URI;
     uint16_t encodeType = 0;
+    u_int updated_uri_size = 0;
+    const u_char *updated_uri_start = NULL;
 
     if(!Session || !Session->server_conf)
     {
@@ -223,9 +225,21 @@ int hi_client_norm(HI_SESSION *Session)
     /* Handle URI normalization */
     if(ClientReq->uri_norm)
     {
+        updated_uri_start = ClientReq->uri;
+        updated_uri_size = ClientReq->uri_size;
         Session->norm_flags &= ~HI_BODY;
+        if(proxy_start && (ClientReq->uri == proxy_start))
+        {
+            if(hi_util_in_bounds(ClientReq->uri, (ClientReq->uri + ClientReq->uri_size), proxy_end))
+            {
+                updated_uri_start = proxy_end;
+                updated_uri_size = (ClientReq->uri_size) - (proxy_end - proxy_start);
+            }
+
+        }
+        proxy_start = proxy_end = NULL;
         iRet = hi_norm_uri(Session, UriBuf, &iUriBufSize,
-                           ClientReq->uri, ClientReq->uri_size, &encodeType);
+                           updated_uri_start, updated_uri_size, &encodeType);
         if (iRet == HI_NONFATAL_ERR)
         {
             /* There was a non-fatal problem normalizing */
@@ -242,6 +256,18 @@ int hi_client_norm(HI_SESSION *Session)
             ClientReq->uri_encode_type = encodeType;
         }
         encodeType = 0;
+    }
+    else
+    {
+        if(proxy_start && (ClientReq->uri == proxy_start))
+        {
+            if(hi_util_in_bounds(ClientReq->uri, (ClientReq->uri + ClientReq->uri_size), proxy_end))
+            {
+                ClientReq->uri_norm = proxy_end;
+                ClientReq->uri_norm_size = (ClientReq->uri_size) - (proxy_end - proxy_start);
+            }
+        }
+        proxy_start = proxy_end = NULL;
     }
 
     if (ClientReq->cookie.cookie)

@@ -191,4 +191,7 @@ typedef struct s_HI_CLIENT_HDR_ARGS
 int hi_client_inspection(void *Session, const unsigned char *data, int dsize, HttpSessionData *hsd, int stream_ins);
 int hi_client_init(HTTPINSPECT_GLOBAL_CONF *GlobalConf);
 
+extern const u_char *proxy_start;
+extern const u_char *proxy_end;
+
 #endif

@@ -890,7 +890,8 @@ int detection_option_node_evaluate(detection_option_tree_node_t *node, detection
     /* Save some stuff off for repeated pattern tests */
     orig_doe_ptr = doe_ptr;
 
-    if (node->option_type == RULE_OPTION_TYPE_CONTENT)
+    if ((node->option_type == RULE_OPTION_TYPE_CONTENT) || 
+            (node->option_type == RULE_OPTION_TYPE_CONTENT_URI))
     {
         PatternMatchDuplicatePmd(node->option_data, &dup_content_option_data);
 
@@ -1072,6 +1073,12 @@ int detection_option_node_evaluate(detection_option_tree_node_t *node, detection
                     rval = node->evaluate(&dup_content_option_data, eval_data->p);
                 }
                 break;
+            case RULE_OPTION_TYPE_CONTENT_URI:
+                if (node->evaluate)
+                {
+                    rval = node->evaluate(&dup_content_option_data, eval_data->p);
+                }
+                break;
             case RULE_OPTION_TYPE_PCRE:
                 if (node->evaluate)
                 {
@@ -1108,7 +1115,6 @@ int detection_option_node_evaluate(detection_option_tree_node_t *node, detection
             case RULE_OPTION_TYPE_BYTE_EXTRACT:
             case RULE_OPTION_TYPE_FLOW:
             case RULE_OPTION_TYPE_CVS:
-            case RULE_OPTION_TYPE_CONTENT_URI:
             case RULE_OPTION_TYPE_DSIZE:
             case RULE_OPTION_TYPE_FTPBOUNCE:
             case RULE_OPTION_TYPE_BASE64_DECODE:
@@ -1335,7 +1341,8 @@ int detection_option_node_evaluate(detection_option_tree_node_t *node, detection
 
         if (continue_loop && (rval == DETECTION_OPTION_MATCH) && (node->relative_children))
         {
-            if (node->option_type == RULE_OPTION_TYPE_CONTENT)
+            if ((node->option_type == RULE_OPTION_TYPE_CONTENT) ||
+                    (node->option_type == RULE_OPTION_TYPE_CONTENT_URI))
             {
                 if (dup_content_option_data.exception_flag)
                 {

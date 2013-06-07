@@ -81,6 +81,9 @@
 #define HEADER_NAME__TRANSFER_ENCODING "Transfer-encoding"
 #define HEADER_LENGTH__TRANSFER_ENCODING 17
 
+const u_char *proxy_start = NULL;
+const u_char *proxy_end = NULL;
+
 /**  This makes passing function arguments much more readable and easier
 **  to follow.
 */
@@ -1098,6 +1101,12 @@ int SetSlashNorm(HI_SESSION *Session, const u_char *start,
     HTTPINSPECT_CONF *ServerConf = Session->server_conf;
 
     CheckLongDir(Session, uri_ptr, *ptr);
+    if( proxy_start)
+    {
+        // This is the first dir after http://
+        if(!uri_ptr->ident && !uri_ptr->last_dir)
+            proxy_end = *ptr;
+    }
     uri_ptr->last_dir = *ptr;
 
     if(!uri_ptr->norm && !uri_ptr->ident)
@@ -1319,14 +1328,17 @@ int SetProxy(HI_SESSION *Session, const u_char *start,
 
     if(!uri_ptr->ident && !uri_ptr->last_dir)
     {
-        if(Session->global_conf->proxy_alert && !ServerConf->allow_proxy)
+        if(hi_util_in_bounds(start, end, ((*ptr)+2)))
         {
-            if(hi_util_in_bounds(start, end, ((*ptr)+2)))
+            if(*((*ptr)+1) == '/' && *((*ptr)+2) == '/')
             {
-                if(*((*ptr)+1) == '/' && *((*ptr)+2) == '/')
-                {
+                if(Session->global_conf->proxy_alert && !ServerConf->allow_proxy)
                     uri_ptr->proxy = *ptr;
-                }
+                //If we found :// check to see if it is preceeded by http. If so, this is a proxy
+                proxy_start = (u_char *)SnortStrcasestr((const char *)uri_ptr->uri, (*ptr - uri_ptr->uri), "http");
+                proxy_end = end;
+                (*ptr) = (*ptr) + 3;
+                return HI_SUCCESS;
             }
         }
     }

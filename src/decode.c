@@ -1,7 +1,7 @@
 /* $Id$ */
 
 /*
-** Copyright (C) 2002-2012 Sourcefire, Inc.
+** Copyright (C) 2002-2013 Sourcefire, Inc.
 ** Copyright (C) 1998-2002 Martin Roesch <roesch@sourcefire.com>
 **
 ** This program is free software; you can redistribute it and/or modify
@@ -6140,8 +6140,7 @@ void DecodeFDDIPkt(Packet * p, const DAQ_PktHdr_t * pkthdr, const uint8_t * pkt)
      * Now let's see if we actually care about the packet... If we don't,
      * throw it out!!!
      */
-    if((p->fddisaps->dsap != FDDI_DSAP_IP) &&
-            (p->fddisaps->ssap != FDDI_SSAP_IP))
+    if((p->fddisaps->dsap != FDDI_DSAP_IP) || (p->fddisaps->ssap != FDDI_SSAP_IP))
     {
         DEBUG_WRAP(
                 DebugMessage(DEBUG_DECODE,

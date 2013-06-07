@@ -1,6 +1,6 @@
 /****************************************************************************
  *
- * Copyright (C) 2011-2012 Sourcefire, Inc.
+ * Copyright (C) 2011-2013 Sourcefire, Inc.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License Version 2 as
@@ -355,6 +355,20 @@ static void _addServicesToStream5Filter(tSfPolicyId policy_id)
 }
 #endif
 
+static int CheckFilePolicyConfig(
+        tSfPolicyUserContextId config,
+        tSfPolicyId policyId,
+        void* pData
+        )
+{
+    IMAPConfig *context = (IMAPConfig *)pData;
+
+    context->file_depth = _dpd.fileAPI->get_max_file_depth();
+    updateMaxDepth(context->file_depth, &context->max_depth);
+
+    return 0;
+}
+
 static int IMAPEnableDecoding(tSfPolicyUserContextId config,
             tSfPolicyId policyId, void *pData)
 {
@@ -404,7 +418,7 @@ static void IMAPCheckConfig(void)
 
     sfPolicyUserDataIterate (imap_config, IMAPCheckPolicyConfig);
 
-    defaultConfig->file_depth = _dpd.fileAPI->get_max_file_depth();
+    sfPolicyUserDataIterate (imap_config, CheckFilePolicyConfig);
 
     if (sfPolicyUserDataIterate(imap_config, IMAPEnableDecoding) != 0)
     {
@@ -418,10 +432,11 @@ static void IMAPCheckConfig(void)
                     "configuration if you want to imap decoding.\n");
         }
 
-        updateMaxDepth(defaultConfig->file_depth, &defaultConfig->max_depth);
-
         encode_depth = defaultConfig->max_depth;
 
+        if (encode_depth <= 0)
+            return;
+            
         if (encode_depth & 7)
         {
             encode_depth += (8 - (encode_depth & 7));
@@ -539,6 +554,8 @@ static int IMAPReloadVerify(void)
         return 0;
     }
 
+    sfPolicyUserDataIterate (imap_swap_config, CheckFilePolicyConfig);
+
     if (imap_mempool != NULL)
     {
         if (configNext == NULL)
@@ -583,7 +600,6 @@ static int IMAPReloadVerify(void)
             imap_swap_config = NULL;
             return -1;
         }
-        configNext->file_depth = _dpd.fileAPI->get_max_file_depth();
         if(configNext->file_depth != config->file_depth)
         {
             _dpd.errMsg("IMAP reload: Changing the file_depth requires a restart.\n");
@@ -602,6 +618,9 @@ static int IMAPReloadVerify(void)
 
 
             encode_depth = configNext->max_depth;
+
+            if (encode_depth <= 0)
+                return 0;
 
             if (encode_depth & 7)
             {

@@ -1,5 +1,5 @@
 /*
-** Copyright (C) 2010-2012 Sourcefire, Inc.
+** Copyright (C) 2010-2013 Sourcefire, Inc.
 ** Author: Ryan Jordan <ryan.jordan@sourcefire.com>
 **
 ** This program is free software; you can redistribute it and/or modify

@@ -1,7 +1,7 @@
 /* $Id$ */
 /*
 ** Copyright (C) 1998-2002 Martin Roesch <roesch@sourcefire.com>
-** Copyright (C) 2002-2012 Sourcefire, Inc.
+** Copyright (C) 2002-2013 Sourcefire, Inc.
 **    Dan Roelker <droelker@sourcefire.com>
 **    Marc Norton <mnorton@sourcefire.com>
 **
@@ -434,6 +434,15 @@ void CallAlertFuncs(Packet * p, char *message, ListHead * head, Event *event)
     /* set the event reference info */
     event->event_reference = event->event_id;
 
+#ifdef SOURCEFIRE
+    if (event->sig_generator != 136)
+    {
+        /* Do not count IP Reputation events as IPS events */
+        pc.alert_pkts++;
+    }
+#else
+    pc.alert_pkts++;
+#endif
 
     if(head == NULL)
     {
@@ -441,7 +450,6 @@ void CallAlertFuncs(Packet * p, char *message, ListHead * head, Event *event)
         return;
     }
 
-    pc.alert_pkts++;
     idx = head->AlertList;
     if(idx == NULL)
         idx = AlertList;
@@ -461,7 +469,6 @@ void CallAlertPlugins(Packet * p, char *message, void *args, Event *event)
     DEBUG_WRAP(DebugMessage(DEBUG_DETECT, "Call Alert Plugins\n"););
     idx = AlertList;
 
-    pc.alert_pkts++;
     while(idx != NULL)
     {
         idx->func(p, message, idx->arg, event);

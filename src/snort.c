@@ -1,6 +1,6 @@
 /* $Id$ */
 /*
-** Copyright (C) 2002-2012 Sourcefire, Inc.
+** Copyright (C) 2002-2013 Sourcefire, Inc.
 ** Copyright (C) 1998-2002 Martin Roesch <roesch@sourcefire.com>
 **
 ** This program is free software; you can redistribute it and/or modify
@@ -3731,6 +3731,7 @@ SnortConfig * SnortConfNew(void)
 #ifdef TARGET_BASED
     /* Default max size of the attribute table */
     sc->max_attribute_hosts = DEFAULT_MAX_ATTRIBUTE_HOSTS;
+    sc->max_attribute_services_per_host = DEFAULT_MAX_ATTRIBUTE_SERVICES_PER_HOST;
 
     /* Default max number of services per rule */
     sc->max_metadata_services = DEFAULT_MAX_METADATA_SERVICES;
@@ -5425,7 +5426,13 @@ static int VerifyReload(SnortConfig *sc)
 #ifdef TARGET_BASED
     if (snort_conf->max_attribute_hosts != sc->max_attribute_hosts)
     {
-        ErrorMessage("Snort Reload: Changing the max attribute hosts "
+        ErrorMessage("Snort Reload: Changing max_attribute_hosts "
+                     "configuration requires a restart.\n");
+        return -1;
+    }
+    if (snort_conf->max_attribute_services_per_host != sc->max_attribute_services_per_host)
+    {
+        ErrorMessage("Snort Reload: Changing max_attribute_services_per_host "
                      "configuration requires a restart.\n");
         return -1;
     }

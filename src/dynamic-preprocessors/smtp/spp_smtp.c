@@ -1,6 +1,6 @@
 /****************************************************************************
  *
- * Copyright (C) 2005-2012 Sourcefire, Inc.
+ * Copyright (C) 2005-2013 Sourcefire, Inc.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License Version 2 as
@@ -365,6 +365,22 @@ static void _addServicesToStream5Filter(tSfPolicyId policy_id)
 }
 #endif
 
+static int CheckFilePolicyConfig(
+        tSfPolicyUserContextId config,
+        tSfPolicyId policyId,
+        void* pData
+        )
+{
+    SMTPConfig *context = (SMTPConfig *)pData;
+
+    context->file_depth = _dpd.fileAPI->get_max_file_depth();
+    if (context->file_depth > -1)
+        context->log_filename = 1;
+    updateMaxDepth(context->file_depth, &context->max_depth);
+
+    return 0;
+}
+
 static int SMTPEnableDecoding(tSfPolicyUserContextId config,
             tSfPolicyId policyId, void *pData)
 {
@@ -437,6 +453,7 @@ static void SMTP_RegXtraDataFuncs(SMTPConfig *config)
 static void SMTPCheckConfig(void)
 {
     sfPolicyUserDataIterate (smtp_config, SMTPCheckPolicyConfig);
+    sfPolicyUserDataIterate (smtp_config, CheckFilePolicyConfig);
     {
         SMTPConfig *defaultConfig =
                 (SMTPConfig *)sfPolicyUserDataGetDefault(smtp_config);
@@ -448,12 +465,8 @@ static void SMTPCheckConfig(void)
             "want to enable smtp decoding.\n");
         }
 
-        defaultConfig->file_depth = _dpd.fileAPI->get_max_file_depth();
         if (sfPolicyUserDataIterate(smtp_config, SMTPEnableDecoding) != 0)
         {
-            if (defaultConfig->file_depth > -1)
-                defaultConfig->log_filename = 1;
-            updateMaxDepth(defaultConfig->file_depth, &defaultConfig->max_depth);
             SMTP_MimeMempoolInit(defaultConfig->max_mime_mem,
                 defaultConfig->max_depth);
         }
@@ -587,6 +600,8 @@ static int SMTPReloadVerify(void)
         return 0;
     }
 
+    sfPolicyUserDataIterate (smtp_config, CheckFilePolicyConfig);
+
     if (smtp_mime_mempool != NULL)
     {
         if (configNext == NULL)
@@ -630,11 +645,6 @@ static int SMTPReloadVerify(void)
             SMTP_FreeConfigs(smtp_swap_config);
             smtp_swap_config = NULL;
             return -1;
-        }
-        configNext->file_depth = _dpd.fileAPI->get_max_file_depth();
-        if (configNext->file_depth > -1)
-        {
-            configNext->log_filename = 1;
         }
         if(configNext->file_depth != config->file_depth)
         {

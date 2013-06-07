@@ -1,6 +1,6 @@
 /****************************************************************************
  *
- * Copyright (C) 2011-2012 Sourcefire, Inc.
+ * Copyright (C) 2011-2013 Sourcefire, Inc.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License Version 2 as
@@ -1064,7 +1064,7 @@ static const uint8_t * POP_HandleData(SFSnortPacket *p, const uint8_t *ptr, cons
         {
             _dpd.setFileDataPtr(pop_ssn->decode_state->decodePtr, 0);
         }
-        if (data_end_marker != end)
+        if ((data_end_marker != end) || (pop_ssn->state_flags & POP_FLAG_MIME_END))
         {
            finalFilePosition(&position);
         }
@@ -1380,6 +1380,7 @@ static const uint8_t * POP_HandleDataBody(SFSnortPacket *p, const uint8_t *ptr,
 
                     /* no more MIME */
                     pop_ssn->state_flags &= ~POP_FLAG_GOT_BOUNDARY;
+                    pop_ssn->state_flags |= POP_FLAG_MIME_END;
 
                     /* free boundary search */
                     _dpd.searchAPI->search_instance_free(pop_ssn->mime_boundary.boundary_search);

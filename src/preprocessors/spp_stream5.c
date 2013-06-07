@@ -1,7 +1,7 @@
 /* $Id$ */
 /****************************************************************************
  *
- * Copyright (C) 2005-2012 Sourcefire, Inc.
+ * Copyright (C) 2005-2013 Sourcefire, Inc.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License Version 2 as
@@ -345,6 +345,8 @@ static void *Stream5GetSessionPtrFromIpPort(
                     uint32_t mplsId,
                     uint16_t addressSpaceId);
 
+static const StreamSessionKey *Stream5GetKeyFromSessionPtr(const void *ssnptr);
+
 #ifdef ACTIVE_RESPONSE
 static void s5InitActiveResponse(Packet*, void* ssnptr);
 #endif
@@ -427,6 +429,7 @@ StreamAPI s5api = {
     s5GetMaxSessions,
     Stream5SetIgnoreDirection,
     Stream5GetSessionPtrFromIpPort,
+    Stream5GetKeyFromSessionPtr,
     Stream5CheckSessionClosed
 };
 
@@ -1653,6 +1656,12 @@ static void * Stream5GetApplicationDataFromIpPort(
             ip_protocol,vlan,mplsId, addressSpaceID);
 
     return Stream5GetApplicationData(ssn, protocol);
+}
+
+static const StreamSessionKey *Stream5GetKeyFromSessionPtr(const void *ssnptr)
+{
+    const Stream5LWSession *ssn = (const Stream5LWSession*)ssnptr;
+    return ssn->key;
 }
 
 static void Stream5CheckSessionClosed(Packet* p)

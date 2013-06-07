@@ -1,7 +1,7 @@
 /*
  **
  **
- **  Copyright (C) 2012-2012 Sourcefire, Inc.
+ **  Copyright (C) 2012-2013 Sourcefire, Inc.
  **
  **  This program is free software; you can redistribute it and/or modify
  **  it under the terms of the GNU General Public License Version 2 as
@@ -41,6 +41,7 @@
 #include "detect.h"
 #include "plugbase.h"
 #include "active.h"
+#include "detection_util.h"
 
 static bool file_type_id_enabled = false;
 static bool file_signature_enabled = false;
@@ -288,6 +289,28 @@ int file_eventq_add(uint32_t gid, uint32_t sid, char *msg, RuleType type)
     return(ret);
 }
 
+/*
+ * Check HTTP partial content header
+ * Return: 1: partial content header
+ *         0: not http partial content header
+ */
+static inline int check_http_partial_content(Packet *p)
+{
+
+    /*Not HTTP response, return*/
+    if ((p->uri_count < HTTP_BUFFER_STAT_CODE + 1) ||
+            ((!UriBufs[HTTP_BUFFER_STAT_CODE].uri) || (!UriBufs[HTTP_BUFFER_STAT_CODE].length)))
+        return 0;
+
+    /*Not partial content, return*/
+    if ((UriBufs[HTTP_BUFFER_STAT_CODE].length != 3) ||
+            strncmp((const char *)UriBufs[HTTP_BUFFER_STAT_CODE].uri, "206",
+            UriBufs[HTTP_BUFFER_STAT_CODE].length))
+        return 0;
+
+    return 1;
+}
+
 static int file_process( void* p, uint8_t* file_data, int data_size, FilePosition position, bool upload)
 {
     FileContext* context;
@@ -296,7 +319,8 @@ static int file_process( void* p, uint8_t* file_data, int data_size, FilePositio
     /* if both disabled, return immediately*/
     if ((!file_type_id_enabled) && (!file_signature_enabled))
         return 0;
-
+    if (position == SNORT_FILE_POSITION_UNKNOWN)
+        return 0;
 #if defined(DEBUG_MSGS) && !defined (REG_TEST)
     if (DEBUG_FILE & GetDebugLevel())
 #endif
@@ -306,6 +330,17 @@ static int file_process( void* p, uint8_t* file_data, int data_size, FilePositio
 #endif
 
     context = get_file_context(p, position, upload);
+
+    if(check_http_partial_content(p))
+    {
+        context->file_type_enabled = false;
+        context->file_signature_enabled = false;
+        return 0;
+    }
+
+    if ((!context->file_type_enabled) && (!context->file_signature_enabled))
+        return 0;
+
     context->file_config = snort_conf->file_config;
     file_direction_set(context,upload);
     /*file type id*/

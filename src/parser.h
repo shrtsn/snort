@@ -1,5 +1,5 @@
 /*
-** Copyright (C) 2002-2012 Sourcefire, Inc.
+** Copyright (C) 2002-2013 Sourcefire, Inc.
 ** Copyright (C) 1998-2002 Martin Roesch <roesch@sourcefire.com>
 ** Copyright (C) 2000-2001 Andrew R. Baker <andrewb@uab.edu>
 **
@@ -154,6 +154,7 @@
 #define CONFIG_OPT__DIRTY_PIG                       "dirty_pig"
 #ifdef TARGET_BASED
 # define CONFIG_OPT__MAX_ATTRIBUTE_HOSTS            "max_attribute_hosts"
+# define CONFIG_OPT__MAX_ATTRIBUTE_SERVICES_PER_HOST "max_attribute_services_per_host"
 # define CONFIG_OPT__MAX_METADATA_SERVICES          "max_metadata_services"
 #define CONFIG_OPT__DISABLE_ATTRIBUTE_RELOAD        "disable-attribute-reload-thread"
 #endif  /* TARGET_BASED */
@@ -322,6 +323,7 @@ void ConfigDaqDir(SnortConfig *, char *);
 void ConfigDirtyPig(SnortConfig *, char *);
 #ifdef TARGET_BASED
 void ConfigMaxAttributeHosts(SnortConfig *, char *);
+void ConfigMaxAttributeServicesPerHost(SnortConfig *, char *);
 void ConfigMaxMetadataServices(SnortConfig *, char *);
 void ConfigDisableAttributeReload(SnortConfig *, char *);
 #endif

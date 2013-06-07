@@ -1,7 +1,7 @@
 /* $Id$ */
 
 /*
- * ** Copyright (C) 2005-2012 Sourcefire, Inc.
+ * ** Copyright (C) 2005-2013 Sourcefire, Inc.
  * ** AUTHOR: Steven Sturges
  * **
  * ** This program is free software; you can redistribute it and/or modify
@@ -113,6 +113,22 @@ typedef enum {
 #define UNKNOWN_PORT 0
 
 #define STREAM_API_VERSION5 5
+
+typedef struct _StreamSessionKey
+{
+/* XXX If this data structure changes size, HashKeyCmp must be updated! */
+    uint32_t   ip_l[4]; /* Low IP */
+    uint32_t   ip_h[4]; /* High IP */
+    uint16_t   port_l; /* Low Port - 0 if ICMP */
+    uint16_t   port_h; /* High Port - 0 if ICMP */
+    uint16_t   vlan_tag;
+    uint8_t    protocol;
+    char       pad;
+    uint32_t   mplsLabel; /* MPLS label */
+    uint16_t   addressSpaceId;
+    uint16_t   addressSpaceIdPad1;
+/* XXX If this data structure changes size, HashKeyCmp must be updated! */
+} StreamSessionKey;
 
 typedef void (*LogExtraData)(void *ssnptr, void *config, LogFunction *funcs, uint32_t max_count, uint32_t xtradata_mask, uint32_t id, uint32_t sec);
 typedef void (*StreamAppDataFree)(void *);
@@ -682,6 +698,16 @@ typedef struct _stream_api
      *     Stream session pointer
      */
     void *(*get_session_ptr_from_ip_port)(snort_ip_p, uint16_t, snort_ip_p, uint16_t, char, uint16_t, uint32_t, uint16_t);
+
+    /** Retrieve the session key given a stream session pointer.
+     *
+     * Parameters
+     *     Session Ptr
+     *
+     * Returns
+     *     Stream session key
+     */
+    const StreamSessionKey *(*get_key_from_session_ptr)(const void *);
 
     /* Delete the session if it is in the closed session state.
      *

@@ -1,5 +1,5 @@
 /*
- ** Copyright (C) 1998-2012 Sourcefire, Inc.
+ ** Copyright (C) 1998-2013 Sourcefire, Inc.
  **
  ** Writen by Bhagyashree Bantwal <bbantwal@sourcefire.com>
  **

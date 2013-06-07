@@ -1,5 +1,5 @@
 /*
-** Copyright (C) 2005-2012 Sourcefire, Inc.
+** Copyright (C) 2005-2013 Sourcefire, Inc.
 ** Copyright (C) 1998-2005 Martin Roesch <roesch@sourcefire.com>
 **
 ** This program is free software; you can redistribute it and/or modify

@@ -1,5 +1,5 @@
 /*
-** Copyright (C) 2006-2012 Sourcefire, Inc.
+** Copyright (C) 2006-2013 Sourcefire, Inc.
 **
 ** This program is free software; you can redistribute it and/or modify
 ** it under the terms of the GNU General Public License Version 2 as
@@ -104,8 +104,6 @@ extern volatile int attribute_reload_thread_running;
 extern volatile int attribute_reload_thread_stop;
 extern int reload_attribute_table_flags;
 extern const struct timespec thread_sleep;
-
-static const unsigned MAX_SERVICES_PER_HOST = 10;
 
 /*****TODO: cleanup to use config directive *******/
 #define ATTRIBUTE_MAP_MAX_ROWS 1024
@@ -308,10 +306,12 @@ int SFAT_SetOSPolicy(char *policy_name, int attribute)
     switch (attribute)
     {
         case HOST_INFO_FRAG_POLICY:
-            SnortStrncpy(current_host->hostInfo.fragPolicyName, policy_name, STD_BUF);
+            SnortStrncpy(current_host->hostInfo.fragPolicyName, policy_name, 
+                sizeof(current_host->hostInfo.fragPolicyName));
             break;
         case HOST_INFO_STREAM_POLICY:
-            SnortStrncpy(current_host->hostInfo.streamPolicyName, policy_name, STD_BUF);
+            SnortStrncpy(current_host->hostInfo.streamPolicyName, policy_name,
+                sizeof(current_host->hostInfo.streamPolicyName));
             break;
     }
     return SFAT_OK;
@@ -320,19 +320,7 @@ int SFAT_SetOSPolicy(char *policy_name, int attribute)
 int SFAT_SetOSAttribute(AttributeData *data, int attribute)
 {
     SFAT_CHECKHOST;
-
-    switch (attribute)
-    {
-        case HOST_INFO_OS:
-            memcpy(&current_host->hostInfo.operatingSystem, data, sizeof(AttributeData));
-            break;
-        case HOST_INFO_VENDOR:
-            memcpy(&current_host->hostInfo.vendor, data, sizeof(AttributeData));
-            break;
-        case HOST_INFO_VERSION:
-            memcpy(&current_host->hostInfo.version, data, sizeof(AttributeData));
-            break;
-    }
+    // currently not using os, vendor, or version
     return SFAT_OK;
 }
 
@@ -409,32 +397,25 @@ int SFAT_SetApplicationAttribute(AttributeData *data, int attribute)
                 if ((endPtr == &data->value.s_value[0]) ||
                     (errno == ERANGE))
                 {
-                    current_app->port.value.l_value = 0;
+                    current_app->port = 0;
                     return SFAT_ERROR;
                 }
-                current_app->port.value.l_value = value;
+                current_app->port = value;
             }
             else
             {
-                current_app->port.value.l_value = data->value.l_value;
+                current_app->port = data->value.l_value;
             }
             break;
         case APPLICATION_ENTRY_IPPROTO:
-            memcpy(&current_app->ipproto, data, sizeof(AttributeData));
             /* Add IP Protocol to the reference list */
-            current_app->ipproto.attributeOrdinal = AddProtocolReference(data->value.s_value);
+            current_app->ipproto = AddProtocolReference(data->value.s_value);
             break;
         case APPLICATION_ENTRY_PROTO:
-            memcpy(&current_app->protocol, data, sizeof(AttributeData));
             /* Add Application Protocol to the reference list */
-            current_app->protocol.attributeOrdinal = AddProtocolReference(data->value.s_value);
+            current_app->protocol = AddProtocolReference(data->value.s_value);
             break;
-        case APPLICATION_ENTRY_APPLICATION:
-            memcpy(&current_app->application, data, sizeof(AttributeData));
-            break;
-        case APPLICATION_ENTRY_VERSION:
-            memcpy(&current_app->version, data, sizeof(AttributeData));
-            break;
+        // currently not using application or version
         default:
             attribute = 0;
     }
@@ -460,13 +441,6 @@ void PrintHostAttributeEntry(HostAttributeEntry *host)
             inet_ntoa(&host_addr),
             host->ipAddr.bits
             );
-    DebugMessage(DEBUG_ATTRIBUTE, "\tOS Information: %s(%d) %s(%d) %s(%d)\n",
-            host->hostInfo.operatingSystem.value.s_value,
-            host->hostInfo.operatingSystem.confidence,
-            host->hostInfo.vendor.value.s_value,
-            host->hostInfo.vendor.confidence,
-            host->hostInfo.version.value.s_value,
-            host->hostInfo.version.confidence);
     DebugMessage(DEBUG_ATTRIBUTE, "\tPolicy Information: frag:%s (%s %u) stream: %s (%s %u)\n",
             host->hostInfo.fragPolicyName, host->hostInfo.fragPolicySet ? "set":"unset", host->hostInfo.fragPolicy,
             host->hostInfo.fragPolicyName, host->hostInfo.streamPolicySet ? "set":"unset", host->hostInfo.streamPolicy);
@@ -474,26 +448,8 @@ void PrintHostAttributeEntry(HostAttributeEntry *host)
     for (i=0, app = host->services; app; app = app->next,i++)
     {
         DebugMessage(DEBUG_ATTRIBUTE, "\tService #%d:\n", i);
-        DebugMessage(DEBUG_ATTRIBUTE, "\t\tIPProtocol: %s(%d)\tPort: %s(%d)"
-                "\tProtocol %s(%d)\n",
-                app->ipproto.value.s_value,
-                app->ipproto.confidence,
-                app->port.value.s_value,
-                app->port.confidence,
-                app->protocol.value.s_value,
-                app->protocol.confidence);
-
-        if (app->fields & APPLICATION_ENTRY_APPLICATION)
-        {
-            DebugMessage(DEBUG_ATTRIBUTE, "\t\tApplication: %s(%d)\n",
-                app->application.value.s_value,
-                app->application.confidence);
-
-            if (app->fields & APPLICATION_ENTRY_VERSION)
-                DebugMessage(DEBUG_ATTRIBUTE, "\t\tVersion: %s(%d)\n",
-                    app->version.value.s_value,
-                    app->version.confidence);
-        }
+        DebugMessage(DEBUG_ATTRIBUTE, "\t\tIPProtocol: %s\tPort: %s\tProtocol %s\n",
+                app->ipproto, app->port, app->protocol);
     }
     if (i==0)
         DebugMessage(DEBUG_ATTRIBUTE, "\t\tNone\n");
@@ -502,29 +458,12 @@ void PrintHostAttributeEntry(HostAttributeEntry *host)
     for (i=0, app = host->clients; app; app = app->next,i++)
     {
         DebugMessage(DEBUG_ATTRIBUTE, "\tClient #%d:\n", i);
-        DebugMessage(DEBUG_ATTRIBUTE, "\t\tIPProtocol: %s(%d)\tProtocol %s(%d)\n",
-                app->ipproto.value.s_value,
-                app->ipproto.confidence,
-                app->protocol.value.s_value,
-                app->protocol.confidence);
+        DebugMessage(DEBUG_ATTRIBUTE, "\t\tIPProtocol: %s\tProtocol %s\n",
+                app->ipproto, app->protocol);
 
         if (app->fields & APPLICATION_ENTRY_PORT)
         {
-            DebugMessage(DEBUG_ATTRIBUTE, "\t\tPort: %s(%d)\n",
-                app->port.value.s_value,
-                app->port.confidence);
-        }
-
-        if (app->fields & APPLICATION_ENTRY_APPLICATION)
-        {
-            DebugMessage(DEBUG_ATTRIBUTE, "\t\tApplication: %s(%d)\n",
-                app->application.value.s_value,
-                app->application.confidence);
-
-            if (app->fields & APPLICATION_ENTRY_VERSION)
-                DebugMessage(DEBUG_ATTRIBUTE, "\t\tVersion: %s(%d)\n",
-                    app->version.value.s_value,
-                    app->version.confidence);
+            DebugMessage(DEBUG_ATTRIBUTE, "\t\tPort: %s\n", app->port);
         }
     }
     if (i==0)
@@ -866,10 +805,11 @@ void *SFAT_ReloadAttributeTableThread(void *arg)
                 /* Initialize a new lookup table */
                 if (!pConfig->next.lookupTable)
                 {
-                    /* Add 1 to max for table purposes */
+                    /* Add 1 to max for table purposes
+                     * We use max_hosts to limit memcap, assume 16k per entry costs*/
                     pConfig->next.lookupTable =
-                        sfrt_new(DIR_16x7_4x4, IPv6, ScMaxAttrHosts() + 1,
-                                 sizeof(HostAttributeEntry) * 200);
+                        sfrt_new(DIR_8x16, IPv6, ScMaxAttrHosts() + 1,
+                                ((ScMaxAttrHosts())>>6) + 1);
                     if (!pConfig->next.lookupTable)
                     {
                         SnortSnprintf(sfat_error_message, STD_BUF,
@@ -998,10 +938,11 @@ int SFAT_ParseAttributeTable(char *args)
     /* Initialize lookup table */
     if (!pConfig->next.lookupTable)
     {
-        /* Add 1 to max for table purposes */
+        /* Add 1 to max for table purposes
+         * We use max_hosts to limit memcap, assume 16k per entry costs*/
         pConfig->next.lookupTable =
-            sfrt_new(DIR_16x7_4x4, IPv6, ScMaxAttrHosts() + 1,
-                     sizeof(HostAttributeEntry) * 200);
+            sfrt_new(DIR_8x16, IPv6, ScMaxAttrHosts() + 1,
+                    ((ScMaxAttrHosts())>>6)+ 1);
         if (!pConfig->next.lookupTable)
         {
             FatalError("Failed to initialize attribute table memory\n");
@@ -1165,8 +1106,7 @@ void SFAT_UpdateApplicationProtocol(sfip_t *ipAddr, uint16_t port, uint16_t prot
     {
         for (service = host_entry->services; service; service = service->next)
         {
-            if (service->ipproto.attributeOrdinal == protocol &&
-                (uint16_t)service->port.value.l_value == port)
+            if (service->ipproto == protocol && (uint16_t)service->port == port)
             {
                 break;
             }
@@ -1175,27 +1115,19 @@ void SFAT_UpdateApplicationProtocol(sfip_t *ipAddr, uint16_t port, uint16_t prot
     }
     if (!service)
     {
-        if ( service_count >= MAX_SERVICES_PER_HOST )
+        if ( service_count >= ScMaxAttrServicesPerHost() )
             return;
 
         service = SnortAlloc(sizeof(*service));
-        service->port.attributeOrdinal = port;
-        service->port.value.l_value = port;
-        service->ipproto.attributeOrdinal = protocol;
-        service->ipproto.value.l_value = protocol;
+        service->port = port;
+        service->ipproto = protocol;
         service->next = host_entry->services;
         host_entry->services = service;
-        service->protocol.attributeOrdinal = id;
-        service->protocol.value.l_value = id;
+        service->protocol = id;
     }
-    else if (service->protocol.attributeOrdinal != id)
+    else if (service->protocol != id)
     {
-        service->protocol.attributeOrdinal = id;
-        service->protocol.value.l_value = id;
-        service->application.value.l_value = 0;
-        service->application.attributeOrdinal = 0;
-        service->version.value.l_value = 0;
-        service->version.attributeOrdinal = 0;
+        service->protocol = id;
     }
 }
 

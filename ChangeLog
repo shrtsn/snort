@@ -1,9 +1,196 @@
-Snort 2.9.4
-	* src/build.h:
- 	  Updated build number to 40.
+2013-02-19 Bhagyashree Bantwal <bbantwal@sourcefire.com>
+Snort 2.9.4.1
+	* src/build.h: updating build number to 69
+
+	* src/preprocessors/Stream5/snort_stream5_tcp.c: 
+	  Only check for TCP Window Slam on client packets.
+
+	* src/: control/sfcontrol.c, control/sfcontrol.h,
+	  preprocessors/spp_stream5.c, preprocessors/stream_api.h,
+	  preprocessors/Stream5/snort_stream5_session.c,
+	  preprocessors/Stream5/stream5_common.h 
+	  Add a stream API function to return a session key given a session.
+	  Expose the session key
 
 	* src/target-based/sftarget_reader.c:
-	  Hard limit on the number of services per host to at most 10.
+	  Change routing table layout for ip6 attribute lookups to 
+	  be more space efficient
+
+	* src/preprocessors/spp_frag3.c:
+	  Forcibly drop excessive overlaps
+
+	* src/preprocessors/spp_frag3.c:
+	  Propagate address_space_id from raw packet to frag3 
+          rebuilt packet DAQ header
+
+	* src/: encode.c, encode.h,
+	  preprocessors/Stream5/snort_stream5_tcp.c:
+	  Update packet encoding to propagate the address_space_id in DAQ header
+
+	* configure.in, src/decode.c:
+	  Define NO_NON_ETHER_DECODER by default in Snort builds. Add
+	  --enable-non-ether-decoders as a configure flag.
+
+	* src/dynamic-preprocessors/: pop/snort_pop.c, pop/snort_pop.h,
+	  smtp/snort_smtp.c, smtp/snort_smtp.h:
+	  Use MIME boundary for end of file indication even for the last file
+
+	* src/dynamic-preprocessors/reputation/spp_reputation.c:
+	  only inspect ingress zone for passive interface.
+
+	* doc/README.reputation: 
+	* src/dynamic-preprocessors/reputation/shmem/shmem_mgmt.c:
+	  When a writer is in read mode, the size should be the shared 
+          memory segment size.
+
+	* src/: control/sfcontrol.c, control/sfcontrol.h,
+	  dynamic-preprocessors/reputation/spp_reputation.c:
+	  Only decode outer header in main control section. Payload is handled by the handler.
+
+	* src/dynamic-preprocessors/reputation/: spp_reputation.c
+	  shmem/shmem_mgmt.c:
+	  update share memory for snort readers that are idle.
+
+	* src/parser.c:
+	  make sure otn is different from original and and that option functions weren't
+	  already freed before freeing the dup list.
+
+	* src/dynamic-preprocessors/: smtp/spp_smtp.c, imap/spp_imap.c,
+	  pop/spp_pop.c:
+	  Initialize file depth to all the policies, not just default
+	  policy
+
+	* src/dynamic-preprocessors/: pop/spp_pop.c, smtp/snort_smtp.c,
+	  imap/spp_imap.c:
+	  check whether mime decoding is disabled before allocating memory.
+
+	* doc/: snort_manual.pdf, snort_manual.tex:
+	  changed doc default to 10 max_attribute_services_per_host.
+
+	* src/: parser.c, parser.h, snort.c, snort.h,
+	  preprocessors/spp_frag3.c,
+	  preprocessors/Stream5/snort_stream5_tcp.c,
+	  target-based/sftarget_hostentry.c,
+	  target-based/sftarget_reader.c, target-based/sftarget_reader.h:
+	  remove unused AttributeData and change attribute table to use uints instead of
+	  AttributeData to reduce host/service from 5208/5192 to 80/16
+	  bytes respectively.  Add config max_attribute_services_per_host
+	  to change from default of 10.  Unused AttributeData includes
+	  operating system, vendor, and version for host and application
+	  and version for service.  Note that the data is still parsed from
+	  hosts.xml but not actually stored in memory.	Also tweak some
+	  stream5 debug code that threw warnings.
+
+	* src/: file-process/file_service.c,
+	  preprocessors/snort_httpinspect.c:
+	  avoid processing partial HTTP content.
+
+	* src/: encode.c, encode.h,
+	  preprocessors/Stream5/snort_stream5_tcp.c:
+	  Make sure daq supports zones and interfaces in the daq header.
+
+	* src/: encode.c, encode.h,
+	  preprocessors/Stream5/snort_stream5_tcp.c:
+	  Maintain ingress and egress interfaces and zones and daq flags 
+	  in the tcp session to be used to populate reassembled packets correctly.
+	* src/build.h: updating build number to 69
+
+	* src/preprocessors/Stream5/snort_stream5_tcp.c: 
+	  Only check for TCP Window Slam on client packets.
+
+	* src/: control/sfcontrol.c, control/sfcontrol.h,
+	  preprocessors/spp_stream5.c, preprocessors/stream_api.h,
+	  preprocessors/Stream5/snort_stream5_session.c,
+	  preprocessors/Stream5/stream5_common.h 
+	  Add a stream API function to return a session key given a session.
+	  Expose the session key
+
+	* src/target-based/sftarget_reader.c:
+	  Change routing table layout for ip6 attribute lookups to 
+	  be more space efficient
+
+	* src/preprocessors/spp_frag3.c:
+	  Forcibly drop excessive overlaps
+
+	* src/preprocessors/spp_frag3.c:
+	  Propagate address_space_id from raw packet to frag3 
+          rebuilt packet DAQ header
+
+	* src/: encode.c, encode.h,
+	  preprocessors/Stream5/snort_stream5_tcp.c:
+	  Update packet encoding to propagate the address_space_id in DAQ header
+
+	* configure.in, src/decode.c:
+	  Define NO_NON_ETHER_DECODER by default in Snort builds. Add
+	  --enable-non-ether-decoders as a configure flag.
+
+	* src/dynamic-preprocessors/: pop/snort_pop.c, pop/snort_pop.h,
+	  smtp/snort_smtp.c, smtp/snort_smtp.h:
+	  Use MIME boundary for end of file indication even for the last file
+
+	* src/dynamic-preprocessors/reputation/spp_reputation.c:
+	  only inspect ingress zone for passive interface.
+
+	* doc/README.reputation: 
+	* src/dynamic-preprocessors/reputation/shmem/shmem_mgmt.c:
+	  When a writer is in read mode, the size should be the shared 
+          memory segment size.
+
+	* src/: control/sfcontrol.c, control/sfcontrol.h,
+	  dynamic-preprocessors/reputation/spp_reputation.c:
+	  Only decode outer header in main control section. Payload is handled by the handler.
+
+	* src/dynamic-preprocessors/reputation/: spp_reputation.c
+	  shmem/shmem_mgmt.c:
+	  update share memory for snort readers that are idle.
+
+	* src/parser.c:
+	  make sure otn is different from original and and that option functions weren't
+	  already freed before freeing the dup list.
+
+	* src/dynamic-preprocessors/: smtp/spp_smtp.c, imap/spp_imap.c,
+	  pop/spp_pop.c:
+	  Initialize file depth to all the policies, not just default
+	  policy
+
+	* src/dynamic-preprocessors/: pop/spp_pop.c, smtp/snort_smtp.c,
+	  imap/spp_imap.c:
+	  check whether mime decoding is disabled before allocating memory.
+
+	* doc/: snort_manual.pdf, snort_manual.tex:
+	  changed doc default to 10 max_attribute_services_per_host.
+
+	* src/: parser.c, parser.h, snort.c, snort.h,
+	  preprocessors/spp_frag3.c,
+	  preprocessors/Stream5/snort_stream5_tcp.c,
+	  target-based/sftarget_hostentry.c,
+	  target-based/sftarget_reader.c, target-based/sftarget_reader.h:
+	  remove unused AttributeData and change attribute table to use uints instead of
+	  AttributeData to reduce host/service from 5208/5192 to 80/16
+	  bytes respectively.  Add config max_attribute_services_per_host
+	  to change from default of 10.  Unused AttributeData includes
+	  operating system, vendor, and version for host and application
+	  and version for service.  Note that the data is still parsed from
+	  hosts.xml but not actually stored in memory.	Also tweak some
+	  stream5 debug code that threw warnings.
+
+	* src/: file-process/file_service.c,
+	  preprocessors/snort_httpinspect.c:
+	  avoid processing partial HTTP content.
+
+	* src/: encode.c, encode.h,
+	  preprocessors/Stream5/snort_stream5_tcp.c:
+	  Make sure daq supports zones and interfaces in the daq header.
+
+	* src/: encode.c, encode.h,
+	  preprocessors/Stream5/snort_stream5_tcp.c:
+	  Maintain ingress and egress interfaces and zones and daq flags 
+	  in the tcp session to be used to populate reassembled packets correctly.
+
+2012-10-30 Steven Sturges <ssturges@sourcefire.com>
+Snort 2.9.4
+	* src/build.h:
+	  updating build number to 37
 
 	* doc/README.counts, doc/snort_manual.tex, doc/snort_manual.pdf,
 	  src/active.c, src/active.h, src/decode.c, src/parser.c,
@@ -14,16 +201,6 @@ Snort 2.9.4
 	* src/dynamic-preprocessors/smtp/: snort_smtp.c, snort_smtp.h:
 	  Handle MS Exchange X-EXPS and XEXCH50 commands in the SMTP
 	  preprocessor.
-
-        * src/file-process/libs/file_lib.c:
-          Ensure that the file context is initialized for mid-file and
-          end-of-file processing.
-
-        * src/dynamic-plugins/attribute_table_api.h,
-          target-based/sftarget_protocol_reference.c, sftarget_protocol_reference.h,
-          preprocessors/spp_frag3.c, spp_stream5.c
-          Add an API call to add a service to a host in the attribute map.
-          the unused live attribute map.
 
 2012-10-16 Steven Sturges <ssturges@sourcefire.com>
 Snort 2.9.4 RC

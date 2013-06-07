@@ -3,7 +3,7 @@
 **
 **  profiler.c
 **
-**  Copyright (C) 2005-2012 Sourcefire, Inc.
+**  Copyright (C) 2005-2013 Sourcefire, Inc.
 **  Steven Sturges <ssturges@sourcefire.com>
 **
 **  This program is free software; you can redistribute it and/or modify

@@ -1,50 +1,18 @@
-2012-11-15 - Snort 2.9.4
-[*] New additions
-
- * Consolidation of IPv6 -- now only a single build supports both
-   IPv4 & IPv6, and removal of the IPv4 "only" code paths.
-
- * File API and improvements to file processing for HTTP downloads
-   and email attachments via SMTP, POP, and IMAP to facilitate
-   broader file support
- 
- * Use of address space ID for tracking Frag & Stream connections
-   when it is available with the DAQ
-
- * Logging of packet data that triggers PPM for post-analysis via
-   Snort event
-
- * Decoding of IPv6 with PPPoE
-
- * Add an API call to add a service to a host in the attribute map.
-   Remove the unused live attribute map.
-
+2013-02-27 - Snort 2.9.4.1
 [*] Improvements
 
- * Update to Stream5 PAF for handling gaps in the sequence numbers of
-   packets being reassembled.
+* Updated File processing for partial HTTP content and MIME attachments.
 
- * Selection of the Stream TCP policy based on the server rather than
-   the destination of first packet seen by Snort
+* Addition of new config option max_attribute_services_per_host and
+improve memory usage within attribute table.
 
- * Allow disabling of global thresholds via a count of -1
+* Handle excessive overlaps in frag3.
 
- * Prevent blocking duplicate SYNs when using inline normalization
- 
- * Add SSLv3 backwards compatibility support for SSLv2 ClientHello
-   messages
+* Stream API updates to return session key for a session.
 
- * Allow active responses to packets without data (eg, a TCP SYN)
+* Reduce false positives for TCP window slam events.
 
- * Changed logic of option evaluations for shared library rules that
-   use a custom evaluation function to match that of the builtin logic
-   when the NOT_FLAG is used.  The 'NOT' matching now happens within
-   each of the individual rule option evaluation functions.
+* Updates to provide better encoding for TCP packets generated for respond and react.
 
- * Updated SMTP preprocessor to better handle commands that have
-   corresponding data on a subsequent line to reduce false positives.
-   3 commands fall into this category - X-EXPS, XEXCH50, and BDAT.
-
- * Improve support for encapsulated & tunneling protocols to block or
-   fastpath a connection within the tunnel rather applying that to
-   the whole tunnel.
+* Disable non-ethernet decoders by default for performance reasons.
+If needed, use --enable-non-ether-decoders with configure.

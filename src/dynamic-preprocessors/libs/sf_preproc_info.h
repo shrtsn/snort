@@ -1,7 +1,7 @@
 /*
  * sf_preproc_info.h
  *
- * Copyright (C) 2006-2011 Sourcefire,Inc
+ * Copyright (C) 2006-2013 Sourcefire,Inc
  * Steven A. Sturges <ssturges@sourcefire.com>
  *
  * This program is free software; you can redistribute it and/or modify

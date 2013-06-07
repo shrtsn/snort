@@ -9,7 +9,7 @@
  */
 
 /*
- ** Copyright (C) 2004-2012 Sourcefire, Inc.
+ ** Copyright (C) 2004-2013 Sourcefire, Inc.
  **
  ** This program is free software; you can redistribute it and/or modify
  ** it under the terms of the GNU General Public License Version 2 as
@@ -1309,15 +1309,11 @@ int FragPolicyIdFromHostAttributeEntry(HostAttributeEntry *host_entry)
     host_entry->hostInfo.fragPolicy = FragPolicyIdFromName(host_entry->hostInfo.fragPolicyName);
     host_entry->hostInfo.fragPolicySet = 1;
 
-    DEBUG_WRAP(
-        DebugMessage(DEBUG_FRAG,
-            "Frag3 INIT: %s(%d) for Entry %s:%s:%s (%s)\n",
-            frag_policy_names[host_entry->hostInfo.fragPolicy],
-            host_entry->hostInfo.fragPolicy,
-            host_entry->hostInfo.operatingSystem.value.s_value,
-            host_entry->hostInfo.vendor.value.s_value,
-            host_entry->hostInfo.version.value.s_value,
-            host_entry->hostInfo.fragPolicyName););
+    DEBUG_WRAP(DebugMessage(DEBUG_FRAG,
+        "Frag3 INIT: %s(%d) for Entry %s\n",
+        frag_policy_names[host_entry->hostInfo.fragPolicy],
+        host_entry->hostInfo.fragPolicy,
+        host_entry->hostInfo.fragPolicyName););
 
     return 0;
 }
@@ -2444,11 +2440,9 @@ int FragGetPolicy(Packet *p, Frag3Context *f3context)
         if (frag_policy != SFAT_UNKNOWN_FRAG_POLICY)
         {
             DEBUG_WRAP(DebugMessage(DEBUG_FRAG,
-                "FragGetPolicy: Policy Map Entry: %s %s %s %d(%s)\n",
-                host_entry->hostInfo.vendor.value.s_value,
-                host_entry->hostInfo.operatingSystem.value.s_value,
-                host_entry->hostInfo.version.value.s_value,
+                "FragGetPolicy: Policy Map Entry: %d(%s)\n",
                 frag_policy, frag_policy_names[frag_policy]););
+
             return frag_policy;
         }
     }

@@ -1,7 +1,7 @@
 /* $Id$ */
 /****************************************************************************
  *
- * Copyright (C) 2005-2012 Sourcefire, Inc.
+ * Copyright (C) 2005-2013 Sourcefire, Inc.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License Version 2 as
@@ -132,7 +132,7 @@ static void DoHeartbeat()
 void ForceShutdown()
 {
     int currActiveSegment;
-    _dpd.logMsg("    Repuation Preprocessor: Shared memory is disabled. \n");
+    _dpd.logMsg("    Reputation Preprocessor: Shared memory is disabled. \n");
     if (!mgmt_ptr)
         return;
     mgmt_ptr->instance[shmusr_ptr->instance_num].shmemCurrPtr =
@@ -281,6 +281,7 @@ static int MapShmemDataSegmentForWriter(uint32_t size, uint32_t disk_version, in
             DEBUG_WRAP(DebugMessage(DEBUG_REPUTATION,
                 "Attaching to segment %d\n", available_segment););
             *mode = READ;
+            size = mgmt_ptr->segment[available_segment].size;
         }
         else
         {

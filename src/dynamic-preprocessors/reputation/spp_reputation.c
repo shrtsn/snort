@@ -1,7 +1,7 @@
 /* $Id */
 
 /*
- ** Copyright (C) 2011-2012 Sourcefire, Inc.
+ ** Copyright (C) 2011-2013 Sourcefire, Inc.
  **
  **
  ** This program is free software; you can redistribute it and/or modify
@@ -141,19 +141,28 @@ static int Reputation_Lookup(uint16_t type, const uint8_t *data, uint32_t length
     snort_ip addr;
     IPrepInfo *repInfo = NULL;
     char *tokstr, *save, *data_copy;
+    CSMessageDataHeader *msg_hdr = (CSMessageDataHeader *)data;
 
     statusBuf[0] = 0;
 
-    if (!length)
+    if (length <= sizeof(*msg_hdr))
+    {
+        return -1;
+    }
+    length -= sizeof(*msg_hdr);
+    if (length != (uint32_t)ntohs(msg_hdr->length))
     {
         return -1;
     }
 
-    data_copy = strdup((const char *)data);
+    data += sizeof(*msg_hdr);
+    data_copy = malloc(length + 1);
     if (data_copy == NULL)
     {
         return -1;
     }
+    memcpy(data_copy, data, length);
+    data_copy[length] = 0;
 
     tokstr = strtok_r(data_copy, " \t\n", &save);
     if (tokstr == NULL)
@@ -286,10 +295,10 @@ static int Reputation_PreControl(uint16_t type, const uint8_t *data, uint32_t le
     {
         *new_config = nextConfig;
         nextConfig->segment_version = available_segment;
-        _dpd.logMsg("    Repuation Preprocessor: Received segment %d\n",
+        _dpd.logMsg("    Reputation Preprocessor: Received segment %d\n",
                 available_segment);
         if (!statusBuf[0])
-            snprintf(statusBuf,statusBufLen, "Repuation Preprocessor: Received segment %d successful", available_segment);
+            snprintf(statusBuf,statusBufLen, "Reputation Preprocessor: Received segment %d successful", available_segment);
     }
     else
     {
@@ -353,7 +362,7 @@ static void ReputationMaintenanceCheck(int signal, void *data)
         if ((SWITCHED == switch_state) && reputation_eval_config &&
                 (reputation_eval_config->iplist == (table_flat_t *)*IPtables))
         {
-            _dpd.logMsg("    Repuation Preprocessor: Instance %d switched to segment_version %d\n",
+            _dpd.logMsg("    Reputation Preprocessor: Instance %d switched to segment_version %d\n",
                     _dpd.getSnortInstance(), available_segment);
             UnmapInactiveSegments();
             switch_state = NO_SWITCH;
@@ -372,17 +381,30 @@ static void ReputationMaintenanceCheck(int signal, void *data)
         else if ((SWITCHED == switch_state) && reputation_eval_config &&
                 (reputation_eval_config->iplist == (table_flat_t *)*IPtables))
         {
-            _dpd.logMsg("    Repuation Preprocessor: Instance %d switched to segment_version %d\n",
+            _dpd.logMsg("    Reputation Preprocessor: Instance %d switched to segment_version %d\n",
                     _dpd.getSnortInstance(), available_segment);
             UnmapInactiveSegments();
             switch_state = NO_SWITCH;
         }
     }
 }
+
+/*Switch for idle*/
+static void ReputationShmemSwitch(void)
+{
+    if (switch_state == NO_SWITCH)
+        return;
+
+    reputation_eval_config = sfPolicyUserDataGetDefault(reputation_config);
+
+    if (reputation_eval_config)
+        reputation_eval_config->iplist = (table_flat_t *)*IPtables;
+}
+
 void SetupReputationUpdate(uint32_t updateInterval)
 {
     _dpd.addPeriodicCheck(ReputationMaintenanceCheck,NULL, PRIORITY_FIRST, PP_REPUTATION, updateInterval);
-
+    _dpd.registerIdleHandler(ReputationShmemSwitch);
     /*Only writer or server has control channel*/
     if (SHMEM_SERVER_ID == _dpd.getSnortInstance())
     {
@@ -515,7 +537,11 @@ static inline IPdecision GetReputation(  IPrepInfo * repInfo,
     if (p->pkt_header)
     {
         ingressZone = p->pkt_header->ingress_group;
-        egressZone = p->pkt_header->egress_group;
+        if (p->pkt_header->egress_index < 0)
+            egressZone = ingressZone;
+        else
+            egressZone = p->pkt_header->egress_group;
+
 #ifdef REG_TEST
         createZones(&ingressZone,&egressZone,p);
 #endif
@@ -765,9 +791,7 @@ static void ReputationMain( void* ipacketp, void* contextp )
     }
 
 
-    sfPolicyUserPolicySet (reputation_config, runtimePolicyId);
-
-    reputation_eval_config = sfPolicyUserDataGetCurrent(reputation_config);
+    reputation_eval_config = sfPolicyUserDataGetDefault(reputation_config);
 
     PREPROC_PROFILE_START(reputationPerfStats);
     /*

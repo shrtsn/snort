@@ -113,7 +113,7 @@ Copyright \copyright 1998-2003 Martin Roesch
 
 Copyright \copyright 2001-2003 Chris Green
 
-Copyright \copyright 2003-2012 Sourcefire, Inc.
+Copyright \copyright 2003-2013 Sourcefire, Inc.
 
 \tableofcontents{}
 
@@ -2223,6 +2223,15 @@ maximum is 524288 (512k).  The default is 10000.  If the number of hosts in the
 attribute table exceeds this value, an error is logged and the remainder of the
 hosts are ignored.  This option is only supported with a Host Attribute Table
 (see section \ref{targetbased}). \\
+
+\hline
+\texttt{config max\_attribute\_services\_per\_host: <hosts>} & Sets a per host
+limit on the maximum number of services to read from the attribute table.
+Minimum value is 1 and the maximum is 65535.  The default is 10.  For a given
+host, if the number of services in the attribute table exceeds this value, an
+error is logged and the remainder of the services for that host are ignored.
+This option is only supported with a Host Attribute Table (see section
+\ref{targetbased}). \\
 
 \hline
 \texttt{config max\_mpls\_labelchain\_len: <num-hdrs>} & Sets a Snort-wide
@@ -12601,7 +12610,7 @@ With Snort 2.8.1, for a given host entry, the stream and IP frag information
 are both used.  Of the service attributes, only the IP protocol (tcp, udp,
 etc), port, and protocol (http, ssh, etc) are used.  The application and
 version for a given service attribute, and any client attributes are ignored.
-They will be used in a future release.
+They may be used in a future release.
 
 \end{note}
 
@@ -12902,6 +12911,7 @@ config flowbits_size
 config interface
 config logdir
 config max_attribute_hosts
+config max_attribute_services_per_host
 config nolog
 config no_promisc
 config pkt_count

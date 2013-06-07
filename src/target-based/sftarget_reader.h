@@ -1,5 +1,5 @@
 /*
-** Copyright (C) 2006-2012 Sourcefire, Inc.
+** Copyright (C) 2006-2013 Sourcefire, Inc.
 **
 ** This program is free software; you can redistribute it and/or modify
 ** it under the terms of the GNU General Public License Version 2 as
@@ -72,15 +72,16 @@ typedef struct _AttributeData
 #define APPLICATION_ENTRY_PROTO 0x04
 #define APPLICATION_ENTRY_APPLICATION 0x08
 #define APPLICATION_ENTRY_VERSION 0x10
+
 typedef struct _ApplicationEntry
 {
-    AttributeData port;
-    AttributeData ipproto;
-    AttributeData protocol;
-    AttributeData application;
-    AttributeData version;
-    uint8_t fields;
     struct _ApplicationEntry *next;
+
+    uint16_t port;
+    uint16_t ipproto;
+    uint16_t protocol;
+
+    uint8_t fields;
 } ApplicationEntry;
 
 typedef ApplicationEntry ApplicationList;
@@ -94,16 +95,14 @@ typedef ApplicationEntry ApplicationList;
 #define POLICY_NOT_SET 0
 typedef struct _HostInfo
 {
-    AttributeData operatingSystem;
-    AttributeData vendor;
-    AttributeData version;
+    char streamPolicyName[16];
+    char fragPolicyName[16];
+
+    uint16_t streamPolicy;
+    uint16_t fragPolicy;
 
     char streamPolicySet;
-    uint16_t streamPolicy;
-    char streamPolicyName[STD_BUF];
     char fragPolicySet;
-    uint16_t fragPolicy;
-    char fragPolicyName[STD_BUF];
 } HostInfo;
 
 #define SFAT_SERVICE 1

@@ -1,6 +1,6 @@
 /* $Id$ */
 /*
-** Copyright (C) 2002-2012 Sourcefire, Inc.
+** Copyright (C) 2002-2013 Sourcefire, Inc.
 ** Copyright (C) 1998-2002 Martin Roesch <roesch@sourcefire.com>
 ** Copyright (C) 2000,2001 Andrew R. Baker <andrewb@uab.edu>
 **
@@ -689,6 +689,7 @@ static const ConfigFunc config_opts[] =
     { CONFIG_OPT__DIRTY_PIG, 0, 1, 1, ConfigDirtyPig },
 #ifdef TARGET_BASED
     { CONFIG_OPT__MAX_ATTRIBUTE_HOSTS, 1, 1, 1, ConfigMaxAttributeHosts },
+    { CONFIG_OPT__MAX_ATTRIBUTE_SERVICES_PER_HOST, 1, 1, 1, ConfigMaxAttributeServicesPerHost },
     { CONFIG_OPT__MAX_METADATA_SERVICES, 1, 1, 1, ConfigMaxMetadataServices },
     { CONFIG_OPT__DISABLE_ATTRIBUTE_RELOAD, 0, 1, 1, ConfigDisableAttributeReload },
 #endif
@@ -4676,7 +4677,9 @@ int CheckRuleStates(SnortConfig *sc)
                             OptTreeNode *otn_original;
                             otn_original = SoRuleOtnLookup(sc->so_rule_otn_map,
                                 otn->sigInfo.otnKey.gid, otn->sigInfo.otnKey.sid);
-                            if (otn_original)
+
+                            if ( otn_original && (otn != otn_original) &&
+                                !otn->sigInfo.dup_opt_func )
                             {
                                 OptFpList *opt_func = otn->opt_func;
                                 while (opt_func != NULL)
@@ -7689,6 +7692,30 @@ void ConfigMaxAttributeHosts(SnortConfig *sc, char *args)
     }
 
     sc->max_attribute_hosts = val;
+}
+
+void ConfigMaxAttributeServicesPerHost(SnortConfig *sc, char *args)
+{
+    uint32_t val = 0;
+    char *endp;
+
+    if ((sc == NULL) || (args == NULL))
+        return;
+
+    val = strtoul(args, &endp, 10);
+    if (args == endp || *endp || (val == 0))
+    {
+        ParseError("max_attribute_services_per_host: Invalid number of services '%s'.  Must "
+                   "be unsigned positive integer value.", args);
+    }
+    if ((val > MAX_MAX_ATTRIBUTE_SERVICES_PER_HOST) || (val < MIN_MAX_ATTRIBUTE_SERVICES_PER_HOST))
+    {
+        ParseError("max_atttribute_services_per_host: Invalid number of services %s'.  "
+                   "Must be between %d and %d.", args,
+                   MIN_MAX_ATTRIBUTE_SERVICES_PER_HOST, MAX_MAX_ATTRIBUTE_SERVICES_PER_HOST);
+    }
+
+    sc->max_attribute_services_per_host = val;
 }
 
 void ConfigMaxMetadataServices(SnortConfig *sc, char *args)

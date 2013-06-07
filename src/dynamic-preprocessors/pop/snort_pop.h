@@ -1,6 +1,6 @@
 /****************************************************************************
  *
- * Copyright (C) 2011-2012 Sourcefire, Inc.
+ * Copyright (C) 2011-2013 Sourcefire, Inc.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License Version 2 as
@@ -87,6 +87,7 @@
 #define POP_FLAG_IN_CONT_TRANS_ENC          0x00000010
 #define POP_FLAG_EMAIL_ATTACH               0x00000020
 #define POP_FLAG_MULTIPLE_EMAIL_ATTACH      0x00000040
+#define POP_FLAG_MIME_END                   0x00000800
 
 /* session flags */
 #define POP_FLAG_NEXT_STATE_UNKNOWN         0x00000004

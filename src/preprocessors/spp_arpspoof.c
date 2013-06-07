@@ -1,6 +1,6 @@
 /* $Id$ */
 /*
-** Copyright (C) 2004-2012 Sourcefire, Inc.
+** Copyright (C) 2004-2013 Sourcefire, Inc.
 ** Copyright (C) 2001-2004 Jeff Nathan <jeff@snort.org>
 **
 ** This program is free software; you can redistribute it and/or modify

@@ -1,6 +1,6 @@
 /****************************************************************************
  *
- * Copyright (C) 2005-2012 Sourcefire, Inc.
+ * Copyright (C) 2005-2013 Sourcefire, Inc.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License Version 2 as
@@ -105,7 +105,8 @@
 #define SMTP_FLAG_MULTIPLE_EMAIL_ATTACH      0x00000100
 #define SMTP_FLAG_IN_CONT_DISP               0x00000200
 #define SMTP_FLAG_IN_CONT_DISP_CONT          0x00000400
-#define SMTP_FLAG_BDAT                       0x00000800
+#define SMTP_FLAG_MIME_END                   0x00000800
+#define SMTP_FLAG_BDAT                       0x00001000
 
 /* log flags */
 #define SMTP_FLAG_MAIL_FROM_PRESENT          0x00000001

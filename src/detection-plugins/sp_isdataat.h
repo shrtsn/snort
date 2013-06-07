@@ -1,5 +1,5 @@
 /*
-** Copyright (C) 2003-2012 Sourcefire, Inc.
+** Copyright (C) 2003-2013 Sourcefire, Inc.
 ** 
 ** Brian Caswell <bmc@snort.org>
 **

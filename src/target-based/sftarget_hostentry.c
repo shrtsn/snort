@@ -1,5 +1,5 @@
 /*
-** Copyright (C) 2006-2012 Sourcefire, Inc.
+** Copyright (C) 2006-2013 Sourcefire, Inc.
 **
 ** This program is free software; you can redistribute it and/or modify
 ** it under the terms of the GNU General Public License Version 2 as
@@ -40,16 +40,11 @@ int hasService(HostAttributeEntry *host_entry,
 
     for (service = host_entry->services; service; service = service->next)
     {
-        if (ipprotocol && (service->ipproto.attributeOrdinal == ipprotocol))
+        if (ipprotocol && (service->ipproto == ipprotocol))
         {
-            if (protocol && (service->protocol.attributeOrdinal == protocol))
+            if (protocol && (service->protocol == protocol))
             {
-                if (application && (service->application.attributeOrdinal == application))
-                {
-                    /* match of ipproto, proto, & application */
-                    return SFTARGET_MATCH;
-                }
-                else if (!application)
+                if (!application)
                 {
                     /* match of ipproto, proto.
                      * application not speicifed */
@@ -81,16 +76,11 @@ int hasClient(HostAttributeEntry *host_entry,
 
     for (client = host_entry->clients; client; client = client->next)
     {
-        if (ipprotocol && (client->ipproto.attributeOrdinal == ipprotocol))
+        if (ipprotocol && (client->ipproto == ipprotocol))
         {
-            if (protocol && (client->protocol.attributeOrdinal == protocol))
+            if (protocol && (client->protocol == protocol))
             {
-                if (application && (client->application.attributeOrdinal == application))
-                {
-                    /* match of ipproto, proto, & application */
-                    return SFTARGET_MATCH;
-                }
-                else if (!application)
+                if (!application)
                 {
                     /* match of ipproto, proto.
                      * application not speicifed */
@@ -182,11 +172,11 @@ int getApplicationProtocolId(HostAttributeEntry *host_entry,
     {
         for (application = host_entry->services; application; application = application->next)
         {
-            if (application->ipproto.attributeOrdinal == ipprotocol)
+            if (application->ipproto == ipprotocol)
             {
-                if ((uint16_t)application->port.value.l_value == port)
+                if ((uint16_t)application->port == port)
                 {
-                    return application->protocol.attributeOrdinal;
+                    return application->protocol;
                 }
             }
         }

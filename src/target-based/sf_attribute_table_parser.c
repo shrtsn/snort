@@ -6191,7 +6191,7 @@ int sfat_flex_debug = 0;
 char *sfattext;
 #line 1 "sf_attribute_table_parser.l"
 /*
-** Copyright (C) 2006-2009 Sourcefire, Inc.
+** Copyright (C) 2006-2013 Sourcefire, Inc.
 **
 ** This program is free software; you can redistribute it and/or modify
 ** it under the terms of the GNU General Public License Version 2 as

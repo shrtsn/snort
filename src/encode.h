@@ -1,7 +1,7 @@
 /* $Id$ */
 /****************************************************************************
  *
- * Copyright (C) 2005-2012 Sourcefire, Inc.
+ * Copyright (C) 2005-2013 Sourcefire, Inc.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License Version 2 as
@@ -70,6 +70,12 @@ void Encode_Delete(Packet*);
 
 // orig is the wire pkt; clone was obtained with New()
 int Encode_Format(EncodeFlags, const Packet* orig, Packet* clone, PseudoPacketType);
+
+#ifdef HAVE_DAQ_ADDRESS_SPACE_ID
+int Encode_Format_With_DAQ_Info (EncodeFlags f, const Packet* p, Packet* c, PseudoPacketType type,
+        int32_t ingress_index, int32_t ingress_group, int32_t egress_index, int32_t egress_group,
+        uint32_t daq_flags, uint16_t address_space_id);
+#endif
 
 // update length and checksum fields in layers and caplen, etc.
 void Encode_Update(Packet*);

@@ -1,5 +1,5 @@
 /*
-** Copyright (C) 2005-2012 Sourcefire, Inc.
+** Copyright (C) 2005-2013 Sourcefire, Inc.
 ** Copyright (C) 1998-2005 Martin Roesch <roesch@sourcefire.com>
 **
 ** This program is free software; you can redistribute it and/or modify
@@ -194,9 +194,12 @@
 # define ATTRIBUTE_TABLE_TAKEN_FLAG           0x08
 # define ATTRIBUTE_TABLE_PARSE_FAILED_FLAG    0x10
 # define DEFAULT_MAX_ATTRIBUTE_HOSTS   10000
+# define DEFAULT_MAX_ATTRIBUTE_SERVICES_PER_HOST  10
 # define DEFAULT_MAX_METADATA_SERVICES     8
 # define MAX_MAX_ATTRIBUTE_HOSTS   (512 * 1024)
 # define MIN_MAX_ATTRIBUTE_HOSTS    32
+# define MAX_MAX_ATTRIBUTE_SERVICES_PER_HOST   65535
+# define MIN_MAX_ATTRIBUTE_SERVICES_PER_HOST       1
 # define MAX_MAX_METADATA_SERVICES 256
 # define MIN_MAX_METADATA_SERVICES 1
 #endif
@@ -760,6 +763,7 @@ typedef struct _SnortConfig
 
 #ifdef TARGET_BASED
     uint32_t max_attribute_hosts;    /* config max_attribute_hosts */
+    uint32_t max_attribute_services_per_host;    /* config max_attribute_services_per_host */
     uint32_t max_metadata_services;  /* config max_metadata_services */
 #endif
 
@@ -1497,6 +1501,11 @@ static inline int ScOutputWifiMgmt(void)
 static inline uint32_t ScMaxAttrHosts(void)
 {
     return snort_conf->max_attribute_hosts;
+}
+
+static inline uint32_t ScMaxAttrServicesPerHost(void)
+{
+    return snort_conf->max_attribute_services_per_host;
 }
 
 static inline int ScDisableAttrReload(void)

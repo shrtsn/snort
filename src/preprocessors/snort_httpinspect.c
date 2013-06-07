@@ -1,6 +1,6 @@
 /****************************************************************************
  *
- * Copyright (C) 2003-2012 Sourcefire, Inc.
+ * Copyright (C) 2003-2013 Sourcefire, Inc.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License Version 2 as
@@ -3320,7 +3320,7 @@ static inline void ApplyClientFlowDepth (Packet* p, int flow_depth)
 
 static inline FilePosition getFilePoistion(Packet *p)
 {
-    FilePosition position = SNORT_FILE_START;
+    FilePosition position = SNORT_FILE_POSITION_UNKNOWN;
 #ifdef ENABLE_PAF
     if (PacketHasFullPDU(p))
         position = SNORT_FILE_FULL;

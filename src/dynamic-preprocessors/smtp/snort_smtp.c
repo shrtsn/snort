@@ -1,6 +1,6 @@
 /****************************************************************************
  *
- * Copyright (C) 2005-2012 Sourcefire, Inc.
+ * Copyright (C) 2005-2013 Sourcefire, Inc.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License Version 2 as
@@ -319,6 +319,9 @@ void SMTP_MimeMempoolInit(int max_mime_mem, int max_depth)
 
     encode_depth = max_depth;
 
+    if (encode_depth <= 0)
+        return;
+        
     if (encode_depth & 7)
         encode_depth += (8 - (encode_depth & 7));
 
@@ -1571,7 +1574,7 @@ static const uint8_t * SMTP_HandleData(SFSnortPacket *p, const uint8_t *ptr, con
         {
             _dpd.setFileDataPtr(smtp_ssn->decode_state->decodePtr, 0);
         }
-        if (data_end_marker != end)
+        if ((data_end_marker != end) || (smtp_ssn->state_flags & SMTP_FLAG_MIME_END))
         {
            finalFilePosition(&position);
         }
@@ -1958,6 +1961,7 @@ static const uint8_t * SMTP_HandleDataBody(SFSnortPacket *p, const uint8_t *ptr,
 
                     /* no more MIME */
                     smtp_ssn->state_flags &= ~SMTP_FLAG_GOT_BOUNDARY;
+                    smtp_ssn->state_flags |= SMTP_FLAG_MIME_END;
 
                     /* free boundary search */
                     _dpd.searchAPI->search_instance_free(smtp_ssn->mime_boundary.boundary_search);

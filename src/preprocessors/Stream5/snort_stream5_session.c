@@ -1,7 +1,7 @@
 /* $Id$ */
 
 /*
-** Copyright (C) 2005-2012 Sourcefire, Inc.
+** Copyright (C) 2005-2013 Sourcefire, Inc.
 ** AUTHOR: Steven Sturges <ssturges@sourcefire.com>
 **
 ** This program is free software; you can redistribute it and/or modify
@@ -168,6 +168,8 @@ int GetLWSessionKeyFromIpPort(
         {
         	key->mplsLabel = 0;
         }
+# else
+        key->mplsLabel = 0;
 # endif
     }
     else
@@ -230,6 +232,8 @@ int GetLWSessionKeyFromIpPort(
         {
         	key->mplsLabel = 0;
         }
+# else
+        key->mplsLabel = 0;
 # endif
     }
 
@@ -241,26 +245,15 @@ int GetLWSessionKeyFromIpPort(
         key->vlan_tag = 0;
 
     key->pad = 0;
-#ifdef MPLS
 #ifdef HAVE_DAQ_ADDRESS_SPACE_ID
     if (!ScAddressSpaceAgnostic())
         key->addressSpaceId = addressSpaceId;
     else
         key->addressSpaceId = 0;
-    key->addressSpaceIdPad1 = 0;
 #else
-    key->mplsPad = 0;
+    key->addressSpaceId = 0;
 #endif
-#else /* MPLS */
-#ifdef HAVE_DAQ_ADDRESS_SPACE_ID
-    if (!ScAddressSpaceAgnostic())
-        key->addressSpaceId = addressSpaceId;
-    else
-        key->addressSpaceId = 0;
     key->addressSpaceIdPad1 = 0;
-    key->addressSpaceIdPad2 = 0;
-#endif
-#endif
     return 1;
 }
 
@@ -1002,7 +995,7 @@ int HashKeyCmp(const void *s1, const void *s2, size_t n)
 #endif
 #ifdef HAVE_DAQ_ADDRESS_SPACE_ID
 #ifdef MPLS
-    a++; 
+    a++;
     b++;
 #else
     a+=2;

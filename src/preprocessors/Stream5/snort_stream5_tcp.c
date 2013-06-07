@@ -1,7 +1,7 @@
 /* $Id$ */
 /****************************************************************************
  *
- * Copyright (C) 2005-2012 Sourcefire, Inc.
+ * Copyright (C) 2005-2013 Sourcefire, Inc.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License Version 2 as
@@ -256,8 +256,6 @@ extern PreprocStats preprocRuleOptionPerfStats;
 /*  D A T A  S T R U C T U R E S  ***********************************/
 typedef struct _TcpDataBlock
 {
-    snort_ip   sip;
-    snort_ip   dip;
     uint32_t   seq;
     uint32_t   ack;
     uint32_t   win;
@@ -398,6 +396,15 @@ typedef struct _TcpSession
 
 #ifdef DEBUG
     struct timeval ssn_time;
+#endif
+
+#ifdef HAVE_DAQ_ADDRESS_SPACE_ID
+    int32_t ingress_index;  /* Index of the inbound interface. */
+    int32_t egress_index;   /* Index of the outbound interface. */
+    int32_t ingress_group;  /* Index of the inbound group. */
+    int32_t egress_group;   /* Index of the outbound group. */
+    uint32_t daq_flags;     /* Flags for the packet (DAQ_PKT_FLAG_*) */
+    uint16_t address_space_id;
 #endif
 
     uint8_t ecn;
@@ -1995,12 +2002,9 @@ int StreamPolicyIdFromHostAttributeEntry(HostAttributeEntry *host_entry)
 
     STREAM5_DEBUG_WRAP(
         DebugMessage(DEBUG_STREAM_STATE,
-            "STREAM5 INIT: %s(%d) for Entry %s:%s:%s (%s)\n",
+            "STREAM5 INIT: %s(%d) for Entry %s\n",
             reassembly_policy_names[host_entry->hostInfo.streamPolicy],
             host_entry->hostInfo.streamPolicy,
-            host_entry->hostInfo.operatingSystem.value.s_value,
-            host_entry->hostInfo.vendor.value.s_value,
-            host_entry->hostInfo.version.value.s_value,
             host_entry->hostInfo.streamPolicyName););
     return 0;
 }
@@ -2177,17 +2181,17 @@ static void PrintStreamTracker(StreamTracker *s)
 {
     LogMessage(" + StreamTracker +\n");
     LogMessage("    isn:                0x%X\n", s->isn);
-    LogMessage("    ts_last:            %lu\n", s->ts_last);
-    LogMessage("    wscale:             %lu\n", s->wscale);
+    LogMessage("    ts_last:            %u\n", s->ts_last);
+    LogMessage("    wscale:             %u\n", s->wscale);
     LogMessage("    mss:                0x%08X\n", s->mss);
     LogMessage("    l_unackd:           %X\n", s->l_unackd);
     LogMessage("    l_nxt_seq:          %X\n", s->l_nxt_seq);
-    LogMessage("    l_window:           %lu\n", s->l_window);
+    LogMessage("    l_window:           %u\n", s->l_window);
     LogMessage("    r_nxt_ack:          %X\n", s->r_nxt_ack);
     LogMessage("    r_win_base:         %X\n", s->r_win_base);
     LogMessage("    seglist_base_seq:   %X\n", s->seglist_base_seq);
-    LogMessage("    seglist:            %p\n", s->seglist);
-    LogMessage("    seglist_tail:       %p\n", s->seglist_tail);
+    LogMessage("    seglist:            %p\n", (void*)s->seglist);
+    LogMessage("    seglist_tail:       %p\n", (void*)s->seglist_tail);
     LogMessage("    seg_count:          %d\n", s->seg_count);
     LogMessage("    seg_bytes_total:    %d\n", s->seg_bytes_total);
     LogMessage("    seg_bytes_logical:  %d\n", s->seg_bytes_logical);
@@ -2197,12 +2201,17 @@ static void PrintStreamTracker(StreamTracker *s)
 
 static void PrintTcpSession(TcpSession *ts)
 {
+    char buf[64];
+
     LogMessage("TcpSession:\n");
 #ifdef DEBUG
     LogMessage("    ssn_time:           %lu\n", ts->ssn_time.tv_sec);
 #endif
-    LogMessage("    server IP:          0x%08X\n", ts->tcp_server_ip);
-    LogMessage("    client IP:          0x%08X\n", ts->tcp_client_ip);
+    sfip_ntop(&ts->tcp_server_ip, buf, sizeof(buf));
+    LogMessage("    server IP:          %s\n", buf);
+    sfip_ntop(&ts->tcp_client_ip, buf, sizeof(buf));
+    LogMessage("    client IP:          %s\n", buf);
+
     LogMessage("    server port:        %d\n", ts->tcp_server_port);
     LogMessage("    client port:        %d\n", ts->tcp_client_port);
 
@@ -2217,8 +2226,6 @@ static void PrintTcpSession(TcpSession *ts)
 static void PrintTcpDataBlock(TcpDataBlock *tdb)
 {
     LogMessage("TcpDataBlock:\n");
-    LogMessage("    sip:    0x%08X\n", tdb->sip);
-    LogMessage("    dip:    0x%08X\n", tdb->dip);
     LogMessage("    seq:    0x%08X\n", tdb->seq);
     LogMessage("    ack:    0x%08X\n", tdb->ack);
     LogMessage("    win:    %d\n", tdb->win);
@@ -3185,13 +3192,6 @@ static void Stream5InitPacket(void)
 
 static inline void SetupTcpDataBlock(TcpDataBlock *tdb, Packet *p)
 {
-    tdb->sip = *GET_SRC_IP(p);
-    tdb->dip = *GET_DST_IP(p);
-    if(IS_IP4(p))
-    {
-        *tdb->sip.ip32 = ntohl(*tdb->sip.ip32);
-        *tdb->dip.ip32 = ntohl(*tdb->dip.ip32);
-    }
     tdb->seq = ntohl(p->tcph->th_seq);
     tdb->ack = ntohl(p->tcph->th_ack);
     tdb->win = ntohs(p->tcph->th_win);
@@ -3458,13 +3458,38 @@ static inline int _flush_to_seq_4(
     uint32_t footprint = 0;
     uint32_t bytes_processed = 0;
     int32_t flushed_bytes;
+#ifdef HAVE_DAQ_ADDRESS_SPACE_ID
+    int32_t ingress_index;
+    int32_t ingress_group;
+    int32_t egress_index;
+    int32_t egress_group;
+#endif
     EncodeFlags enc_flags = 0;
     PROFILE_VARS;
 
     PREPROC_PROFILE_START(s5TcpFlushPerfStats);
 
     if ( htons(sp) == p->sp ) enc_flags |= ENC_FLAG_FWD;
+#ifdef HAVE_DAQ_ADDRESS_SPACE_ID
+    if ((dir & PKT_FROM_CLIENT) || (tcpssn->daq_flags & DAQ_PKT_FLAG_NOT_FORWARDING))
+    {
+        ingress_index = tcpssn->ingress_index;
+        ingress_group = tcpssn->ingress_group;
+        egress_index = tcpssn->egress_index;
+        egress_group = tcpssn->egress_group;
+    }
+    else
+    {
+        ingress_index = tcpssn->egress_index;
+        ingress_group = tcpssn->egress_group;
+        egress_index = tcpssn->ingress_index;
+        egress_group = tcpssn->ingress_group;
+    }
+    Encode_Format_With_DAQ_Info(enc_flags, p, s5_pkt, PSEUDO_PKT_TCP, ingress_index, ingress_group,
+            egress_index, egress_group, tcpssn->daq_flags, tcpssn->address_space_id);
+#else
     Encode_Format(enc_flags, p, s5_pkt, PSEUDO_PKT_TCP);
+#endif
 
     s5_pkt_end = s5_pkt->data + s5_pkt->max_dsize;
 
@@ -3638,13 +3663,38 @@ static inline int _flush_to_seq_6(
     uint32_t footprint = 0;
     uint32_t bytes_processed = 0;
     int32_t flushed_bytes;
+#ifdef HAVE_DAQ_ADDRESS_SPACE_ID
+    int32_t ingress_index;
+    int32_t ingress_group;
+    int32_t egress_index;
+    int32_t egress_group;
+#endif
     EncodeFlags enc_flags = 0;
     PROFILE_VARS;
 
     PREPROC_PROFILE_START(s5TcpFlushPerfStats);
 
     if ( htons(sp) == p->sp ) enc_flags |= ENC_FLAG_FWD;
+#ifdef HAVE_DAQ_ADDRESS_SPACE_ID
+    if ((dir & PKT_FROM_CLIENT) || (tcpssn->daq_flags & DAQ_PKT_FLAG_NOT_FORWARDING))
+    {
+        ingress_index = tcpssn->ingress_index;
+        ingress_group = tcpssn->ingress_group;
+        egress_index = tcpssn->egress_index;
+        egress_group = tcpssn->egress_group;
+    }
+    else
+    {
+        ingress_index = tcpssn->egress_index;
+        ingress_group = tcpssn->egress_group;
+        egress_index = tcpssn->ingress_index;
+        egress_group = tcpssn->ingress_group;
+    }
+    Encode_Format_With_DAQ_Info(enc_flags, p, s5_pkt, PSEUDO_PKT_TCP, ingress_index, ingress_group,
+            egress_index, egress_group, tcpssn->daq_flags, tcpssn->address_space_id);
+#else
     Encode_Format(enc_flags, p, s5_pkt, PSEUDO_PKT_TCP);
+#endif
 
     s5_pkt_end = s5_pkt->data + s5_pkt->max_dsize;
 
@@ -4111,7 +4161,7 @@ static int FlushStream(
         {
             if ( (st->flush_mgr.flush_policy != STREAM_FLPOLICY_PROTOCOL)
 #ifdef NORMALIZER
-                 && (st->flush_mgr.flush_policy != STREAM_FLPOLICY_PROTOCOL_IPS) 
+                 && (st->flush_mgr.flush_policy != STREAM_FLPOLICY_PROTOCOL_IPS)
 #endif
                  )
             {
@@ -6293,6 +6343,28 @@ static void ProcessTcpStream(StreamTracker *rcv, TcpSession *tcpssn,
     STREAM5_DEBUG_WRAP(DebugMessage(DEBUG_STREAM_STATE,
                 "In ProcessTcpStream(), %d bytes to queue\n", p->dsize););
 
+#ifdef HAVE_DAQ_ADDRESS_SPACE_ID
+    tcpssn->daq_flags = p->pkth->flags;
+    tcpssn->address_space_id = p->pkth->address_space_id;
+    if (tcpssn->daq_flags & DAQ_PKT_FLAG_NOT_FORWARDING)
+    {
+        tcpssn->ingress_index = p->pkth->ingress_index;
+        tcpssn->ingress_group = p->pkth->ingress_group;
+        tcpssn->egress_index = DAQ_PKTHDR_UNKNOWN;
+        tcpssn->egress_group = DAQ_PKTHDR_UNKNOWN;
+    }
+    else if (p->packet_flags & PKT_FROM_CLIENT)
+    {
+        tcpssn->ingress_index = p->pkth->ingress_index;
+        tcpssn->ingress_group = p->pkth->ingress_group;
+    }
+    else
+    {
+        tcpssn->egress_index = p->pkth->ingress_index;
+        tcpssn->egress_group = p->pkth->ingress_group;
+    }
+#endif
+
     if ((s5TcpPolicy->flags & STREAM5_CONFIG_NO_ASYNC_REASSEMBLY) &&
         ((tcpssn->lwssn->session_flags & (SSNFLAG_SEEN_SERVER | SSNFLAG_SEEN_CLIENT))
         != (SSNFLAG_SEEN_SERVER | SSNFLAG_SEEN_CLIENT)))
@@ -6631,10 +6703,7 @@ uint16_t StreamGetPolicy(Stream5LWSession *lwssn, Stream5TcpPolicy *s5TcpPolicy,
         if (policy_id != SFAT_UNKNOWN_STREAM_POLICY)
         {
             STREAM5_DEBUG_WRAP(DebugMessage(DEBUG_STREAM_STATE,
-                "StreamGetPolicy: Policy Map Entry: %s %s %s %d(%s)\n",
-                host_entry->hostInfo.vendor.value.s_value,
-                host_entry->hostInfo.operatingSystem.value.s_value,
-                host_entry->hostInfo.version.value.s_value,
+                "StreamGetPolicy: Policy Map Entry: %d(%s)\n",
                 policy_id, reassembly_policy_names[policy_id]););
 
             /* Since we've already done the lookup, try to get the
@@ -8054,8 +8123,10 @@ static int ProcessTcp(Stream5LWSession *lwssn, Packet *p, TcpDataBlock *tdb,
         PREPROC_PROFILE_END(s5TcpStatePerfStats);
         return ACTION_NOTHING | ACTION_BAD_PKT;
     }
-    else if ( (tdb->win <= SLAM_MAX) && (tdb->ack == listener->isn + 1) &&
-        !(p->tcph->th_flags & (TH_FIN|TH_RST)) )
+    else if ((p->packet_flags & PKT_FROM_CLIENT)
+            && (tdb->win <= SLAM_MAX) && (tdb->ack == listener->isn + 1)
+            && !(p->tcph->th_flags & (TH_FIN|TH_RST))
+            && !(lwssn->session_flags & SSNFLAG_MIDSTREAM))
     {
         STREAM5_DEBUG_WRAP(DebugMessage(DEBUG_STREAM_STATE,
             "Window slammed shut!\n"););
@@ -9113,6 +9184,20 @@ void TcpUpdateDirection(Stream5LWSession *ssn, char dir,
     tcpssn->tcp_client_port = tcpssn->tcp_server_port;
     tcpssn->tcp_server_ip = tmpIp;
     tcpssn->tcp_server_port = tmpPort;
+#ifdef HAVE_DAQ_ADDRESS_SPACE_ID
+    if (tcpssn->egress_index != DAQ_PKTHDR_UNKNOWN)
+    {
+        int32_t ingress_index;
+        int32_t ingress_group;
+
+        ingress_index = tcpssn->ingress_index;
+        ingress_group = tcpssn->ingress_group;
+        tcpssn->ingress_index = tcpssn->egress_index;
+        tcpssn->ingress_group = tcpssn->egress_group;
+        tcpssn->egress_index = ingress_index;
+        tcpssn->egress_group = ingress_group;
+    }
+#endif
     memcpy(&tmpTracker, &tcpssn->client, sizeof(StreamTracker));
     memcpy(&tcpssn->client, &tcpssn->server, sizeof(StreamTracker));
     memcpy(&tcpssn->server, &tmpTracker, sizeof(StreamTracker));

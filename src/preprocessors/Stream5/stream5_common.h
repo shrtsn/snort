@@ -1,6 +1,6 @@
 /****************************************************************************
  *
- * Copyright (C) 2005-2012 Sourcefire, Inc.
+ * Copyright (C) 2005-2013 Sourcefire, Inc.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License Version 2 as
@@ -131,33 +131,7 @@
 #define TCP_HZ          100
 
 /*  D A T A   S T R U C T U R E S  **********************************/
-typedef struct _SessionKey
-{
-/* XXX If this data structure changes size, HashKeyCmp must be updated! */
-    uint32_t   ip_l[4]; /* Low IP */
-    uint32_t   ip_h[4]; /* High IP */
-    uint16_t   port_l; /* Low Port - 0 if ICMP */
-    uint16_t   port_h; /* High Port - 0 if ICMP */
-    uint16_t   vlan_tag;
-    uint8_t    protocol;
-    char        pad;
-#ifdef MPLS
-    uint32_t   mplsLabel; /* MPLS label */
-#ifdef HAVE_DAQ_ADDRESS_SPACE_ID
-    uint16_t   addressSpaceId;
-    uint16_t   addressSpaceIdPad1;
-#else
-    uint32_t   mplsPad;
-#endif
-#else
-#ifdef HAVE_DAQ_ADDRESS_SPACE_ID
-    uint16_t   addressSpaceId;
-    uint16_t   addressSpaceIdPad1;
-    uint32_t   addressSpaceIdPad2;
-#endif
-#endif
-/* XXX If this data structure changes size, HashKeyCmp must be updated! */
-} SessionKey;
+typedef StreamSessionKey SessionKey;
 
 typedef struct _Stream5AppData
 {

@@ -2,7 +2,7 @@
  **
  **  sfcontrol.c
  **
- **  Copyright (C) 2002-2012 Sourcefire, Inc.
+ **  Copyright (C) 2002-2013 Sourcefire, Inc.
  **  Author(s):  Ron Dempster <rdempster@sourcefire.com>
  **
  **  NOTES
@@ -297,7 +297,6 @@ static void *ControlSocketProcessThread(void *arg)
     int fd;
     pthread_t tid = pthread_self();
     CSMessageHeader hdr;
-    CSMessageDataHeader *msg_hdr = NULL;
     uint32_t len, rlen;
     uint8_t *data = NULL;
     ThreadElement **it;
@@ -329,13 +328,7 @@ static void *ControlSocketProcessThread(void *arg)
         {
             static const char * const bad_version = "Bad message header version";
 
-            response.hdr.type = htons(CS_HEADER_ERROR);
-            response.msg_hdr.code = -1;
-            len = snprintf(response.msg, sizeof(response.msg), "%s", bad_version);
-            response.msg_hdr.length = htons(len);
-            len += sizeof(response.msg_hdr);
-            response.hdr.length = htonl(len);
-            SendResponse(t, &response, len);
+            SendErrorResponse(t, bad_version);
             DEBUG_WRAP( DebugMessage(DEBUG_CONTROL, "Control Socket %d: Invalid header version %u\n", t->socket_fd, hdr.version););
             goto done;
         }
@@ -349,16 +342,7 @@ static void *ControlSocketProcessThread(void *arg)
             goto done;
         }
 
-        if (hdr.length && hdr.length < sizeof(*msg_hdr))
-        {
-            static const char * const bad_len =
-                "Bad message header length";
-
-            SendErrorResponse(t, bad_len);
-            DEBUG_WRAP( DebugMessage(DEBUG_CONTROL, "Control Socket %d: Message too short %u\n", t->socket_fd, hdr.length););
-            goto done;
-        }
-        else if (hdr.length >= sizeof(*msg_hdr))
+        if (hdr.length)
         {
             if ((data = malloc(hdr.length)) == NULL)
             {
@@ -377,17 +361,6 @@ static void *ControlSocketProcessThread(void *arg)
                 DEBUG_WRAP( DebugMessage(DEBUG_CONTROL, "Control Socket %d: Failed to read %d\n", t->socket_fd, rval););
                 goto done;
             }
-
-            msg_hdr = (CSMessageDataHeader *)data;
-            msg_hdr->code = ntohl(msg_hdr->code);
-            msg_hdr->length = ntohs(msg_hdr->length);
-            data += sizeof(*msg_hdr);
-            rlen = msg_hdr->length;
-        }
-        else
-        {
-            /* We got no extra data */
-            rlen = 0;
         }
 
         if (hdr.type > CS_TYPE_MAX)
@@ -416,7 +389,7 @@ static void *ControlSocketProcessThread(void *arg)
                 handler->old_context = NULL;
                 handler->next = NULL;
                 response.msg[0] = '\0';
-                if (handler->oobpre && (rval = handler->oobpre(hdr.type, data, rlen,
+                if (handler->oobpre && (rval = handler->oobpre(hdr.type, data, hdr.length,
                     &handler->new_context, response.msg, sizeof(response.msg))))
                 {
                     response.hdr.type = htons(CS_HEADER_ERROR);
@@ -495,15 +468,16 @@ static void *ControlSocketProcessThread(void *arg)
             }
         }
 next:;
-        if (msg_hdr)
-            free(msg_hdr);
-        msg_hdr = NULL;
+        if (data)
+        {
+            free(data);
+            data = NULL;
+        }
     }
 
 done:;
-    if (msg_hdr)
-        free(msg_hdr);
-    msg_hdr = NULL;
+    if (data)
+        free(data);
 
     close(fd);
     pthread_mutex_lock(&thread_mutex);

@@ -1,7 +1,7 @@
 /* $Id$ */
 /****************************************************************************
  *
- * Copyright (C) 2005-2012 Sourcefire, Inc.
+ * Copyright (C) 2005-2013 Sourcefire, Inc.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License Version 2 as
@@ -162,7 +162,7 @@ void Encode_Term (void)
 //
 // when multiple responses are sent, both forwards and backwards directions,
 // or multiple ICMP types (unreachable port, host, net), it may be possible
-// to reuse the 1st encoding and just tweak it.  optimization for later 
+// to reuse the 1st encoding and just tweak it.  optimization for later
 // consideration.
 
 // pci is copied from in to out
@@ -225,8 +225,13 @@ const uint8_t* Encode_Response(
 // - inner layer header is very similar but payload differs
 // - original ttl is always used
 //-------------------------------------------------------------------------
-
+#ifdef HAVE_DAQ_ADDRESS_SPACE_ID
+int Encode_Format_With_DAQ_Info (EncodeFlags f, const Packet* p, Packet* c, PseudoPacketType type,
+        int32_t ingress_index, int32_t ingress_group, int32_t egress_index, int32_t egress_group,
+        uint32_t daq_flags, uint16_t address_space_id)
+#else
 int Encode_Format (EncodeFlags f, const Packet* p, Packet* c, PseudoPacketType type)
+#endif
 {
     DAQ_PktHdr_t* pkth = (DAQ_PktHdr_t*)c->pkth;
     uint8_t* pkt = (uint8_t*)c->pkt;
@@ -242,6 +247,15 @@ int Encode_Format (EncodeFlags f, const Packet* p, Packet* c, PseudoPacketType t
 
     c->pkth = pkth;
     c->pkt = pkt;
+
+#ifdef HAVE_DAQ_ADDRESS_SPACE_ID
+    pkth->ingress_index = ingress_index;
+    pkth->ingress_group = ingress_group;
+    pkth->egress_index = egress_index;
+    pkth->egress_group = egress_group;
+    pkth->flags = daq_flags;
+    pkth->address_space_id = address_space_id;
+#endif
 
     if ( f & ENC_FLAG_NET )
     {
@@ -314,6 +328,23 @@ int Encode_Format (EncodeFlags f, const Packet* p, Packet* c, PseudoPacketType t
 
     return 0;
 }
+
+//-------------------------------------------------------------------------
+// formatters:
+// - these packets undergo detection
+// - need to set Packet stuff except for frag3 which calls grinder
+// - include original options except for frag3 inner ip
+// - inner layer header is very similar but payload differs
+// - original ttl is always used
+//-------------------------------------------------------------------------
+
+#ifdef HAVE_DAQ_ADDRESS_SPACE_ID
+int Encode_Format (EncodeFlags f, const Packet* p, Packet* c, PseudoPacketType type)
+{
+    return Encode_Format_With_DAQ_Info(f, p, c, type, p->pkth->ingress_index, p->pkth->ingress_group,
+            p->pkth->egress_index, p->pkth->egress_group, p->pkth->flags, p->pkth->address_space_id);
+}
+#endif
 
 //-------------------------------------------------------------------------
 // updaters:  these functions set length and checksum fields, only needed
@@ -468,7 +499,7 @@ static inline uint16_t IpId_Next ()
 // TTL for forward packets and use (maximum - current) TTL for reverse
 // packets.
 //
-// the reason we don't just force ttl to 255 (max) is to make it look a 
+// the reason we don't just force ttl to 255 (max) is to make it look a
 // little more authentic.
 //
 // for reference, flexresp used a const rand >= 64 in both directions (the
@@ -536,7 +567,7 @@ static inline uint8_t RevTTL (const EncState* enc, uint8_t ttl)
 // BUFLEN
 // Get the buffer length for a given protocol
 #define BUFF_DIFF(buf, ho) ((uint8_t*)(buf->base+buf->end)-(uint8_t*)ho)
-    
+
 //-------------------------------------------------------------------------
 // ethernet
 //-------------------------------------------------------------------------
@@ -673,7 +704,7 @@ static ENC_STATUS IP4_Encode (EncState* enc, Buffer* in, Buffer* out)
     {
         ENC_STATUS err = encoders[next].fencode(enc, in, out);
         if ( ENC_OK != err ) return err;
-    }  
+    }
     if ( enc->proto )
     {
         ho->ip_proto = enc->proto;
@@ -682,7 +713,7 @@ static ENC_STATUS IP4_Encode (EncState* enc, Buffer* in, Buffer* out)
 
     len = out->end - start;
     ho->ip_len = htons((uint16_t)len);
-    
+
     ho->ip_csum = 0;
 
     /* IPv4 encoded header is hardcoded 20 bytes, we save some
@@ -805,10 +836,10 @@ static ENC_STATUS ICMP4_Update (Packet* p, Layer* lyr, uint32_t* len)
 
     *len += sizeof(*h) + p->dsize;
 
-    
+
     if ( !PacketWasCooked(p) || (p->packet_flags & PKT_REBUILT_FRAG) ) {
         h->cksum = 0;
-        h->cksum = in_chksum_icmp((uint16_t *)h, *len); 
+        h->cksum = in_chksum_icmp((uint16_t *)h, *len);
     }
 
     return ENC_OK;
@@ -970,7 +1001,7 @@ static ENC_STATUS TCP_Encode (EncState* enc, Buffer* in, Buffer* out)
         ho->th_dport = hi->th_dport;
 
         // th_seq depends on whether the data passes or drops
-        if ( (enc->type == ENC_TCP_FIN) || !ScAdapterInlineMode() )
+        if ( DAQ_GetInterfaceMode(enc->p->pkth) != DAQ_MODE_INLINE )
             ho->th_seq = htonl(ntohl(hi->th_seq) + enc->p->dsize + ctl);
         else
             ho->th_seq = hi->th_seq;

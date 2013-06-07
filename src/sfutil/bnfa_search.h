@@ -8,7 +8,7 @@
 **
 ** author: marc norton
 ** date:   12/21/05
-** Copyright (C) 2005-2012 Sourcefire, Inc.
+** Copyright (C) 2005-2013 Sourcefire, Inc.
 **
 ** LICENSE (GPL)
 **

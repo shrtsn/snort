@@ -76,6 +76,7 @@ config flowbits_size
 config interface
 config logdir
 config max_attribute_hosts
+config max_attribute_services_per_host
 config nolog
 config no_promisc
 config pkt_count

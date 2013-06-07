@@ -2,19 +2,13 @@ Reputation Preprocessor
 ================================================================================
 Hui Cao
 
-##########################################
-# THIS CODE IS STILL EXPERIMENTAL!
-# DO NOT USE IN PRODUCTION ENVIRONMENTS.
-# Please send any issues to the Snort team
-##########################################
-
 Overview
 ================================================================================
 Reputation preprocessor provides basic IP blacklist/whitelist capabilities, to 
 block/drop/pass traffic from IP addresses listed. In the past, we use standard 
 Snort rules to implement Reputation-based IP blocking. This preprocessor will 
 address the performance issue and make the IP reputation management easier.
-Repuation preprocessor runs before other preprocessors.
+Reputation preprocessor runs before other preprocessors.
 
 Sections:
     Configuration

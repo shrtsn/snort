@@ -533,7 +533,9 @@ typedef enum _DecodeEventFlag
 
 typedef enum {
     TUNNEL_GTP    = 0x01,
-    TUNNEL_TEREDO = 0x02
+    TUNNEL_TEREDO = 0x02,
+    TUNNEL_6IN4   = 0x04,
+    TUNNEL_4IN6   = 0x08
 } TunnelFlags;
 
 typedef struct _VarNode

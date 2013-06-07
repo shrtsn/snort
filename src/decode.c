@@ -2559,6 +2559,8 @@ void DecodeIP(const uint8_t * pkt, const uint32_t len, Packet * p)
                                 1, 1);
                 }
                 pc.ip4ip6++;
+                if ( ScTunnelBypassEnabled(TUNNEL_6IN4) )
+                    Active_SetTunnelBypass();
                 DecodeIPV6(pkt + hlen, ip_len, p);
                 return;
 
@@ -3650,6 +3652,8 @@ void DecodeIPV6Extensions(uint8_t next, const uint8_t *pkt, uint32_t len, Packet
             return;
         case IPPROTO_IPIP:
             pc.ip6ip4++;
+            if ( ScTunnelBypassEnabled(TUNNEL_4IN6) )
+                Active_SetTunnelBypass();
             CheckIPv6ExtensionOrder(p);
             DecodeIP(pkt, len, p);
             return;

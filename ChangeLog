@@ -1,3 +1,18 @@
+2013-04-18 Steven Sturges <ssturges@sourcefire.com>
+Snort 2.9.4.6
+    * src/build.h: 
+      updating build number to 73
+
+    * doc/README.counts, doc/snort_manual.pdf, doc/snort_manual.tex,
+      src/decode.c, src/parser.c, src/snort.h: 
+      Added config tunnel_verdicts and tunnel bypass for whitelist and
+      blacklist verdicts for 6in4 or 4in6 encapsulated traffic.
+
+    * src/preprocessors/spp_frag3.c: 
+      Don't update IP options length and count in frag3 after allocating
+      option buffer when receiving duplicate 0 offset fragments with IP
+      options.
+
 2013-03-20 Steven Sturges <ssturges@sourcefire.com>
 Snort 2.9.4.5
     * src/build.h:

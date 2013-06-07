@@ -2371,12 +2371,11 @@ static int Frag3HandleIPOptions(FragTracker *ft,
          */
         if (p->ip_options_len)
         {
-            ft->ip_options_len = p->ip_options_len;
-            ft->ip_option_count = p->ip_option_count;
             if (ft->ip_options_data)
             {
                 /* Already seen 0 offset packet and copied some IP options */
-                if (ft->copied_ip_option_count && (ft->copied_ip_option_count != p->ip_option_count))
+                if ((ft->frag_flags & FRAG_GOT_FIRST)
+                        && (ft->ip_option_count != p->ip_option_count))
                 {
                     EventAnomIpOpts(ft->context);
                 }
@@ -2386,6 +2385,8 @@ static int Frag3HandleIPOptions(FragTracker *ft,
                 /* Allocate and copy in the options */
                 ft->ip_options_data = SnortAlloc(p->ip_options_len);
                 memcpy(ft->ip_options_data, p->ip_options_data, p->ip_options_len);
+                ft->ip_options_len = p->ip_options_len;
+                ft->ip_option_count = p->ip_option_count;
             }
         }
     }

@@ -9053,6 +9053,12 @@ void ConfigTunnelVerdicts ( SnortConfig *sc, char *args )
         else if ( !strcasecmp(tok, "teredo") )
             sc->tunnel_mask |= TUNNEL_TEREDO;
 
+        else if ( !strcasecmp(tok, "6in4") )
+            sc->tunnel_mask |= TUNNEL_6IN4;
+
+        else if ( !strcasecmp(tok, "4in6") )
+            sc->tunnel_mask |= TUNNEL_4IN6;
+
         else
             ParseError("Unknown tunnel bypass protocol");
 

@@ -14,7 +14,7 @@
 **
 ** You should have received a copy of the GNU General Public License
 ** along with this program; if not, write to the Free Software
-** Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA 02111-1307, USA.
+** Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 */
 
 /*
@@ -110,12 +110,7 @@ typedef struct _HostInfo
 #define SFAT_CLIENT 2
 typedef struct _HostAttributeEntry
 {
-#ifdef SUP_IP6
     sfip_t ipAddr;
-#else
-    uint32_t ipAddr;
-    uint8_t bits;
-#endif
 
     HostInfo hostInfo;
     ApplicationList *services;
@@ -127,11 +122,7 @@ int SFAT_AddMapEntry(MapEntry *);
 char *SFAT_LookupAttributeNameById(int id);
 HostAttributeEntry * SFAT_CreateHostEntry(void);
 int SFAT_AddHostEntryToMap(void);
-#ifdef SUP_IP6
 int SFAT_SetHostIp(char *);
-#else
-int SFAT_SetHostIp4(char *);
-#endif
 int SFAT_SetOSAttribute(AttributeData *data, int attribute);
 int SFAT_SetOSPolicy(char *policy_name, int attribute);
 ApplicationEntry * SFAT_CreateApplicationEntry(void);
@@ -162,22 +153,17 @@ void AttributeTableReloadCheck(void);
 uint32_t SFAT_NumberOfHosts(void);
 
 /* API Lookup functions, to be called by Stream & Frag */
-#ifdef SUP_IP6
 HostAttributeEntry *SFAT_LookupHostEntryByIP(sfip_t *ipAddr);
-#else
-HostAttributeEntry *SFAT_LookupHostEntryByIP(uint32_t ipAddr);
-#endif
 HostAttributeEntry *SFAT_LookupHostEntryBySrc(Packet *p);
 HostAttributeEntry *SFAT_LookupHostEntryByDst(Packet *p);
+void SFAT_UpdateApplicationProtocol(sfip_t *ipAddr, uint16_t port, uint16_t protocol, uint16_t id);
 
 /* Returns whether this has been configured */
 int IsAdaptiveConfigured(tSfPolicyId, int);
 
 void SFAT_StartReloadThread(void);
 
-#ifdef SUP_IP6
 void SFLAT_init(void);
 void SFLAT_fini(void);
 int  SFLAT_isEnabled(tSfPolicyId id, int parsing);
-#endif
 #endif /* SF_TARGET_READER_H_ */

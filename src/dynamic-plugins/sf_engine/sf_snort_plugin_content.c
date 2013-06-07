@@ -14,7 +14,7 @@
  *
  * You should have received a copy of the GNU General Public License
  * along with this program; if not, write to the Free Software
- * Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA 02111-1307, USA.
+ * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
  *
  * Copyright (C) 2005-2012 Sourcefire, Inc.
  *
@@ -43,6 +43,7 @@
 #include "bmh.h"
 
 extern int checkCursorInternal(void *p, int flags, int offset, const uint8_t *cursor);
+static int contentMatchInternal(void *, ContentInfo*, const uint8_t **);
 
 static const uint8_t *_buffer_end = NULL;
 static const uint8_t *_alt_buffer_end = NULL;
@@ -128,6 +129,12 @@ int BoyerContentSetup(Rule *rule, ContentInfo *content)
     return 0;
 }
 
+ENGINE_LINKAGE int contentMatch(void *p, ContentInfo* content, const uint8_t **cursor)
+{
+    if (content->flags & NOT_FLAG)
+        return invertMatchResult(contentMatchInternal(p, content, cursor));
+    return contentMatchInternal(p, content, cursor);
+}
 
 /*
  *  Content Option processing function
@@ -163,7 +170,7 @@ int BoyerContentSetup(Rule *rule, ContentInfo *content)
  *      post
  *
  */
-ENGINE_LINKAGE int contentMatch(void *p, ContentInfo* content, const uint8_t **cursor)
+static int contentMatchInternal(void *p, ContentInfo* content, const uint8_t **cursor)
 {
     const uint8_t * q = NULL;
     const uint8_t * buffer_start = NULL;

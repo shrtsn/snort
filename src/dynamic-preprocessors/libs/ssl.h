@@ -14,7 +14,7 @@
  * 
  * You should have received a copy of the GNU General Public License
  * along with this program; if not, write to the Free Software
- * Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA 02111-1307, USA.
+ * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
  * 
 */
 
@@ -61,6 +61,9 @@
                      SSL_VER_TLS10_FLAG | SSL_VER_TLS11_FLAG | \
                      SSL_VER_TLS12_FLAG)
 
+#define SSL_V3_SERVER_HELLO(x) (((x) & SSL_CUR_SERVER_HELLO_FLAG) \
+    && ((x) & SSL_VERFLAGS) && (((x) & SSL_VERFLAGS) != SSL_VER_SSLV2_FLAG))
+
 /* For rule state matching. These are only set when presently valid,
  * and do not stay set across packets. */
 #define SSL_CUR_CLIENT_HELLO_FLAG   0x00080000
@@ -73,6 +76,10 @@
 #define SSL_STATEFLAGS (SSL_CUR_CLIENT_HELLO_FLAG | SSL_CUR_SERVER_HELLO_FLAG | \
                         SSL_CUR_SERVER_KEYX_FLAG | SSL_CUR_CLIENT_KEYX_FLAG | \
                         SSL_UNKNOWN_FLAG)
+
+// Flag set when a client uses SSLv3/TLS backward compatibility and sends a
+// SSLv2 Hello specifying an SSLv3/TLS version.
+#define SSL_V3_BACK_COMPAT_V2   0x02000000
 
 /* Error flags */
 #define SSL_BOGUS_HS_DIR_FLAG   0x08000000 /* Record type disagrees with direction */
@@ -146,6 +153,7 @@ typedef struct _SSL_handshake_hello
     uint8_t minor;
 } SSL_handshake_hello_t;
 
+// http://www.mozilla.org/projects/security/pki/nss/ssl/draft02.html
 typedef struct _SSLv2_record 
 {
     uint16_t length;
@@ -156,8 +164,8 @@ typedef struct _SSLv2_chello
 {
     uint16_t length;
     uint8_t type;
-    uint8_t minor;
     uint8_t major;
+    uint8_t minor;
 } SSLv2_chello_t;
 
 typedef struct _SSLv2_shello
@@ -166,8 +174,8 @@ typedef struct _SSLv2_shello
     uint8_t type;
     uint8_t ssnid;
     uint8_t certtype;
-    uint8_t minor;
     uint8_t major;
+    uint8_t minor;
 } SSLv2_shello_t;
 
 #define SSL_V2_MIN_LEN 5

@@ -15,7 +15,7 @@
 **
 ** You should have received a copy of the GNU General Public License
 ** along with this program; if not, write to the Free Software
-** Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA 02111-1307, USA.
+** Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 */
 
 /* $Id$ */
@@ -201,6 +201,7 @@ struct ppp_header {
 #endif
 
 #define PPP_IP         0x0021        /* Internet Protocol */
+#define PPP_IPV6       0x0057        /* Internet Protocol v6 */
 #define PPP_VJ_COMP    0x002d        /* VJ compressed TCP/IP */
 #define PPP_VJ_UCOMP   0x002f        /* VJ uncompressed TCP/IP */
 #define PPP_IPX        0x002b        /* Novell IPX Protocol */
@@ -629,12 +630,13 @@ struct enc_header {
 // a partial overlap results in out of sequence condition
 // out of sequence condition is sticky
 #define PKT_STREAM_ORDER_OK  0x01000000  /* this segment is in order, w/o gaps */
-#define PKT_STREAM_ORDER_BAD 0x02000000  /* this stream had at last one gap */
+#define PKT_STREAM_ORDER_BAD 0x02000000  /* this stream had at least one gap */
 #define PKT_REASSEMBLED_OLD  0x04000000  /* for backwards compat with so rules */
 
 #define PKT_IPREP_SOURCE_TRIGGERED  0x08000000
 #define PKT_IPREP_DATA_SET          0x10000000
-// 0x20000000 are available
+#define PKT_FILE_EVENT_SET          0x20000000
+// 0x40000000 are available
 
 #define PKT_PDU_FULL (PKT_PDU_HEAD | PKT_PDU_TAIL)
 
@@ -1317,7 +1319,6 @@ typedef struct _IPH_API
     char ver;
 } IPH_API;
 
-#ifdef SUP_IP6
 extern IPH_API ip4;
 extern IPH_API ip6;
 
@@ -1326,7 +1327,6 @@ extern IPH_API ip6;
 
 #define iph_is_valid(p) ((p)->family != NO_IP)
 #define NO_IP 0
-#endif
 
 #ifdef _MSC_VER
   /* Visual C++ pragma to enable warning messages about nonstandard bit field type */
@@ -1693,7 +1693,7 @@ typedef struct _Packet
     void *flow;                 /* for flow info */
 
     //vvv-----------------------------
-    IP4Hdr *ip4h, *orig_ip4h;   /* SUP_IP6 members */
+    IP4Hdr *ip4h, *orig_ip4h;
     IP6Hdr *ip6h, *orig_ip6h;
     ICMP6Hdr *icmp6h, *orig_icmp6h;
 
@@ -1851,7 +1851,6 @@ typedef struct _Packet
 
 #define BIT(i) (0x1 << (i-1))
 
-#ifdef SUP_IP6
 /* Sets the callbacks to point at the family selected by
  *  * "family".  "family" is either AF_INET or AF_INET6 */
 #define CALLBACK_IP 0
@@ -1891,7 +1890,6 @@ static inline void set_callbacks(struct _Packet *p, int family, char orig)
         return;
     }
 }
-#endif
 
 typedef struct s_pseudoheader
 {

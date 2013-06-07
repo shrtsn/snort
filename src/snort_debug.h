@@ -16,7 +16,7 @@
 **
 ** You should have received a copy of the GNU General Public License
 ** along with this program; if not, write to the Free Software
-** Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA 02111-1307, USA.
+** Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 */
 
 
@@ -51,6 +51,8 @@
 #define DEBUG_FLOW            0x0000000000002000LL
 #define DEBUG_LOG             0x0000000000004000LL
 #define DEBUG_FLOWBITS        0x0000000000008000LL
+#define DEBUG_FILE            0x0000000000010000LL
+#define DEBUG_CONTROL         0x0000000000020000LL
 #define DEBUG_EXP             0x0000000080000000LL
 
 // this env var uses the upper 32 bits of the flags:

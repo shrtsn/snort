@@ -15,7 +15,7 @@
  **
  ** You should have received a copy of the GNU General Public License
  ** along with this program; if not, write to the Free Software
- ** Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA 02111-1307, USA.
+ ** Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
  **
  ** 9/7/2011 - Initial implementation ... Hui Cao <hcao@sourcefire.com>
  */
@@ -53,14 +53,6 @@ table_flat_t *sfrt_flat_new(char table_flat_type, char ip_type,  long data_size,
     base = (uint8_t *)segment_basePtr();
     table = (table_flat_t *)(&base[table_ptr]);
 
-#ifndef SUP_IP6
-    /* IPv6 is not supported */
-    if(ip_type == IPv6)
-    {
-        segment_free(table_ptr);
-        return NULL;
-    }
-#endif
 
     /* If this limit is exceeded, there will be no way to distinguish
      * between pointers and indeces into the data table.  Only
@@ -97,9 +89,7 @@ table_flat_t *sfrt_flat_new(char table_flat_type, char ip_type,  long data_size,
 
     /* This will point to the actual table lookup algorithm */
     table->rt = 0;
-#ifdef SUP_IP6
     table->rt6 = 0;
-#endif
 
     /* index 0 will be used for failed lookups, so set this to 1 */
     table->num_ent = 1;
@@ -133,7 +123,6 @@ table_flat_t *sfrt_flat_new(char table_flat_type, char ip_type,  long data_size,
         table->rt = sfrt_dir_flat_new( mem_cap, 16,
                 2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2);
         break;
-#ifdef SUP_IP6
     case DIR_16_4x4_16x5_4x4:
         table->rt = sfrt_dir_flat_new(mem_cap, 5, 16,4,4,4,4);
         table->rt6 = sfrt_dir_flat_new(mem_cap, 14, 16,4,4,4,4,16,16,16,16,16,4,4,4,4);
@@ -151,7 +140,6 @@ table_flat_t *sfrt_flat_new(char table_flat_type, char ip_type,  long data_size,
         table->rt6 = sfrt_dir_flat_new(mem_cap, 16,
                 8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8);
         break;
-#endif
     };
 
     if(!table->rt)
@@ -161,14 +149,12 @@ table_flat_t *sfrt_flat_new(char table_flat_type, char ip_type,  long data_size,
         return NULL;
     }
 
-#ifdef SUP_IP6
     if (!table->rt6)
     {
         sfrt_dir_flat_free( table->rt );
         segment_free(table->data);
         segment_free(table_ptr);
     }
-#endif
 
     return table;
 }
@@ -207,7 +193,6 @@ void sfrt_flat_free(TABLE_PTR table_ptr)
         sfrt_dir_flat_free( table->rt );
     }
 
-#ifdef SUP_IP6
     if(!table->rt6)
     {
         /* This should not have happened either */
@@ -216,7 +201,6 @@ void sfrt_flat_free(TABLE_PTR table_ptr)
     {
         sfrt_dir_flat_free( table->rt6 );
     }
-#endif
 
     segment_free(table_ptr);
 }
@@ -226,11 +210,7 @@ GENERIC sfrt_flat_lookup(void *adr, table_flat_t *table)
 {
     tuple_flat_t tuple;
     INFO *data;
-#ifdef SUP_IP6
     sfip_t *ip;
-#else
-    uint32_t ip;
-#endif
     TABLE_PTR rt = 0;
     uint8_t *base;
 
@@ -244,7 +224,6 @@ GENERIC sfrt_flat_lookup(void *adr, table_flat_t *table)
         return NULL;
     }
 
-#ifdef SUP_IP6
     ip = adr;
     if (ip->family == AF_INET)
     {
@@ -254,16 +233,6 @@ GENERIC sfrt_flat_lookup(void *adr, table_flat_t *table)
     {
         rt = table->rt6;
     }
-#else
-    /* IPv6 not yet supported */
-    if(table->ip_type == IPv6)
-    {
-        return NULL;
-    }
-
-    ip = *(uint32_t*)adr;
-    rt = table->rt;
-#endif
 
     if (!rt)
     {
@@ -295,11 +264,7 @@ int sfrt_flat_insert(void *adr, unsigned char len, INFO ptr,
     int index;
     int res =  RT_SUCCESS;
     INFO *data;
-#ifdef SUP_IP6
     sfip_t *ip;
-#else
-    uint32_t ip;
-#endif
     tuple_flat_t tuple;
     TABLE_PTR rt = 0;
     uint8_t *base;
@@ -324,14 +289,9 @@ int sfrt_flat_insert(void *adr, unsigned char len, INFO ptr,
         return RT_INSERT_FAILURE;
     }
 
-#ifdef SUP_IP6
     ip = adr;
-#else
-    ip = *(uint32_t*)adr;
-#endif
 
 
-#ifdef SUP_IP6
     if (ip->family == AF_INET)
     {
         rt = table->rt;
@@ -340,9 +300,6 @@ int sfrt_flat_insert(void *adr, unsigned char len, INFO ptr,
     {
         rt = table->rt6;
     }
-#else
-    rt = table->rt;
-#endif
     if (!rt)
     {
         return RT_INSERT_FAILURE;
@@ -421,12 +378,10 @@ uint32_t sfrt_flat_usage(table_flat_t *table)
 
     usage = table->allocated + sfrt_dir_flat_usage( table->rt );
 
-#ifdef SUP_IP6
     if (table->rt6)
     {
         usage += sfrt_dir_flat_usage( table->rt6 );
     }
-#endif
 
     return usage;
 }

@@ -15,7 +15,7 @@
  *
  * You should have received a copy of the GNU General Public License
  * along with this program; if not, write to the Free Software
- * Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA 02111-1307, USA.
+ * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
  *
  ****************************************************************************/
 
@@ -296,10 +296,8 @@ static int ProcessIcmpUnreach(Packet *p)
     Stream5LWSession *ssn = NULL;
     uint16_t sport;
     uint16_t dport;
-#ifdef SUP_IP6
     sfip_t *src;
     sfip_t *dst;
-#endif
 
     /* No "orig" IP Header */
     if (!p->orig_iph)
@@ -313,7 +311,6 @@ static int ProcessIcmpUnreach(Packet *p)
     sport = p->orig_sp;
     dport = p->orig_dp;
 
-#ifdef SUP_IP6
     src = GET_ORIG_SRC(p);
     dst = GET_ORIG_DST(p);
 
@@ -339,39 +336,10 @@ static int ProcessIcmpUnreach(Packet *p)
             skey.port_h = sport;
         }
     }
-#else
-    if (p->orig_iph->ip_src.s_addr < p->orig_iph->ip_dst.s_addr)
-    {
-        skey.ip_l = p->orig_iph->ip_src.s_addr;
-        skey.port_l = sport;
-        skey.ip_h = p->orig_iph->ip_dst.s_addr;
-        skey.port_h = dport;
-    }
-    else if (p->orig_iph->ip_dst.s_addr == p->orig_iph->ip_src.s_addr)
-    {
-        skey.ip_l = p->orig_iph->ip_src.s_addr;
-        skey.ip_h = skey.ip_l;
-        if (sport < dport)
-        {
-            skey.port_l = sport;
-            skey.port_h = dport;
-        }
-        else
-        {
-            skey.port_l = dport;
-            skey.port_h = sport;
-        }
-    }
-#endif
     else
     {
-#ifdef SUP_IP6
         COPY4(skey.ip_l, dst->ip32);
         COPY4(skey.ip_h, src->ip32);
-#else
-        skey.ip_l = p->orig_iph->ip_dst.s_addr;
-        skey.ip_h = p->orig_iph->ip_src.s_addr;
-#endif
         skey.port_l = dport;
         skey.port_h = sport;
     }
@@ -430,7 +398,6 @@ void IcmpUpdateDirection(Stream5LWSession *ssn, char dir,
         return;
     }
 
-#ifdef SUP_IP6
     if (IP_EQUALITY(&icmpssn->icmp_sender_ip, ip))
     {
         if ((dir == SSN_DIR_SENDER) && (ssn->direction == SSN_DIR_SENDER))
@@ -447,24 +414,6 @@ void IcmpUpdateDirection(Stream5LWSession *ssn, char dir,
             return;
         }
     }
-#else
-    if (IP_EQUALITY(icmpssn->icmp_sender_ip, ip))
-    {
-        if ((dir == SSN_DIR_SENDER) && (ssn->direction == SSN_DIR_SENDER))
-        {
-            /* Direction already set as SENDER */
-            return;
-        }
-    }
-    else if (IP_EQUALITY(icmpssn->icmp_responder_ip, ip))
-    {
-        if ((dir == SSN_DIR_RESPONDER) && (ssn->direction == SSN_DIR_RESPONDER))
-        {
-            /* Direction already set as RESPONDER */
-            return;
-        }
-    }
-#endif
 
     /* Swap them -- leave ssn->direction the same */
     tmpIp = icmpssn->icmp_sender_ip;

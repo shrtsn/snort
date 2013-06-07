@@ -21,7 +21,7 @@
 **
 **  You should have received a copy of the GNU General Public License
 **  along with this program; if not, write to the Free Software
-**  Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA 02111-1307, USA.
+**  Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 **
 */
 
@@ -54,9 +54,11 @@ typedef struct _CS_MESSAGE_HEADER
     uint32_t length;    /* Does not include the header */
 } CSMessageHeader;
 
+struct _THREAD_ELEMENT;
+typedef int (*ControlDataSendFunc)(struct _THREAD_ELEMENT *te, const uint8_t *data, uint16_t length);
 typedef int (*OOBPreControlFunc)(uint16_t type, const uint8_t *data, uint32_t length, void **new_context, char *statusBuf, int statusBuf_len);
 typedef int (*IBControlFunc)(uint16_t type, void *new_context, void **old_context);
-typedef void (*OOBPostControlFunc)(uint16_t type, void *old_context);
+typedef void (*OOBPostControlFunc)(uint16_t type, void *old_context, struct _THREAD_ELEMENT *te, ControlDataSendFunc f);
 
 #endif
 

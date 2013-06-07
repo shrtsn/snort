@@ -15,7 +15,7 @@
  *
  * You should have received a copy of the GNU General Public License
  * along with this program; if not, write to the Free Software
- * Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA 02111-1307, USA.
+ * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
  *
  ****************************************************************************/
 
@@ -72,14 +72,12 @@ int imapDetectCalled = 0;
 #include "mempool.h"
 #include "snort_bounds.h"
 
+#include "file_api.h"
+
 const int MAJOR_VERSION = 1;
 const int MINOR_VERSION = 0;
 const int BUILD_VERSION = 1;
-#ifdef SUP_IP6
-const char *PREPROC_NAME = "SF_IMAP (IPV6)";
-#else
 const char *PREPROC_NAME = "SF_IMAP";
-#endif
 
 #define SetupIMAP DYNAMIC_PREPROC_SETUP
 
@@ -406,6 +404,8 @@ static void IMAPCheckConfig(void)
 
     sfPolicyUserDataIterate (imap_config, IMAPCheckPolicyConfig);
 
+    defaultConfig->file_depth = _dpd.fileAPI->get_max_file_depth();
+
     if (sfPolicyUserDataIterate(imap_config, IMAPEnableDecoding) != 0)
     {
         int encode_depth;
@@ -417,6 +417,8 @@ static void IMAPCheckConfig(void)
             DynamicPreprocessorFatalMessage("IMAP: Must configure a default "
                     "configuration if you want to imap decoding.\n");
         }
+
+        updateMaxDepth(defaultConfig->file_depth, &defaultConfig->max_depth);
 
         encode_depth = defaultConfig->max_depth;
 
@@ -581,6 +583,14 @@ static int IMAPReloadVerify(void)
             imap_swap_config = NULL;
             return -1;
         }
+        configNext->file_depth = _dpd.fileAPI->get_max_file_depth();
+        if(configNext->file_depth != config->file_depth)
+        {
+            _dpd.errMsg("IMAP reload: Changing the file_depth requires a restart.\n");
+            IMAP_FreeConfigs(imap_swap_config);
+            imap_swap_config = NULL;
+            return -1;
+        }
 
     }
     else if(configNext != NULL)
@@ -609,11 +619,12 @@ static int IMAPReloadVerify(void)
             }
         }
 
+        if ( configNext->disabled )
+            return 0;
+
     }
 
 
-    if ( configNext->disabled )
-        return 0;
 
 
     if (!_dpd.isPreprocEnabled(PP_STREAM5))

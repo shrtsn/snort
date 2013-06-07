@@ -16,7 +16,7 @@
  *
  * You should have received a copy of the GNU General Public License
  * along with this program; if not, write to the Free Software
- * Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA 02111-1307, USA.
+ * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
  *
  ****************************************************************************/
 
@@ -45,11 +45,9 @@ typedef enum {
     PC_IP4_TTL,
     PC_IP4_OPTS,
     PC_ICMP4_ECHO,
-#ifdef SUP_IP6
     PC_IP6_TTL,
     PC_IP6_OPTS,
     PC_ICMP6_ECHO,
-#endif
     PC_TCP_SYN_OPT,
     PC_TCP_TS_ECR,
     PC_TCP_OPT,
@@ -70,11 +68,9 @@ static const char* pegName[PC_MAX] = {
     "ip4::ttl",
     "ip4::opts",
     "icmp4::echo",
-#ifdef SUP_IP6
     "ip6::ttl",
     "ip6::opts",
     "icmp6::echo",
-#endif
     "tcp::syn_opt",
     "tcp::ts_ecr",
     "tcp::opt",
@@ -91,11 +87,9 @@ static PegCount normStats[PC_MAX];
 //static int Norm_Eth(Packet*, uint8_t layer, int changes);
 static int Norm_IP4(NormalizerContext*, Packet*, uint8_t layer, int changes);
 static int Norm_ICMP4(NormalizerContext*, Packet*, uint8_t layer, int changes);
-#ifdef SUP_IP6
 static int Norm_IP6(NormalizerContext*, Packet*, uint8_t layer, int changes);
 static int Norm_ICMP6(NormalizerContext*, Packet*, uint8_t layer, int changes);
 static int Norm_IP6_Opts(NormalizerContext*, Packet*, uint8_t layer, int changes);
-#endif
 //static int Norm_UDP(NormalizerContext*, Packet*, uint8_t layer, int changes);
 static int Norm_TCP(NormalizerContext*, Packet*, uint8_t layer, int changes);
 
@@ -261,7 +255,6 @@ static int Norm_ICMP4 (
 
 //-----------------------------------------------------------------------
 
-#ifdef SUP_IP6
 static int Norm_IP6 (
     NormalizerContext* c, Packet * p, uint8_t layer, int changes)
 {
@@ -330,7 +323,6 @@ static int Norm_IP6_Opts (
 
     return changes;
 }
-#endif
 
 //-----------------------------------------------------------------------
 
@@ -572,7 +564,6 @@ int Norm_SetConfig (NormalizerContext* nc)
     {
         nc->normalizers[PROTO_ICMP4] = Norm_ICMP4;
     }
-#ifdef SUP_IP6
     if ( Norm_IsEnabled(nc, NORM_IP6) )
     {
         nc->normalizers[PROTO_IP6] = Norm_IP6;
@@ -583,7 +574,6 @@ int Norm_SetConfig (NormalizerContext* nc)
     {
         nc->normalizers[PROTO_ICMP6] = Norm_ICMP6;
     }
-#endif
     if ( Norm_IsEnabled(nc, NORM_TCP) )
     {
         nc->normalizers[PROTO_TCP] = Norm_TCP;

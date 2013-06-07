@@ -14,7 +14,7 @@
  *
  * You should have received a copy of the GNU General Public License
  * along with this program; if not, write to the Free Software
- * Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA 02111-1307, USA.
+ * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
  *
  * Copyright (C) 2005-2012 Sourcefire, Inc.
  *
@@ -47,7 +47,7 @@
 #include "sf_snort_detection_engine.h"
 
 #define MAJOR_VERSION   1
-#define MINOR_VERSION   16
+#define MINOR_VERSION   17
 #define BUILD_VERSION   18
 #define DETECT_NAME     "SF_SNORT_DETECTION_ENGINE"
 
@@ -144,7 +144,8 @@ ENGINE_LINKAGE int LibVersion(DynamicPluginMeta *dpm)
     dpm->major = MAJOR_VERSION;
     dpm->minor = MINOR_VERSION;
     dpm->build = BUILD_VERSION;
-    strncpy(dpm->uniqueName, DETECT_NAME, MAX_NAME_LEN);
+    strncpy(dpm->uniqueName, DETECT_NAME, MAX_NAME_LEN-1);
+    dpm->uniqueName[MAX_NAME_LEN-1] = '\0';
     return 0;
 }
 

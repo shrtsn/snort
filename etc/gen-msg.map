@@ -367,6 +367,7 @@
 129 || 17 || stream5: ACK number is greater than prior FIN
 129 || 18 || stream5: Data sent on stream after TCP Reset received
 129 || 19 || stream5: TCP window closed before receiving data
+129 || 20 || stream5: TCP session without 3-way handshake
 130 || 1 || dcerpc: Maximum memory usage reached
 131 || 1 || dns: Obsolete DNS RData Type
 131 || 2 || dns: Experimental DNS RData Type
@@ -429,6 +430,7 @@
 133 || 56 || dcerpc2: SMB - Client attempted multiple dialect negotiations on session
 134 || 1 || ppm: rule tree disabled
 134 || 2 || ppm: rule tree enabled
+134 || 3 || ppm: packet aborted
 135 || 1 || internal: syn received
 135 || 2 || internal: session established
 135 || 3 || internal: session cleared

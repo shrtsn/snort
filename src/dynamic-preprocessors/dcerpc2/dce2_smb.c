@@ -14,7 +14,7 @@
  *
  * You should have received a copy of the GNU General Public License
  * along with this program; if not, write to the Free Software
- * Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA 02111-1307, USA.
+ * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
  *
  ****************************************************************************
  *
@@ -1823,6 +1823,9 @@ static DCE2_Ret DCE2_NbssHdrChecks(DCE2_SmbSsnData *ssd, const NbssHdr *nb_hdr)
         case NBSS_SESSION_TYPE__POS_RESPONSE:
             if (DCE2_SsnFromServer(p))
                 ssd->ssn_state_flags |= DCE2_SMB_SSN_STATE__NBSS_POSITIVE;
+
+            // Fall through
+
         case NBSS_SESSION_TYPE__NEG_RESPONSE:
         case NBSS_SESSION_TYPE__RETARGET_RESPONSE:
             dce2_stats.smb_nbss_not_message++;
@@ -2429,13 +2432,16 @@ void DCE2_SmbProcess(DCE2_SmbSsnData *ssd)
                     return;
                 }
 
+                // data_len >= data_need which means data_need <= UINT16_MAX
+                // So casts below of data_need to uint16_t are okay.
+
                 *data_state = DCE2_SMB_DATA_STATE__NETBIOS_HEADER;
 
                 if (DCE2_BufferIsEmpty(*seg_buf))
                 {
                     nb_ptr = data_ptr;
                     nb_len = data_need;
-                    DCE2_MOVE(data_ptr, data_len, data_need);
+                    DCE2_MOVE(data_ptr, data_len, (uint16_t)data_need);
                 }
                 else
                 {
@@ -2445,11 +2451,11 @@ void DCE2_SmbProcess(DCE2_SmbSsnData *ssd)
                                 sizeof(NbssHdr) + nb_len) != DCE2_RET__SUCCESS)
                     {
                         DCE2_BufferEmpty(*seg_buf);
-                        DCE2_MOVE(data_ptr, data_len, data_need);
+                        DCE2_MOVE(data_ptr, data_len, (uint16_t)data_need);
                         continue;
                     }
 
-                    DCE2_MOVE(data_ptr, data_len, data_need);
+                    DCE2_MOVE(data_ptr, data_len, (uint16_t)data_need);
 
                     nb_ptr = DCE2_BufferData(*seg_buf);
                     nb_len = DCE2_BufferLength(*seg_buf);

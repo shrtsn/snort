@@ -16,7 +16,7 @@
 **
 ** You should have received a copy of the GNU General Public License
 ** along with this program; if not, write to the Free Software
-** Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA 02111-1307, USA.
+** Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 */
 
 /* $Id$ */
@@ -264,12 +264,6 @@ void TagCacheReset(void)
  */
 static void PrintTagNode(TagNode *np)
 {
-#ifndef SUP_IP6
-	struct in_addr sip,dip;
-
-	sip.s_addr = np->key.sip;
-	dip.s_addr = np->key.dip;
-#endif
     if(!DebugThis(DEBUG_FLOW))
     {
         return;
@@ -282,22 +276,13 @@ static void PrintTagNode(TagNode *np)
 
     printf("| (%u) %s:%d -> ",
             np->proto,
-#ifdef SUP_IP6
            inet_ntoa(&np->key.sip), np->key.sp
-#else
-
-           inet_ntoa(sip), np->key.sp
-#endif
         );
 
     printf("%s:%d Metric: %u "
            "LastAccess: %u, event_id: %u mode: %u event_time.tv_sec: %"PRIu64"\n"
            "| Packets: %d, Bytes: %d, Seconds: %d\n",
-#ifdef SUP_IP6
            inet_ntoa(&np->key.dip), np->key.dp,
-#else
-           inet_ntoa(dip), np->key.dp,
-#endif
            np->metric,
            np->last_access,
            np->event_id,
@@ -764,7 +749,6 @@ void SetTags(Packet *p, OptTreeNode *otn, uint16_t event_id)
         {
             switch(otn->tag->tag_type)
             {
-#ifdef SUP_IP6
                 case TAG_SESSION:
                     DEBUG_WRAP(DebugMessage(DEBUG_FLOW,"Setting session tag:\n");
 			            DebugMessage(DEBUG_FLOW,"SIP: %s  SP: %d   ",
@@ -781,24 +765,6 @@ void SetTags(Packet *p, OptTreeNode *otn, uint16_t event_id)
                             sfip_ntoa(GET_DST_IP(p)),p->dp););
                     TagHost(p, otn->tag, p->pkth->ts.tv_sec, event_id);
                     break;
-#else
-                case TAG_SESSION:
-                    DEBUG_WRAP(DebugMessage(DEBUG_FLOW,"Setting session tag:\n");
-			       DebugMessage(DEBUG_FLOW,"SIP: 0x%X  SP: %d   DIP: 0x%X  "
-					    "DP: %d\n", p->iph->ip_src.s_addr,p->sp,
-					    p->iph->ip_dst.s_addr,p->dp););
-
-                    TagSession(p, otn->tag, p->pkth->ts.tv_sec, event_id);
-                    break;
-
-                case TAG_HOST:
-                    DEBUG_WRAP(DebugMessage(DEBUG_FLOW,"Setting host tag:\n");
-			       DebugMessage(DEBUG_FLOW,"SIP: 0x%X  SP: %d   DIP: 0x%X  "
-					    "DP: %d\n", p->iph->ip_src.s_addr,p->sp,
-					    p->iph->ip_dst.s_addr,p->dp););
-                    TagHost(p, otn->tag, p->pkth->ts.tv_sec, event_id);
-                    break;
-#endif
 
                 default:
                     LogMessage("WARNING: Trying to tag with unknown "

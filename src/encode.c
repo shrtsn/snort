@@ -16,7 +16,7 @@
  *
  * You should have received a copy of the GNU General Public License
  * along with this program; if not, write to the Free Software
- * Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA 02111-1307, USA.
+ * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
  *
  ****************************************************************************/
 
@@ -247,9 +247,7 @@ int Encode_Format (EncodeFlags f, const Packet* p, Packet* c, PseudoPacketType t
     {
         for ( i = next_layer-1; i >= 0; i-- )
             if ( p->layers[i].proto == PROTO_IP4
-#ifdef SUP_IP6
               || p->layers[i].proto == PROTO_IP6
-#endif
             )
                 break;
          if ( i < next_layer ) next_layer = i + 1;
@@ -740,9 +738,7 @@ static void IP4_Format (EncodeFlags f, const Packet* p, Packet* c, Layer* lyr)
             SET_IP_HLEN(ch, lyr->length >> 2);
         }
     }
-#ifdef SUP_IP6
     sfiph_build(c, c->iph, AF_INET);
-#endif
 }
 
 //-------------------------------------------------------------------------
@@ -1097,7 +1093,6 @@ static void TCP_Format (EncodeFlags f, const Packet* p, Packet* c, Layer* lyr)
 // IP6 encoder
 //-------------------------------------------------------------------------
 
-#ifdef SUP_IP6
 static ENC_STATUS IP6_Encode (EncState* enc, Buffer* in, Buffer* out)
 {
     int len;
@@ -1233,7 +1228,6 @@ static ENC_STATUS Opt6_Update (Packet* p, Layer* lyr, uint32_t* len)
 
     return ENC_OK;
 }
-#endif
 
 //-------------------------------------------------------------------------
 // ICMP6 functions
@@ -1289,7 +1283,6 @@ static ENC_STATUS UN6_Encode (EncState* enc, Buffer* in, Buffer* out)
     return ENC_OK;
 }
 
-#ifdef SUP_IP6
 static ENC_STATUS ICMP6_Update (Packet* p, Layer* lyr, uint32_t* len)
 {
     IcmpHdr* h = (IcmpHdr*)(lyr->start);
@@ -1316,7 +1309,6 @@ static void ICMP6_Format (EncodeFlags f, const Packet* p, Packet* c, Layer* lyr)
     // TBD handle nested icmp6 layers
     c->icmp6h = (ICMP6Hdr*)lyr->start;
 }
-#endif
 
 //-------------------------------------------------------------------------
 // GTP functions
@@ -1460,13 +1452,11 @@ static EncoderFunctions encoders[PROTO_MAX] = {
     { XXX_Encode,  XXX_Update,   XXX_Format,  },  // ICMP_IP4
     { UDP_Encode,  UDP_Update,   UDP_Format   },
     { TCP_Encode,  TCP_Update,   TCP_Format   },
-#ifdef SUP_IP6
     { IP6_Encode,  IP6_Update,   IP6_Format   },
     { Opt6_Encode, Opt6_Update,  XXX_Format   },  // IP6 Hop Opts
     { Opt6_Encode, Opt6_Update,  XXX_Format   },  // IP6 Dst Opts
     { UN6_Encode,  ICMP6_Update, ICMP6_Format },
     { XXX_Encode,  XXX_Update,   XXX_Format,  },  // ICMP_IP6
-#endif
     { XXX_Encode,  XXX_Update,   VLAN_Format  },
 #ifdef GRE
     { XXX_Encode,  XXX_Update,   GRE_Format   },

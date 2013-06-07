@@ -15,7 +15,7 @@
  *
  * You should have received a copy of the GNU General Public License
  * along with this program; if not, write to the Free Software
- * Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA 02111-1307, USA.
+ * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
  *
  ****************************************************************************/
 
@@ -159,7 +159,8 @@ void IMAP_ParseArgs(IMAPConfig *config, char *args)
 int IMAP_IsDecodingEnabled(IMAPConfig *pPolicyConfig)
 {
     if( (pPolicyConfig->b64_depth > -1) || (pPolicyConfig->qp_depth > -1)
-     || (pPolicyConfig->uu_depth > -1) || (pPolicyConfig->bitenc_depth > -1) )
+     || (pPolicyConfig->uu_depth > -1) || (pPolicyConfig->bitenc_depth > -1)
+     || (pPolicyConfig->file_depth > -1))
     {
         return 0;
     }

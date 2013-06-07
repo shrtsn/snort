@@ -15,7 +15,7 @@
  *
  * You should have received a copy of the GNU General Public License
  * along with this program; if not, write to the Free Software
- * Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA 02111-1307, USA.
+ * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
  *
  ****************************************************************************/
 
@@ -69,6 +69,7 @@
 #define PP_GTP                    27
 #define PP_MODBUS                 28
 #define PP_DNP3                   29
+#define PP_FILE                   30
 
 #define PP_ALL_ON         0xFFFFFFFF
 #define PP_ALL_OFF        0x00000000

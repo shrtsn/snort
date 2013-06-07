@@ -16,7 +16,7 @@
 **
 ** You should have received a copy of the GNU General Public License
 ** along with this program; if not, write to the Free Software
-** Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA 02111-1307, USA.
+** Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 */
 
 #ifdef HAVE_CONFIG_H
@@ -67,9 +67,6 @@ void AllocDumpBuf();
 /***************** LOG ASCII ROUTINES *******************/
 
 #ifndef NO_NON_ETHER_DECODER
-#ifndef SUP_IP6
-static unsigned char ezero[6];  /* crap for ARP */
-#endif
 #endif
 
 /*
@@ -183,9 +180,7 @@ void PrintNetData(FILE * fp, const u_char * start, const int len, Packet *p)
         for ( i = 0; i < next_layer; i++ )
         {
             if ( p->layers[i].proto == PROTO_IP4
-#ifdef SUP_IP6
                   || p->layers[i].proto == PROTO_IP6
-#endif
               )
             {
                 if(p->layers[i].length && p->layers[i].start)
@@ -503,15 +498,9 @@ void PrintIPPkt(FILE * fp, int type, Packet * p)
                 }
                 else
                 {
-#ifdef SUP_IP6
                     PrintNetData(fp, (u_char *)
                             (u_char *)p->iph + (GET_IPH_HLEN(p) << 2),
                             GET_IP_PAYLEN(p), NULL);
-#else
-                    PrintNetData(fp, (u_char *)
-                            ((u_char *)p->iph + (IP_HLEN(p->iph) << 2)),
-                            (p->actual_ip_len - (IP_HLEN(p->iph) << 2)), NULL);
-#endif
                 }
 
                 break;
@@ -523,15 +512,9 @@ void PrintIPPkt(FILE * fp, int type, Packet * p)
                 }
                 else
                 {
-#ifdef SUP_IP6
                     PrintNetData(fp, (u_char *)
                             (u_char *)p->iph + (GET_IPH_HLEN(p) << 2),
                             GET_IP_PAYLEN(p), NULL);
-#else
-                    PrintNetData(fp, (u_char *)
-                            ((u_char *)p->iph + (IP_HLEN(p->iph) << 2)),
-                            (p->actual_ip_len - (IP_HLEN(p->iph) << 2)), NULL);
-#endif
                 }
 
                 break;
@@ -543,15 +526,9 @@ void PrintIPPkt(FILE * fp, int type, Packet * p)
                 }
                 else
                 {
-#ifdef SUP_IP6
                     PrintNetData(fp, (u_char *)
                             ((u_char *)p->iph + (GET_IPH_HLEN(p) << 2)),
                             GET_IP_PAYLEN(p), NULL);
-#else
-                    PrintNetData(fp, (u_char *)
-                            ((u_char *) p->iph + (IP_HLEN(p->iph) << 2)),
-                            (ntohs(p->iph->ip_len) - (IP_HLEN(p->iph) << 2)), NULL);
-#endif
                 }
 
                 break;
@@ -1007,137 +984,7 @@ void PrintSLLHeader(FILE * fp, Packet * p)
 
 void PrintArpHeader(FILE * fp, Packet * p)
 {
-#ifdef SUP_IP6
 // XXX-IPv6 "NOT YET IMPLEMENTED - printing ARP header"
-#else
-    struct in_addr ip_addr;
-    char timestamp[TIMEBUF_SIZE];
-    const uint8_t *mac_src = NULL;
-    const uint8_t *mac_dst = NULL;
-
-    bzero((struct in_addr *) &ip_addr, sizeof(struct in_addr));
-    bzero((char *) timestamp, TIMEBUF_SIZE);
-    ts_print((struct timeval *) & p->pkth->ts, timestamp);
-
-    /* determine what to use as MAC src and dst */
-    if (p->eh != NULL)
-    {
-        mac_src = p->eh->ether_src;
-        mac_dst = p->eh->ether_dst;
-    } /* per table 4, 802.11 section 7.2.2 */
-    else if (p->wifih != NULL &&
-             (p->wifih->frame_control & WLAN_FLAG_FROMDS))
-    {
-        mac_src = p->wifih->addr3;
-        mac_dst = p->wifih->addr2;
-    }
-    else if (p->wifih != NULL &&
-             (p->wifih->frame_control & WLAN_FLAG_TODS))
-    {
-        mac_src = p->wifih->addr2;
-        mac_dst = p->wifih->addr3;
-    }
-    else if (p->wifih != NULL)
-    {
-        mac_src = p->wifih->addr2;
-        mac_dst = p->wifih->addr1;
-    }
-
-    /*
-     * if these are null this function will break, exit until
-     * someone writes a function for it...
-     */
-    if(mac_src == NULL || mac_dst == NULL)
-    {
-        return;
-    }
-
-    /* dump the timestamp */
-    fwrite(timestamp, strlen(timestamp), 1, fp);
-
-    if(ntohs(p->ah->ea_hdr.ar_pro) != ETHERNET_TYPE_IP)
-    {
-        fprintf(fp, "ARP #%d for protocol #%.4X (%d) hardware #%d (%d)\n",
-                ntohs(p->ah->ea_hdr.ar_op), ntohs(p->ah->ea_hdr.ar_pro),
-                p->ah->ea_hdr.ar_pln, ntohs(p->ah->ea_hdr.ar_hrd),
-                p->ah->ea_hdr.ar_hln);
-
-        return;
-    }
-
-    switch(ntohs(p->ah->ea_hdr.ar_op))
-    {
-        case ARPOP_REQUEST:
-            bcopy((void *)p->ah->arp_tpa, (void *) &ip_addr, sizeof(ip_addr));
-            fprintf(fp, "ARP who-has %s", inet_ntoa(ip_addr));
-
-            if(memcmp((char *) ezero, (char *) p->ah->arp_tha, 6) != 0)
-            {
-                fprintf(fp, " (%X:%X:%X:%X:%X:%X)", p->ah->arp_tha[0],
-                        p->ah->arp_tha[1], p->ah->arp_tha[2], p->ah->arp_tha[3],
-                        p->ah->arp_tha[4], p->ah->arp_tha[5]);
-            }
-            bcopy((void *)p->ah->arp_spa, (void *) &ip_addr, sizeof(ip_addr));
-
-            fprintf(fp, " tell %s", inet_ntoa(ip_addr));
-
-            if(memcmp((char *) mac_src, (char *) p->ah->arp_sha, 6) != 0)
-            {
-                fprintf(fp, " (%X:%X:%X:%X:%X:%X)", p->ah->arp_sha[0],
-                        p->ah->arp_sha[1], p->ah->arp_sha[2], p->ah->arp_sha[3],
-                        p->ah->arp_sha[4], p->ah->arp_sha[5]);
-            }
-            break;
-
-        case ARPOP_REPLY:
-            bcopy((void *)p->ah->arp_spa, (void *) &ip_addr, sizeof(ip_addr));
-            fprintf(fp, "ARP reply %s", inet_ntoa(ip_addr));
-
-            /* print out the originating request if we're on a weirder
-             * wireless protocol */
-            if(memcmp((char *) mac_src, (char *) p->ah->arp_sha, 6) != 0)
-            {
-                fprintf(fp, " (%X:%X:%X:%X:%X:%X)", mac_src[0],
-                        mac_src[1], mac_src[2], mac_src[3],
-                        mac_src[4], mac_src[5]);
-            }
-            fprintf(fp, " is-at %X:%X:%X:%X:%X:%X", p->ah->arp_sha[0],
-                    p->ah->arp_sha[1], p->ah->arp_sha[2], p->ah->arp_sha[3],
-                    p->ah->arp_sha[4], p->ah->arp_sha[5]);
-
-            if(memcmp((char *) mac_dst, (char *) p->ah->arp_tha, 6) != 0)
-            {
-                fprintf(fp, " (%X:%X:%X:%X:%X:%X)", p->ah->arp_tha[0],
-                        p->ah->arp_tha[1], p->ah->arp_tha[2], p->ah->arp_tha[3],
-                        p->ah->arp_tha[4], p->ah->arp_tha[5]);
-            }
-            break;
-
-        case ARPOP_RREQUEST:
-            fprintf(fp, "RARP who-is %X:%X:%X:%X:%X:%X tell %X:%X:%X:%X:%X:%X",
-                    p->ah->arp_tha[0], p->ah->arp_tha[1], p->ah->arp_tha[2],
-                    p->ah->arp_tha[3], p->ah->arp_tha[4], p->ah->arp_tha[5],
-                    p->ah->arp_sha[0], p->ah->arp_sha[1], p->ah->arp_sha[2],
-                    p->ah->arp_sha[3], p->ah->arp_sha[4], p->ah->arp_sha[5]);
-
-            break;
-
-        case ARPOP_RREPLY:
-            bcopy((void *)p->ah->arp_tpa, (void *) &ip_addr, sizeof(ip_addr));
-            fprintf(fp, "RARP reply %X:%X:%X:%X:%X:%X at %s",
-                    p->ah->arp_tha[0], p->ah->arp_tha[1], p->ah->arp_tha[2],
-                    p->ah->arp_tha[3], p->ah->arp_tha[4], p->ah->arp_tha[5],
-                    inet_ntoa(ip_addr));
-
-            break;
-
-        default:
-            fprintf(fp, "Unknown operation: %d", ntohs(p->ah->ea_hdr.ar_op));
-            break;
-    }
-
-    fprintf(fp, "\n\n");
-#endif
 }
 #endif  // NO_NON_ETHER_DECODER
 
@@ -1363,10 +1210,8 @@ void PrintUDPHeader(FILE * fp, Packet * p)
  ***************************************************************************/
 void PrintICMPHeader(FILE * fp, Packet * p)
 {
-#ifdef SUP_IP6
     /* 32 digits plus 7 colons and a NULL byte */
     char buf[8*4 + 7 + 1];
-#endif
 
     if(p->icmph == NULL)
     {
@@ -1495,7 +1340,6 @@ void PrintICMPHeader(FILE * fp, Packet * p)
                     break;
             }
 
-#ifdef SUP_IP6
 /* written this way since inet_ntoa was typedef'ed to use sfip_ntoa
  * which requires sfip_t instead of inaddr's.  This call to inet_ntoa
  * is a rare case that doesn't use sfip_t's. */
@@ -1504,9 +1348,6 @@ void PrintICMPHeader(FILE * fp, Packet * p)
 
             sfip_raw_ntop(AF_INET, (void *)&p->icmph->s_icmp_gwaddr, buf, sizeof(buf));
             fprintf(fp, " NEW GW: %s", buf);
-#else
-            fprintf(fp, " NEW GW: %s", inet_ntoa(p->icmph->s_icmp_gwaddr));
-#endif
 
             PrintICMPEmbeddedIP(fp, p);
 
@@ -1643,12 +1484,10 @@ void PrintICMPEmbeddedIP(FILE *fp, Packet *p)
     orig_p->sp = p->orig_sp;
     orig_p->dp = p->orig_dp;
     orig_p->icmph = p->orig_icmph;
-#ifdef SUP_IP6
     orig_p->iph_api = p->orig_iph_api;
     orig_p->ip4h = p->orig_ip4h;
     orig_p->ip6h = p->orig_ip6h;
     orig_p->family = p->orig_family;
-#endif
 
     if(orig_p->iph != NULL)
     {
@@ -1731,11 +1570,7 @@ void PrintEmbeddedICMPHeader(FILE *fp, const ICMPHdr *icmph)
             break;
 
         case ICMP_REDIRECT:
-#ifdef SUP_IP6
 // XXX-IPv6 "NOT YET IMPLEMENTED - ICMP printing"
-#else
-            fprintf(fp, "  New Gwy: %s", inet_ntoa(icmph->s_icmp_gwaddr));
-#endif
             break;
 
         case ICMP_ECHO:

@@ -15,7 +15,7 @@
  *
  * You should have received a copy of the GNU General Public License
  * along with this program; if not, write to the Free Software
- * Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA 02111-1307, USA.
+ * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
  *
  * **************************************************************************/
 
@@ -87,6 +87,7 @@
 #define IMAP_FLAG_IN_CONT_TRANS_ENC          0x00000010
 #define IMAP_FLAG_EMAIL_ATTACH               0x00000020
 #define IMAP_FLAG_MULTIPLE_EMAIL_ATTACH      0x00000040
+#define IMAP_FLAG_MIME_END                   0x00000080
 
 /* session flags */
 #define IMAP_FLAG_NEXT_STATE_UNKNOWN         0x00000004

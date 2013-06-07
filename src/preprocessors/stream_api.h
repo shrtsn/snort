@@ -17,7 +17,7 @@
  * **
  * ** You should have received a copy of the GNU General Public License
  * ** along with this program; if not, write to the Free Software
- * ** Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA 02111-1307, USA.
+ * ** Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
  * */
 
 /* stream_api.h
@@ -637,12 +637,13 @@ typedef struct _stream_api
      *     Protocol
      *     VLAN ID
      *     MPLS ID
+     *     Address Space ID
      *     Preprocessor ID
      *
      * Returns
      *     Application Data reference (pointer)
      */
-    void *(*get_application_data_from_ip_port)(snort_ip_p, uint16_t, snort_ip_p, uint16_t, char, uint16_t, uint32_t, uint32_t);
+    void *(*get_application_data_from_ip_port)(snort_ip_p, uint16_t, snort_ip_p, uint16_t, char, uint16_t, uint32_t, uint16_t, uint32_t);
 
     //Register callbacks for extra data logging
     uint32_t (*reg_xtra_data_cb)(LogFunction );
@@ -675,11 +676,20 @@ typedef struct _stream_api
      *     Protocol
      *     VLAN ID
      *     MPLS ID
+     *     Address Space ID
      *
      * Returns
      *     Stream session pointer
      */
-      void *(*get_session_ptr_from_ip_port)(snort_ip_p, uint16_t, snort_ip_p, uint16_t, char, uint16_t, uint32_t);
+    void *(*get_session_ptr_from_ip_port)(snort_ip_p, uint16_t, snort_ip_p, uint16_t, char, uint16_t, uint32_t, uint16_t);
+
+    /* Delete the session if it is in the closed session state.
+     *
+     * Parameters
+     *     Packet
+     */
+    void (*check_session_closed)(Packet *);
+
 } StreamAPI;
 
 /* To be set by Stream5 */

@@ -14,7 +14,7 @@
  * 
  * You should have received a copy of the GNU General Public License
  * along with this program; if not, write to the Free Software
- * Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA 02111-1307, USA.
+ * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
  * 
 */
 
@@ -35,6 +35,7 @@
 #endif
 #include "sf_snort_packet.h"
 #include "ssl.h"
+#include "sf_types.h"
 
 #define THREE_BYTE_LEN(x) (x[2] | x[1] << 8 | x[0] << 16)
 
@@ -63,9 +64,10 @@ static uint32_t SSL_decode_version_v3(uint8_t major, uint8_t minor)
                 return SSL_BAD_VER_FLAG;
         };
     }
-    /* This is a special case. Technically, major == 2 is SSLv2. But if this
-     * traffic was SSLv2, this code path would not have been exercised. */
-    else if(major == 2)
+    /* This is a special case. Technically, major == 0, minor == 2 is SSLv2.
+     * But if this traffic was SSLv2, this code path would not have been
+     * exercised. */
+    else if(minor == 2)
     {
         return SSL_BAD_VER_FLAG;    
     }
@@ -287,6 +289,15 @@ static uint32_t SSL_decode_v3(const uint8_t *pkt, int size, uint32_t pkt_flags)
     return retval;
 }
 
+// See RFCs 6101, 2246, 4346 and 5246 for SSL 3.0, TLS 1.0, 1.1 and 1.2 respectively
+// Appendix E. Backward Compatibility With SSL
+static inline bool SSL_v3_back_compat_v2(SSLv2_chello_t *chello)
+{
+    if ((chello->major == 3) && (chello->minor <= 3))
+        return true;
+    return false;
+}
+
 static uint32_t SSL_decode_v2(const uint8_t *pkt, int size, uint32_t pkt_flags)
 {
     uint16_t reclen;
@@ -323,11 +334,11 @@ static uint32_t SSL_decode_v2(const uint8_t *pkt, int size, uint32_t pkt_flags)
 
                 chello = (SSLv2_chello_t*)pkt;
 
-                if(chello->major != 2)
-                {
+                // Check for SSLv3/TLS backward compatibility
+                if (SSL_v3_back_compat_v2(chello))
+                    retval |= SSL_V3_BACK_COMPAT_V2;
+                else if (chello->minor != 2)
                     retval |= SSL_BAD_VER_FLAG | SSL_UNKNOWN_FLAG;
-                    break;
-                }
 
                 break;
 
@@ -345,7 +356,7 @@ static uint32_t SSL_decode_v2(const uint8_t *pkt, int size, uint32_t pkt_flags)
 
                 shello = (SSLv2_shello_t*)pkt;
 
-                if(shello->major != 2)
+                if (shello->minor != 2)
                 {
                     retval |= SSL_BAD_VER_FLAG | SSL_UNKNOWN_FLAG;
                     break;

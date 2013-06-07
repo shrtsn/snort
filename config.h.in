@@ -28,6 +28,9 @@
 /* Define to 1 if you have the `daq_acquire_with_meta' function. */
 #undef HAVE_DAQ_ACQUIRE_WITH_META
 
+/* DAQ version supports address space ID in header. */
+#undef HAVE_DAQ_ADDRESS_SPACE_ID
+
 /* Define to 1 if you have the `daq_hup_apply' function. */
 #undef HAVE_DAQ_HUP_APPLY
 
@@ -57,6 +60,9 @@
 
 /* Define to 1 if you have the <inttypes.h> header file. */
 #undef HAVE_INTTYPES_H
+
+/* Define to 1 if you have the `crypto' library (-lcrypto). */
+#undef HAVE_LIBCRYPTO
 
 /* Define to 1 if you have the `dnet' library (-ldnet). */
 #undef HAVE_LIBDNET
@@ -102,6 +108,12 @@
 
 /* Define to 1 if you have the `memrchr' function. */
 #undef HAVE_MEMRCHR
+
+/* openssl SHA available */
+#undef HAVE_OPENSSL_SHA
+
+/* Define to 1 if you have the <openssl/sha.h> header file. */
+#undef HAVE_OPENSSL_SHA_H
 
 /* Define to 1 if you have the <paths.h> header file. */
 #undef HAVE_PATHS_H
@@ -259,9 +271,6 @@
 
 /* Define to the one symbol short name of this package. */
 #undef PACKAGE_TARNAME
-
-/* Define to the home page for this package. */
-#undef PACKAGE_URL
 
 /* Define to the version of this package. */
 #undef PACKAGE_VERSION

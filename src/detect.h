@@ -16,7 +16,7 @@
 **
 ** You should have received a copy of the GNU General Public License
 ** along with this program; if not, write to the Free Software
-** Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA 02111-1307, USA.
+** Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 */
 
 /*  I N C L U D E S  ************************************************/
@@ -60,11 +60,7 @@ int EvalHeader(RuleTreeNode *, Packet *, int);
 int EvalOpts(OptTreeNode *, Packet *);
 void TriggerResponses(Packet *, OptTreeNode *);
 
-#ifdef SUP_IP6
 int CheckAddrPort(sfip_var_t *, PortObject* , Packet *, uint32_t, int);
-#else
-int CheckAddrPort(IpAddrSet *, PortObject* , Packet *, uint32_t, int);
-#endif
 
 /* detection modules */
 int CheckBidirectional(Packet *, struct _RuleTreeNode *, RuleFpList *, int);

@@ -16,7 +16,7 @@
 **
 ** You should have received a copy of the GNU General Public License
 ** along with this program; if not, write to the Free Software
-** Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA 02111-1307, USA.
+** Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 */
 
 /* $Id$ */
@@ -212,7 +212,6 @@ int IpSameCheck(void *option_data, Packet *p)
     PREPROC_PROFILE_START(ipSamePerfStats);
 
     if (IP_EQUALITY( GET_SRC_IP(p), GET_DST_IP(p)))
-#ifdef SUP_IP6
     {
 	    DEBUG_WRAP(DebugMessage(DEBUG_PLUGIN,"Match!  %x ->",
                     sfip_ntoa(GET_SRC_IP(p)));
@@ -227,19 +226,6 @@ int IpSameCheck(void *option_data, Packet *p)
                DebugMessage(DEBUG_PLUGIN, " %x\n",
                     sfip_ntoa(GET_DST_IP(p))));
     }
-#else
-    {
-	    DEBUG_WRAP(DebugMessage(DEBUG_PLUGIN,"Match!  %x -> %x\n",
-				p->iph->ip_src.s_addr,  p->iph->ip_dst.s_addr););
-        rval = DETECTION_OPTION_MATCH;
-    }
-    else
-    {
-        /* you can put debug comments here or not */
-        DEBUG_WRAP(DebugMessage(DEBUG_PLUGIN,"No match %x -> %x\n",
-				p->iph->ip_src.s_addr,  p->iph->ip_dst.s_addr););
-    }
-#endif
 
     /* if the test isn't successful, return 0 */
     PREPROC_PROFILE_END(ipSamePerfStats);

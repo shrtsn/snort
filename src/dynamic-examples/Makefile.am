@@ -45,9 +45,10 @@ BUILT_SOURCES = \
 	include/obfuscation.h \
 	include/rule_option_types.h \
 	include/event.h \
-	include/attribute_table_api.h \
 	include/sfcontrol.h \
-	include/idle_processing.h
+	include/idle_processing.h \
+	include/file_api.h \
+	include/file_lib.h
 
 sed_ipv6_headers = \
 	sed -e "s/->iph->ip_src/->ip4_header->source/" \
@@ -226,9 +227,6 @@ include/sf_dynamic_meta.h: $(srcdir)/../dynamic-plugins/sf_dynamic_meta.h
 include/sf_dynamic_preprocessor.h: $(srcdir)/../dynamic-plugins/sf_dynamic_preprocessor.h
 	@src_header=$?; dst_header=$@; $(massage_headers)
 
-include/attribute_table_api.h: $(srcdir)/../dynamic-plugins/attribute_table_api.h
-	@src_header=$?; dst_header=$@; $(copy_headers)
-
 # From dynamic-plugins/sf_preproc_example
 include/sf_dynamic_preproc_lib.c: $(srcdir)/../dynamic-plugins/sf_preproc_example/sf_dynamic_preproc_lib.c
 	@src_header=$?; dst_header=$@; $(copy_headers)
@@ -314,7 +312,12 @@ include/signature.h: $(srcdir)/../signature.h
 
 include/plugin_enum.h: $(srcdir)/../plugin_enum.h
 	@src_header=$?; dst_header=$@; $(copy_headers)
+	
+include/file_api.h: $(top_srcdir)/src/file-process/file_api.h
+	@src_header=$?; dst_header=$@; $(copy_headers)
 
+include/file_lib.h: $(top_srcdir)/src/file-process/libs/file_lib.h
+	@src_header=$?; dst_header=$@; $(copy_headers)
 INCLUDES = @INCLUDES@
 
 if HAVE_DYNAMIC_PLUGINS

@@ -15,7 +15,7 @@
  *
  * You should have received a copy of the GNU General Public License
  * along with this program; if not, write to the Free Software
- * Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA 02111-1307, USA.
+ * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
  *
  ****************************************************************************/
 
@@ -134,13 +134,8 @@
 typedef struct _SessionKey
 {
 /* XXX If this data structure changes size, HashKeyCmp must be updated! */
-#ifdef SUP_IP6
     uint32_t   ip_l[4]; /* Low IP */
     uint32_t   ip_h[4]; /* High IP */
-#else
-    uint32_t   ip_l; /* Low IP */
-    uint32_t   ip_h; /* High IP */
-#endif
     uint16_t   port_l; /* Low Port - 0 if ICMP */
     uint16_t   port_h; /* High Port - 0 if ICMP */
     uint16_t   vlan_tag;
@@ -148,7 +143,18 @@ typedef struct _SessionKey
     char        pad;
 #ifdef MPLS
     uint32_t   mplsLabel; /* MPLS label */
+#ifdef HAVE_DAQ_ADDRESS_SPACE_ID
+    uint16_t   addressSpaceId;
+    uint16_t   addressSpaceIdPad1;
+#else
     uint32_t   mplsPad;
+#endif
+#else
+#ifdef HAVE_DAQ_ADDRESS_SPACE_ID
+    uint16_t   addressSpaceId;
+    uint16_t   addressSpaceIdPad1;
+    uint32_t   addressSpaceIdPad2;
+#endif
 #endif
 /* XXX If this data structure changes size, HashKeyCmp must be updated! */
 } SessionKey;

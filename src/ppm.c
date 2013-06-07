@@ -15,7 +15,7 @@
  *
  * You should have received a copy of the GNU General Public License
  * along with this program; if not, write to the Free Software
- * Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA 02111-1307, USA.
+ * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
  *
  ****************************************************************************/
 
@@ -174,7 +174,11 @@ void ppm_print_cfg(ppm_cfg_t *ppm_cfg)
             LogMessage("fastpath-expensive-packets\n");
         else
             LogMessage("none\n");
-        LogMessage("  packet logging  : %s\n", ppm_cfg->pkt_log ? "log" : "none");
+        LogMessage("  packet logging  : ");
+        if(ppm_cfg->pkt_log&PPM_LOG_ALERT) LogMessage("alert " );
+        if(ppm_cfg->pkt_log&PPM_LOG_MESSAGE) LogMessage("log ");
+        if(!ppm_cfg->pkt_log) LogMessage("none ");
+        LogMessage("\n");
         LogMessage("  debug-pkts      : %s\n",(ppm_cfg->debug_pkts)? "enabled":"disabled");
     }
 
@@ -308,39 +312,83 @@ void ppm_init(ppm_cfg_t *ppm_cfg)
 /*
  *  Logging functions - syslog and/or events
  */
-#define PPM_FMT_FASTPATH "PPM: Pkt-Event Pkt[" STDi64 "] used=%g usecs, %u rules, %u nc-rules tested, packet fastpathed.\n"
-#define PPM_FMT_PACKET   "PPM: Pkt-Event Pkt[" STDi64 "] used=%g usecs, %u rules, %u nc-rules tested.\n"
+#define PPM_FMT_FASTPATH "PPM: Pkt-Event Pkt[" STDi64 "] used=%g usecs, %u rules, %u nc-rules tested, packet fastpathed (%s:%d -> %s:%d).\n"
+#define PPM_FMT_PACKET   "PPM: Pkt-Event Pkt[" STDi64 "] used=%g usecs, %u rules, %u nc-rules tested (%s:%d -> %s:%d).\n"
 
-void ppm_pkt_log(ppm_cfg_t *ppm_cfg)
+void ppm_pkt_log(ppm_cfg_t *ppm_cfg, Packet* p)
 {
     if (!ppm_cfg->max_pkt_ticks)
         return;
 
     ppm_cfg->pkt_event_cnt++;
 
-    if (ppm_cfg->pkt_log)
+    if (ppm_cfg->pkt_log & PPM_LOG_ALERT)
     {
+        OptTreeNode* potn;
+        Event ev;
+
+        /* make sure we have an otn already in our table for this event */
+        potn = OtnLookup(snort_conf->otn_map, GENERATOR_PPM, PPM_EVENT_PACKET_ABORTED);
+        if (potn == NULL)
+        {
+            /* have to make one */
+            potn = GenerateSnortEventOtn(GENERATOR_PPM, /* GID */
+                                         PPM_EVENT_PACKET_ABORTED, /* SID */
+                                         1, /* Rev */
+                                         0, /* classification */
+                                         3, /* priority (low) */
+                                         PPM_EVENT_PACKET_ABORTED_STR /* msg string */);
+
+            if (potn == NULL)
+                return;
+
+            OtnLookupAdd(snort_conf->otn_map, potn);
+        }
+
+        SetEvent(&ev,
+                 potn->sigInfo.generator, /* GID */
+                 potn->sigInfo.id, /* SID */
+                 potn->sigInfo.rev, /* Rev */
+                 potn->sigInfo.class_id, /* classification */
+                 potn->sigInfo.priority, /* priority (low) */
+                 0);
+
+        AlertAction(p, potn, &ev);
+    }
+
+    if (ppm_cfg->pkt_log & PPM_LOG_MESSAGE)
+    {
+        char src[INET6_ADDRSTRLEN];
+        char dst[INET6_ADDRSTRLEN];
+
+        sfip_t* addr = GET_SRC_IP(p);
+        sfip_ntop(addr, src, sizeof(src));
+
+        addr = GET_DST_IP(p);
+        sfip_ntop(addr, dst, sizeof(dst));
+
         if (ppm_abort_this_pkt)
         {
             LogMessage(PPM_FMT_FASTPATH,
                        ppm_pt->pktcnt,
                        ppm_ticks_to_usecs((PPM_TICKS)ppm_pt->tot),
-                       ppm_pt->rule_tests,
-                       ppm_pt->nc_rule_tests );
+                       ppm_pt->rule_tests, ppm_pt->nc_rule_tests,
+                       src, p->sp, dst, p->dp);
         }
         else
         {
             LogMessage(PPM_FMT_PACKET,
                        ppm_pt->pktcnt,
                        ppm_ticks_to_usecs((PPM_TICKS)ppm_pt->tot),
-                       ppm_pt->rule_tests,
-                       ppm_pt->nc_rule_tests );
+                       ppm_pt->rule_tests, ppm_pt->nc_rule_tests,
+                       src, p->sp, dst, p->dp);
         }
     }
 }
 
-#define PPM_FMT_SUSPENDED "PPM: Rule-Event address=0x%p Pkt[" STDi64 "] used=%g usecs suspended %s\n"
-#define PPM_FMT_REENABLED "PPM: Rule-Event address=0x%p Pkt[" STDi64 "] re-enabled %s\n"
+#define PPM_FMT_SUS_PKT   "PPM: Rule-Event Pkt[" STDi64 "] suspended (%s:%d -> %s:%d).\n"
+#define PPM_FMT_SUSPENDED "PPM: Rule-Event Pkt[" STDi64 "] address=0x%p used=%g usecs suspended %s\n"
+#define PPM_FMT_REENABLED "PPM: Rule-Event Pkt[" STDi64 "] address=0x%p re-enabled %s\n"
 
 static inline OptTreeNode * PPMGetOTN(uint32_t sid, char *msg)
 {
@@ -415,9 +463,7 @@ void ppm_rule_log(ppm_cfg_t *ppm_cfg, uint64_t pktcnt, Packet *p)
                 proot = ppm_crules[i];
 
                 LogMessage(PPM_FMT_REENABLED,
-                           (void*)proot,
-                           pktcnt,
-                           timestamp);
+                           pktcnt, (void*)proot, timestamp);
             }
         }
 
@@ -454,6 +500,16 @@ void ppm_rule_log(ppm_cfg_t *ppm_cfg, uint64_t pktcnt, Packet *p)
         if (ppm_cfg->rule_log & PPM_LOG_MESSAGE)
         {
             int i;
+            char src[INET6_ADDRSTRLEN];
+            char dst[INET6_ADDRSTRLEN];
+
+            sfip_t* addr = GET_SRC_IP(p);
+            sfip_ntop(addr, src, sizeof(src));
+
+            addr = GET_DST_IP(p);
+            sfip_ntop(addr, dst, sizeof(dst));
+
+            LogMessage(PPM_FMT_SUS_PKT, pktcnt, src, p->sp, dst, p->dp);
 
             if(!*timestamp)
                 ts_print((struct timeval*)&p->pkth->ts, timestamp);
@@ -463,8 +519,7 @@ void ppm_rule_log(ppm_cfg_t *ppm_cfg, uint64_t pktcnt, Packet *p)
                 proot = ppm_rules[i].tree;
 
                 LogMessage(PPM_FMT_SUSPENDED,
-                           (void*)proot,
-                           pktcnt,
+                           pktcnt, (void*)proot,
                            ppm_ticks_to_usecs((PPM_TICKS)ppm_rules[i].ticks),
                            timestamp);
             }

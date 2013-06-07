@@ -16,7 +16,7 @@
 **
 ** You should have received a copy of the GNU General Public License
 ** along with this program; if not, write to the Free Software
-** Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA 02111-1307, USA.
+** Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 */
 
 
@@ -177,13 +177,8 @@ int DisplayBanner(void)
 
     LogMessage("\n");
     LogMessage("   ,,_     -*> Snort! <*-\n");
-    LogMessage("  o\"  )~   Version %s%s%s (Build %s) %s\n",
+    LogMessage("  o\"  )~   Version %s%s (Build %s) %s\n",
                VERSION,
-#ifdef SUP_IP6
-               " IPv6",
-#else
-               "",
-#endif
 #ifdef GRE
                " GRE",
 #else
@@ -1171,6 +1166,11 @@ void DropStats(int exiting)
             const char* s = Verdicts[i];
             LogStat(s, pkt_stats->verdicts[i], pkts_recv);
         }
+        if ( pc.internal_blacklist > 0 )
+            LogStat("Int Blklst", pc.internal_blacklist, pkts_recv);
+
+        if ( pc.internal_whitelist > 0 )
+            LogStat("Int Whtlst", pc.internal_whitelist, pkts_recv);
     }
 #ifdef TARGET_BASED
     if (ScIdsMode() && IsAdaptiveConfigured(getDefaultPolicy(), 0))
@@ -2232,9 +2232,7 @@ char *GetIP(char * iface)
     struct ifreq ifr;
     struct sockaddr_in *addr;
     int s;
-#ifdef SUP_IP6
     sfip_t ret;
-#endif
 
     if(iface)
     {
@@ -2257,13 +2255,9 @@ char *GetIP(char * iface)
         }
         close(s);
 
-#ifdef SUP_IP6
 // XXX-IPv6 uses ioctl to populate a sockaddr_in structure ... but what if the interface only has an IPv6 address?
         sfip_set_raw(&ret, addr, AF_INET);
         return SnortStrdup(sfip_ntoa(&ret));
-#else
-        return SnortStrdup(inet_ntoa(addr->sin_addr));
-#endif
     }
     else
     {
@@ -2733,20 +2727,13 @@ unsigned long int xatoup(const char *s , const char *etext)
     return val;
 }
 
-#ifndef SUP_IP6
-char * ObfuscateIpToText(const struct in_addr ip_addr)
-#else
 char * ObfuscateIpToText(sfip_t *ip)
-#endif
 {
     static char ip_buf1[INET6_ADDRSTRLEN];
     static char ip_buf2[INET6_ADDRSTRLEN];
     static int buf_num = 0;
     int buf_size = INET6_ADDRSTRLEN;
     char *ip_buf;
-#ifndef SUP_IP6
-    uint32_t ip = ip_addr.s_addr;
-#endif
 
     if (buf_num)
         ip_buf = ip_buf2;
@@ -2756,31 +2743,6 @@ char * ObfuscateIpToText(sfip_t *ip)
     buf_num ^= 1;
     ip_buf[0] = 0;
 
-#ifndef SUP_IP6
-    if (ip == 0)
-        return ip_buf;
-
-    if (snort_conf->obfuscation_net == 0)
-    {
-        /* Fully obfuscate - just use 'x' */
-        SnortSnprintf(ip_buf, buf_size, "xxx.xxx.xxx.xxx");
-    }
-    else
-    {
-        if (snort_conf->homenet != 0)
-        {
-            if ((ip & snort_conf->netmask) == snort_conf->homenet)
-                ip = snort_conf->obfuscation_net | (ip & snort_conf->obfuscation_mask);
-        }
-        else
-        {
-            ip = snort_conf->obfuscation_net | (ip & snort_conf->obfuscation_mask);
-        }
-
-        SnortSnprintf(ip_buf, buf_size, "%s", inet_ntoa(*((struct in_addr *)&ip)));
-    }
-
-#else
     if (ip == NULL)
         return ip_buf;
 
@@ -2811,7 +2773,6 @@ char * ObfuscateIpToText(sfip_t *ip)
         tmp_buf = sfip_to_str(&tmp);
         SnortSnprintf(ip_buf, buf_size, "%s", tmp_buf);
     }
-#endif
 
     return ip_buf;
 }

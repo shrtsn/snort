@@ -15,7 +15,7 @@
  **
  ** You should have received a copy of the GNU General Public License
  ** along with this program; if not, write to the Free Software
- ** Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA 02111-1307, USA.
+ ** Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
  */
 
 #include <stdio.h>
@@ -83,7 +83,8 @@ PREPROC_LINKAGE int LibVersion(DynamicPluginMeta *dpm)
     dpm->major = MAJOR_VERSION;
     dpm->minor = MINOR_VERSION;
     dpm->build = BUILD_VERSION;
-    strncpy(dpm->uniqueName, PREPROC_NAME, MAX_NAME_LEN);
+    strncpy(dpm->uniqueName, PREPROC_NAME, MAX_NAME_LEN-1);
+    dpm->uniqueName[MAX_NAME_LEN-1] = '\0';
     return 0;
 }
 

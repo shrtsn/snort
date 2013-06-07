@@ -15,7 +15,7 @@
  *
  * You should have received a copy of the GNU General Public License
  * along with this program; if not, write to the Free Software
- * Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA 02111-1307, USA.
+ * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
  *
  ****************************************************************************/
 
@@ -119,11 +119,7 @@
 #include "stream_api.h"
 #include "sfPolicyUserData.h"
 
-#ifdef SUP_IP6
 # define CLEARED &cleared
-#else
-# define CLEARED cleared
-#endif
 
 typedef struct s_PS_HASH_KEY
 {
@@ -355,34 +351,19 @@ void ps_reset(void)
 /**
 **  Check scanner and scanned ips to see if we can filter them out.
 */
-#ifdef SUP_IP6
 static int ps_ignore_ip(snort_ip_p scanner, uint16_t scanner_port,
                         snort_ip_p scanned, uint16_t scanned_port)
-#else
-static int ps_ignore_ip(uint32_t scanner, uint16_t scanner_port,
-                        uint32_t scanned, uint16_t scanned_port)
-#endif
 {
     if (portscan_eval_config->ignore_scanners)
     {
-#ifdef SUP_IP6
         if (ipset_contains(portscan_eval_config->ignore_scanners, scanner, &scanner_port))
             return 1;
-#else
-        if(ipset_contains(portscan_eval_config->ignore_scanners, &scanner, &scanner_port, IPV4_FAMILY))
-            return 1;
-#endif
     }
 
     if(portscan_eval_config->ignore_scanned)
     {
-#ifdef SUP_IP6
         if (ipset_contains(portscan_eval_config->ignore_scanned, scanned, &scanned_port))
             return 1;
-#else
-        if(ipset_contains(portscan_eval_config->ignore_scanned, &scanned, &scanned_port, IPV4_FAMILY))
-            return 1;
-#endif
     }
 
     return 0;
@@ -400,11 +381,7 @@ static int ps_filter_ignore(PS_PKT *ps_pkt)
 {
     Packet  *p;
     int      reverse_pkt = 0;
-#ifdef SUP_IP6
     snort_ip_p scanner, scanned;
-#else
-    uint32_t scanner, scanned;
-#endif
 
     p = (Packet *)ps_pkt->pkt;
 
@@ -485,13 +462,8 @@ static int ps_filter_ignore(PS_PKT *ps_pkt)
             reverse_pkt = 1;
     }
 
-#ifdef SUP_IP6
     scanner = GET_SRC_IP(p);
     scanned = GET_DST_IP(p);
-#else
-    scanner = ntohl(p->iph->ip_src.s_addr);
-    scanned = ntohl(p->iph->ip_dst.s_addr);
-#endif
 
     if(reverse_pkt)
     {
@@ -508,17 +480,10 @@ static int ps_filter_ignore(PS_PKT *ps_pkt)
 
     if(portscan_eval_config->watch_ip)
     {
-#ifdef SUP_IP6
         if(ipset_contains(portscan_eval_config->watch_ip, scanner, &(p->sp)))
             return 0;
         if(ipset_contains(portscan_eval_config->watch_ip, scanned, &(p->dp)))
             return 0;
-#else
-        if(ipset_contains(portscan_eval_config->watch_ip, &scanner, &(p->sp), IPV4_FAMILY))
-            return 0;
-        if(ipset_contains(portscan_eval_config->watch_ip, &scanned, &(p->dp), IPV4_FAMILY))
-            return 0;
-#endif
 
         return 1;
     }
@@ -812,34 +777,19 @@ static int ps_proto_update(PS_PROTO *proto, int ps_cnt, int pri_cnt, snort_ip_p 
     if(proto->connection_count < 0)
         proto->connection_count = 0;
 
-#ifdef SUP_IP6
     if(!IP_EQUALITY_UNSET(&proto->u_ips, ip))
-#else
-    if(!IP_EQUALITY_UNSET(proto->u_ips, ip))
-#endif
     {
         proto->u_ip_count++;
         IP_COPY_VALUE(proto->u_ips, ip);
     }
 
     /* we need to do the IP comparisons in host order */
-#ifndef SUP_IP6
-    ip = ntohl(ip);
-#endif
 
-#ifdef SUP_IP6
     if(sfip_is_set(&proto->low_ip))
     {
         if(IP_GREATER(&proto->low_ip, ip))
             IP_COPY_VALUE(proto->low_ip, ip);
     }
-#else
-    if(IP_IS_SET(proto->low_ip))
-    {
-        if(IP_GREATER(proto->low_ip, ip))
-            IP_COPY_VALUE(proto->low_ip, ip);
-    }
-#endif
     else
     {
         IP_COPY_VALUE(proto->low_ip, ip);
@@ -847,11 +797,7 @@ static int ps_proto_update(PS_PROTO *proto, int ps_cnt, int pri_cnt, snort_ip_p 
 
     if(IP_IS_SET(proto->high_ip))
     {
-#ifdef SUP_IP6
         if(IP_LESSER(&proto->high_ip, ip))
-#else
-        if(IP_LESSER(proto->high_ip, ip))
-#endif
             IP_COPY_VALUE(proto->high_ip, ip);
     }
     else
@@ -1174,7 +1120,6 @@ static int ps_tracker_update_udp(PS_PKT *ps_pkt, PS_TRACKER *scanner,
         {
             uint32_t direction = stream_api->get_packet_direction(p);
 
-#ifdef SUP_IP6
             if (direction == PKT_FROM_CLIENT)
             {
                 if(scanned)
@@ -1197,30 +1142,6 @@ static int ps_tracker_update_udp(PS_PKT *ps_pkt, PS_TRACKER *scanner,
                 if(scanner)
                     ps_proto_update(&scanner->proto,-1,0,CLEARED,0,0);
             }
-#else
-            if (direction == PKT_FROM_CLIENT)
-            {
-                if(scanned)
-                {
-                    ps_proto_update(&scanned->proto,1,0,
-                                     p->iph->ip_src.s_addr,p->dp, pkt_time);
-                }
-
-                if(scanner)
-                {
-                    ps_proto_update(&scanner->proto,1,0,
-                                     p->iph->ip_dst.s_addr,p->dp, pkt_time);
-                }
-            }
-            else if (direction == PKT_FROM_SERVER)
-            {
-                if(scanned)
-                    ps_proto_update(&scanned->proto,-1,0,0,0,0);
-
-                if(scanner)
-                    ps_proto_update(&scanner->proto,-1,0,0,0,0);
-            }
-#endif
         }
     }
 
@@ -1874,43 +1795,7 @@ int ps_detect(PS_PKT *ps_pkt)
 /* Not currently used */
 static void ps_proto_print(PS_PROTO *proto)
 {
-#ifdef SUP_IP6
 // XXX-IPv6 debugging
-#else
-    int            iCtr;
-    struct in_addr ip;
-
-    if(!proto)
-        return;
-
-    printf("    priority count    = %d\n", proto->priority_count);
-    printf("    connection count  = %d\n", proto->connection_count);
-    printf("    unique IP count   = %d\n", proto->u_ip_count);
-
-    ip.s_addr = proto->low_ip;
-    printf("    IP range          = %s:", inet_ntoa(ip));
-    ip.s_addr = proto->high_ip;
-    printf("%s\n", inet_ntoa(ip));
-
-    printf("    unique port count = %d\n", proto->u_port_count);
-    printf("    port range        = %d:%d\n", proto->low_p, proto->high_p);
-
-    printf("    open ports        = ");
-
-    for(iCtr = 0; iCtr < proto->open_ports_cnt; iCtr++)
-    {
-        printf("%d ", proto->open_ports[iCtr]);
-    }
-    printf("\n");
-
-    printf("    alerts            = %.2x\n", proto->alerts);
-
-    ip.s_addr = proto->u_ips;
-    printf("    Last IP:   %s\n", inet_ntoa(ip));
-    printf("    Last Port: %d\n", proto->u_ports);
-
-    printf("    Time:      %s\n", ctime(&proto->window));
-#endif
 
     return;
 }

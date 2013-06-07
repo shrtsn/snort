@@ -12,7 +12,7 @@
  *
  * You should have received a copy of the GNU General Public License
  * along with this program; if not, write to the Free Software
- * Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA 02111-1307, USA.
+ * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
  *
  * Copyright (C) 2005-2012 Sourcefire, Inc.
  *
@@ -54,17 +54,17 @@
 #endif
 #endif
 
-#define PREPROCESSOR_DATA_VERSION 5
+#define PREPROCESSOR_DATA_VERSION 6
 
 #include "sf_dynamic_common.h"
 #include "sf_dynamic_engine.h"
 #include "stream_api.h"
 #include "str_search.h"
 #include "obfuscation.h"
-#include "sfportobject.h"
-#include "attribute_table_api.h"
+//#include "sfportobject.h"
 #include "sfcontrol.h"
 #include "idle_processing.h"
+#include "file_api.h"
 
 #define MINIMUM_DYNAMIC_PREPROC_ID 10000
 typedef void (*PreprocessorInitFunc)(char *);
@@ -73,8 +73,8 @@ typedef void * (*AddMetaEvalFunc)(void (*meta_eval_func)(int, const uint8_t *), 
 typedef void (*AddPreprocExit)(void (*pp_exit_func) (int, void *), void *arg, uint16_t, uint32_t);
 typedef void (*AddPreprocUnused)(void (*pp_unused_func) (int, void *), void *arg, uint16_t, uint32_t);
 typedef void (*AddPreprocConfCheck)(void (*pp_conf_chk_func) (void));
-typedef int (*AlertQueueAdd)(unsigned int, unsigned int, unsigned int,
-                             unsigned int, unsigned int, char *, void *);
+typedef int (*AlertQueueAdd)(uint32_t, uint32_t, uint32_t,
+                             uint32_t, uint32_t, char *, void *);
 typedef uint32_t (*GenSnortEvent)(Packet *p, uint32_t gid, uint32_t sid, uint32_t rev,
                                   uint32_t classification, uint32_t priority, char *msg);
 #ifdef SNORT_RELOAD
@@ -119,12 +119,10 @@ typedef int16_t (*FindProtocolReferenceFunc)(const char *);
 typedef int16_t (*AddProtocolReferenceFunc)(const char *);
 typedef int (*IsAdaptiveConfiguredFunc)(tSfPolicyId, int);
 #endif
-#ifdef SUP_IP6
 typedef void (*IP6BuildFunc)(void *, const void *, int);
 #define SET_CALLBACK_IP 0
 #define SET_CALLBACK_ICMP_ORIG 1
 typedef void (*IP6SetCallbacksFunc)(void *, int, char);
-#endif
 typedef void (*AddKeywordOverrideFunc)(char *, char *, PreprocOptionInit,
         PreprocOptionEval, PreprocOptionCleanup, PreprocOptionHash,
         PreprocOptionKeyCompare, PreprocOptionOtnHandler,
@@ -176,6 +174,9 @@ typedef void (*AddPeriodicCheck)(void (*pp_check_func) (int, void *), void *arg,
 typedef void (*AddPostConfigFuncs)(void (*pp_post_config_func) (void *), void *arg);
 typedef int (*AddOutPutModule)(const char *filename);
 typedef int (*CanWhitelist)(void);
+
+typedef void (*DisableAllPoliciesFunc)(void);
+typedef int (*ReenablePreprocBitFunc)(unsigned int preproc_id);
 
 #define ENC_DYN_FWD 0x80000000
 #define ENC_DYN_NET 0x10000000
@@ -253,10 +254,8 @@ typedef struct _DynamicPreprocessorData
     AddPreprocResetStats addPreprocResetStats;
     DisablePreprocessorsFunc disablePreprocessors;
 
-#ifdef SUP_IP6
     IP6BuildFunc ip6Build;
     IP6SetCallbacksFunc ip6SetCallbacks;
-#endif
 
     AlertQueueLog logAlerts;
     AlertQueueControl resetAlerts;
@@ -308,10 +307,6 @@ typedef struct _DynamicPreprocessorData
     AddPreprocFunc addDetect;
     PafEnabledFunc isPafEnabled;
 
-#ifdef TARGET_BASED
-    HostAttributeTableApi *hostAttributeTableApi;
-#endif
-
     GetLogDirectory getLogDirectory;
 
     ControlSocketRegisterHandlerFunc controlSocketRegisterHandler;
@@ -332,7 +327,9 @@ typedef struct _DynamicPreprocessorData
     char **snort_conf_dir;
     AddOutPutModule addOutputModule;
     CanWhitelist canWhitelist;
-
+    FileAPI *fileAPI;
+    DisableAllPoliciesFunc disableAllPolicies;
+    ReenablePreprocBitFunc reenablePreprocBit;
 } DynamicPreprocessorData;
 
 /* Function prototypes for Dynamic Preprocessor Plugins */

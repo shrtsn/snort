@@ -14,7 +14,7 @@
  *
  * You should have received a copy of the GNU General Public License
  * along with this program; if not, write to the Free Software
- * Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA 02111-1307, USA.
+ * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
  *
  ****************************************************************************/
 
@@ -64,11 +64,7 @@ tSfPolicyConfig * sfPolicyInit(void)
     }
 
     //initialize net bindings
-#ifdef SUP_IP6
     new->netBindTable = sfrt_new(DIR_16x7_4x4, IPv6, SF_NETWORK_BINDING_MAX, 20);
-#else
-    new->netBindTable = sfrt_new(DIR_16_4x4, IPv4, SF_NETWORK_BINDING_MAX, 20);
-#endif
 
     return new;
 }
@@ -383,11 +379,7 @@ int sfNetworkAddBinding(
 {
     tSfPolicyId *policyId;
     int iRet;
-#ifdef SUP_IP6
     sfip_t tmp_ip;
-#else
-    uint32_t addr;
-#endif
 
     if ((config == NULL) || (Ip == NULL) || (fileName == NULL))
         return -1;
@@ -405,7 +397,6 @@ int sfNetworkAddBinding(
         return -1;
     }
 
-#ifdef SUP_IP6
     /* For IPv4, need to pass the address in host order */
     if (Ip->family == AF_INET)
     {
@@ -420,15 +411,11 @@ int sfNetworkAddBinding(
 
     iRet = sfrt_insert((void *)Ip, (unsigned char)Ip->bits,
                        (void *)policyId, RT_FAVOR_SPECIFIC, config->netBindTable);
-#else
-    addr = ntohl(Ip->ip32[0]);
-    iRet = sfrt_insert((void *)&addr, (unsigned char)Ip->bits,
-                       (void *)policyId, RT_FAVOR_SPECIFIC, config->netBindTable);
-#endif
 
     //DEBUG_WRAP(DebugMessage(DEBUG_CONFIGRULES,"Added  vlandId  %d, file %s, policyId: %d\n", vlanId, fileName, policyId););
     if (iRet)
     {
+        free(policyId);
         return -1;
     }
 
@@ -441,18 +428,11 @@ unsigned int sfNetworkGetBinding(
         )
 {
     tSfPolicyId *policyId = NULL;
-#ifdef SUP_IP6
     sfip_t tmp_ip;
 
     if ((void *)ip == NULL)
         return 0;
-#else
-    if (ip == 0)
-        return 0;
 
-#endif
-
-#ifdef SUP_IP6
     if (ip->family == AF_INET)
     {
         if (sfip_set_ip(&tmp_ip, ip) != SFIP_SUCCESS)
@@ -468,10 +448,6 @@ unsigned int sfNetworkGetBinding(
     }
 
     policyId = (tSfPolicyId *)sfrt_lookup((void *)ip, config->netBindTable);
-#else
-    ip = ntohl(ip);
-    policyId = (tSfPolicyId *)sfrt_lookup((void *)&ip, config->netBindTable);
-#endif
 
     if (!policyId)
     {
@@ -487,18 +463,11 @@ void sfNetworkDeleteBinding(
         )
 {
     tSfPolicyId *policyId;
-#ifdef SUP_IP6
     sfip_t tmp_ip;
 
     if ((void *)ip == NULL)
         return;
-#else
-    if (ip == 0)
-        return;
 
-#endif
-
-#ifdef SUP_IP6
     if (ip->family == AF_INET)
     {
         if (sfip_set_ip(&tmp_ip, ip) != SFIP_SUCCESS)
@@ -511,10 +480,6 @@ void sfNetworkDeleteBinding(
     }
 
     policyId = (tSfPolicyId *)sfrt_lookup((void *)ip, config->netBindTable);
-#else
-    ip = ntohl(ip);
-    policyId = (tSfPolicyId *)sfrt_lookup((void *)&ip, config->netBindTable);
-#endif
 
     if (!policyId)
         return;

@@ -19,7 +19,7 @@
 **
 ** You should have received a copy of the GNU General Public License
 ** along with this program; if not, write to the Free Software
-** Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA 02111-1307, USA.
+** Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 */
 /* $Id$ */
 
@@ -181,9 +181,7 @@ static FILE *OpenLogFile(int mode, Packet * p)
     char proto[5];      /* logged packet protocol */
     char suffix[5];     /* filename suffix */
     FILE *log_ptr = NULL;
-#ifdef SUP_IP6
     snort_ip_p ip;
-#endif
 
 #ifdef WIN32
     SnortStrncpy(suffix, ".ids", sizeof(suffix));
@@ -226,18 +224,10 @@ static FILE *OpenLogFile(int mode, Packet * p)
             return log_ptr;
         }
     }
-#ifdef SUP_IP6
     ip = GET_DST_IP(p);
     if(sfip_contains(&snort_conf->homenet, ip) == SFIP_CONTAINS)
-#else
-    if((p->iph->ip_dst.s_addr & snort_conf->netmask) == snort_conf->homenet)
-#endif
     {
-#ifdef SUP_IP6
         if(sfip_contains(&snort_conf->homenet, ip) == SFIP_CONTAINS)
-#else
-        if((p->iph->ip_src.s_addr & snort_conf->netmask) != snort_conf->homenet)
-#endif
         {
             SnortSnprintf(log_path, STD_BUF, "%s/%s", snort_conf->log_dir,
                     inet_ntoa(GET_SRC_ADDR(p)));
@@ -258,12 +248,8 @@ static FILE *OpenLogFile(int mode, Packet * p)
     }
     else
     {
-#ifdef SUP_IP6
         ip = GET_SRC_IP(p);
         if(sfip_contains(&snort_conf->homenet, ip) == SFIP_CONTAINS)
-#else
-        if((p->iph->ip_src.s_addr & snort_conf->netmask) == snort_conf->homenet)
-#endif
         {
             SnortSnprintf(log_path, STD_BUF, "%s/%s", snort_conf->log_dir,
                     inet_ntoa(GET_DST_ADDR(p)));

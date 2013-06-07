@@ -16,7 +16,7 @@
 **
 ** You should have received a copy of the GNU General Public License
 ** along with this program; if not, write to the Free Software
-** Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA 02111-1307, USA.
+** Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 */
 
 /* $Id$ */
@@ -74,6 +74,7 @@
 #define SNORT_CONF_KEYWORD__THRESHOLD            "threshold"
 #define SNORT_CONF_KEYWORD__VAR                  "var"
 #define SNORT_CONF_KEYWORD__VERSION              "version"
+#define SNORT_CONF_KEYWORD__FILE                 "file"
 
 /* Config options */
 #define CONFIG_OPT__ALERT_FILE                      "alertfile"
@@ -201,11 +202,14 @@
 #define CONFIG_OPT__UTC                             "utc"
 #define CONFIG_OPT__VERBOSE                         "verbose"
 #define CONFIG_OPT__VLAN_AGNOSTIC                   "vlan_agnostic"
+#define CONFIG_OPT__ADDRESSSPACE_AGNOSTIC           "addressspace_agnostic"
 #define CONFIG_OPT__LOG_IPV6_EXTRA                  "log_ipv6_extra_data"
 #ifdef DYNAMIC_PLUGIN
 #define CONFIG_OPT__DUMP_DYNAMIC_RULES_PATH         "dump-dynamic-rules-path"
 #endif
 #define CONFIG_OPT__CONTROL_SOCKET_DIR              "cs_dir"
+#define CONFIG_OPT__FILE                            "file"
+#define CONFIG_OPT__TUNNEL_BYPASS                   "tunnel_verdicts"
 
 extern SnortConfig *snort_conf_for_parsing;
 
@@ -375,11 +379,14 @@ void ConfigUmask(SnortConfig *, char *);
 void ConfigUtc(SnortConfig *, char *);
 void ConfigVerbose(SnortConfig *, char *);
 void ConfigVlanAgnostic(SnortConfig *, char *);
+void ConfigAddressSpaceAgnostic(SnortConfig *, char *);
 void ConfigLogIPv6Extra(SnortConfig *, char *);
 #ifdef DYNAMIC_PLUGIN
 void ConfigDumpDynamicRulesPath(SnortConfig *, char *);
 #endif
 void ConfigControlSocketDirectory(SnortConfig *, char *);
+void ConfigFile(SnortConfig *, char *);
+void ConfigTunnelVerdicts(SnortConfig*, char*);
 
 int addRtnToOtn(
         OptTreeNode *otn,

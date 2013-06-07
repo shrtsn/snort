@@ -14,7 +14,7 @@
 **
 ** You should have received a copy of the GNU General Public License
 ** along with this program; if not, write to the Free Software
-** Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA 02111-1307, USA.
+** Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 */
 
 /* $Id$ */
@@ -340,13 +340,8 @@ void AlertSFSocket(Packet *packet, char *msg, void *arg, Event *event)
     //   can be determined by reading 1 byte
     // * addresses could be moved to end of struct in uint8_t[32]
     //   and only 1st 8 used for ip4
-#ifdef SUP_IP6
     sar.src_ip =  ntohl(GET_SRC_IP(packet)->ip32[0]);
     sar.dest_ip = ntohl(GET_DST_IP(packet)->ip32[0]);
-#else
-    sar.src_ip = ntohl(packet->iph->ip_src.s_addr);
-    sar.dest_ip = ntohl(packet->iph->ip_dst.s_addr);
-#endif
     sar.protocol = GET_IPH_PROTO(packet);
 
     if(sar.protocol == IPPROTO_UDP || sar.protocol == IPPROTO_TCP)

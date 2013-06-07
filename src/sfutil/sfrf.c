@@ -15,7 +15,7 @@
  *
  * You should have received a copy of the GNU General Public License
  * along with this program; if not, write to the Free Software
- * Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA 02111-1307, USA.
+ * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
  *
  ****************************************************************************/
 
@@ -196,9 +196,6 @@ static void SFRF_ConfigNodeFree(void *item)
     if (node->applyTo != NULL)
     {
         IpAddrSetDestroy(node->applyTo);
-#ifndef SUP_IP6
-        free(node->applyTo);
-#endif
     }
 
     free(node);
@@ -366,21 +363,11 @@ int SFRF_ConfigAdd(RateFilterConfig *rf_config, tSFRFConfigNode *cfgNode)
 
 
 #ifdef SFRF_DEBUG
-#ifdef SUP_IP6
 static char* get_netip(snort_ip_p ip)
 {
     return sfip_ntoa(ip);
 }
 
-#else
-static char* get_netip(unsigned long ip)
-{
-    struct in_addr addr;
-
-    addr.s_addr= ip;
-    return inet_ntoa(addr);
-}
-#endif
 #endif // SFRF_DEBUG
 
 /*
@@ -467,14 +454,7 @@ static int SFRF_TestObject(
 
 static inline int SFRF_AppliesTo(tSFRFConfigNode* pCfg, snort_ip_p ip)
 {
-#ifndef SUP_IP6
-    struct in_addr addr;
-    addr.s_addr = ip;
-
-    return ( !pCfg->applyTo || IpAddrSetContains(pCfg->applyTo, addr) );
-#else
     return ( !pCfg->applyTo || IpAddrSetContains(pCfg->applyTo, ip) );
-#endif
 }
 
 /* Test a an event against the threshold database. Events without thresholding

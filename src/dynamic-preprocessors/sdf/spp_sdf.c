@@ -14,7 +14,7 @@
 **
 ** You should have received a copy of the GNU General Public License
 ** along with this program; if not, write to the Free Software
-** Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA 02111-1307, USA.
+** Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 */
 
 #ifdef HAVE_CONFIG_H
@@ -62,11 +62,7 @@
 const int MAJOR_VERSION = 1;
 const int MINOR_VERSION = 1;
 const int BUILD_VERSION = 1;
-#ifdef SUP_IP6
-const char *PREPROC_NAME = "SF_SDF (IPV6)";
-#else
 const char *PREPROC_NAME = "SF_SDF";
-#endif
 
 #define SetupSDF DYNAMIC_PREPROC_SETUP
 
@@ -832,25 +828,20 @@ static void SDFPrintPseudoPacket(SDFConfig *config, SDFSessionData *session,
     if ( IS_IP4(real_packet) )
     {
         ((IPV4Header *)p->ip4_header)->proto = IPPROTO_SDF;
-#ifdef SUP_IP6
         p->inner_ip4h.ip_proto = IPPROTO_SDF;
-#endif
     }
-#ifdef SUP_IP6
     else if (IS_IP6(p))
     {
         // FIXTHIS assumes there are no ip6 extension headers
         p->inner_ip6h.next = IPPROTO_SDF;
         p->ip6h = &p->inner_ip6h;
     }
-#endif
 
     /* Fill in the payload with SDF alert info */
     SDFFillPacket(head_node, session, p, &p->payload_size);
 
     _dpd.encodeUpdate(config->pseudo_packet);
 
-#ifdef SUP_IP6
     if (real_packet->family == AF_INET)
     {
         p->ip4h->ip_len = p->ip4_header->data_length;
@@ -860,7 +851,6 @@ static void SDFPrintPseudoPacket(SDFConfig *config, SDFSessionData *session,
         IP6RawHdr* ip6h = (IP6RawHdr*)p->raw_ip6_header;
         if ( ip6h ) p->ip6h->len = ip6h->payload_len;
     }
-#endif
 }
 
 /* This function traverses the pattern tree and prints out the relevant

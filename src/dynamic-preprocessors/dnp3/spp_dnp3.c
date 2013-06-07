@@ -12,7 +12,7 @@
  *
  * You should have received a copy of the GNU General Public License
  * along with this program; if not, write to the Free Software
- * Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA 02111-1307, USA.
+ * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
  *
  * Copyright (C) 2011-2012 Sourcefire, Inc.
  *
@@ -51,11 +51,7 @@ PreprocStats dnp3PerfStats;
 const int MAJOR_VERSION = 1;
 const int MINOR_VERSION = 1;
 const int BUILD_VERSION = 1;
-#ifdef SUP_IP6
-const char *PREPROC_NAME = "SF_DNP3 (IPV6)";
-#else
 const char *PREPROC_NAME = "SF_DNP3";
-#endif
 
 #define SetupDNP3 DYNAMIC_PREPROC_SETUP
 
@@ -316,6 +312,13 @@ static void ParseDNP3Args(dnp3_config_t *config, char *args)
                 dnp3_config_t *default_config = 
                     (dnp3_config_t *)sfPolicyUserDataGet(dnp3_context_id,
                                                          _dpd.getDefaultPolicy());
+
+                if (!default_config || default_config->memcap == 0)
+                {
+                    DynamicPreprocessorFatalMessage("%s(%d): DNP3 'memcap' must be "
+                        "configured in the default config.\n", 
+                        *_dpd.config_file, *_dpd.config_line);
+                }
 
                 config->memcap = default_config->memcap;
             }

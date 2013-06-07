@@ -15,7 +15,7 @@
  *
  * You should have received a copy of the GNU General Public License
  * along with this program; if not, write to the Free Software
- * Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA 02111-1307, USA.
+ * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
  *
  ****************************************************************************/
 
@@ -72,14 +72,12 @@ int smtpDetectCalled = 0;
 #include "mempool.h"
 #include "snort_bounds.h"
 
+#include "file_api.h"
+
 const int MAJOR_VERSION = 1;
 const int MINOR_VERSION = 1;
 const int BUILD_VERSION = 9;
-#ifdef SUP_IP6
-const char *PREPROC_NAME = "SF_SMTP (IPV6)";
-#else
 const char *PREPROC_NAME = "SF_SMTP";
-#endif
 
 #define SetupSMTP DYNAMIC_PREPROC_SETUP
 
@@ -450,8 +448,12 @@ static void SMTPCheckConfig(void)
             "want to enable smtp decoding.\n");
         }
 
+        defaultConfig->file_depth = _dpd.fileAPI->get_max_file_depth();
         if (sfPolicyUserDataIterate(smtp_config, SMTPEnableDecoding) != 0)
         {
+            if (defaultConfig->file_depth > -1)
+                defaultConfig->log_filename = 1;
+            updateMaxDepth(defaultConfig->file_depth, &defaultConfig->max_depth);
             SMTP_MimeMempoolInit(defaultConfig->max_mime_mem,
                 defaultConfig->max_depth);
         }
@@ -629,7 +631,18 @@ static int SMTPReloadVerify(void)
             smtp_swap_config = NULL;
             return -1;
         }
-
+        configNext->file_depth = _dpd.fileAPI->get_max_file_depth();
+        if (configNext->file_depth > -1)
+        {
+            configNext->log_filename = 1;
+        }
+        if(configNext->file_depth != config->file_depth)
+        {
+            _dpd.errMsg("SMTP reload: Changing the file_depth requires a restart.\n");
+            SMTP_FreeConfigs(smtp_swap_config);
+            smtp_swap_config = NULL;
+            return -1;
+        }
     }
 
     if (smtp_mempool != NULL)
@@ -668,11 +681,12 @@ static int SMTPReloadVerify(void)
         if (sfPolicyUserDataIterate(smtp_config, SMTPLogExtraData) != 0)
             SMTP_MempoolInit(configNext->email_hdrs_log_depth,
                 configNext->memcap);
+
+        if ( configNext->disabled )
+            return 0;
     }
 
 
-    if ( configNext->disabled )
-        return 0;
 
 
     if (!_dpd.isPreprocEnabled(PP_STREAM5))

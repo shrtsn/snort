@@ -14,7 +14,7 @@
  *
  * You should have received a copy of the GNU General Public License
  * along with this program; if not, write to the Free Software
- * Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA 02111-1307, USA.
+ * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
  *
  * Copyright (C) 2005-2012 Sourcefire, Inc.
  *
@@ -35,6 +35,8 @@
 #include "sf_snort_plugin_api.h"
 #include "sf_dynamic_engine.h"
 #include "ipv6_port.h"
+
+static int checkHdrOptInternal(void *, HdrOptCheck *);
 
 int ValidateHeaderCheck(Rule *rule, HdrOptCheck *optData)
 {
@@ -181,6 +183,13 @@ int checkField(int op, uint32_t value1, uint32_t value2)
     return RULE_NOMATCH;
 }
 
+ENGINE_LINKAGE int checkHdrOpt(void *p, HdrOptCheck *optData)
+{
+    if (optData->flags & NOT_FLAG)
+        return invertMatchResult(checkHdrOptInternal(p, optData));
+    return checkHdrOptInternal(p, optData);
+}
+
 /* Exported C source routines */
 /*
  * Check header option specified against packet
@@ -188,7 +197,7 @@ int checkField(int op, uint32_t value1, uint32_t value2)
  * Return 1 if check is true (e.g. data matches)
  * Return 0 if check is not true.
  */
-ENGINE_LINKAGE int checkHdrOpt(void *p, HdrOptCheck *optData)
+static int checkHdrOptInternal(void *p, HdrOptCheck *optData)
 {
     SFSnortPacket *pkt = (SFSnortPacket *)p;
     /* Header field will be extracted from its native

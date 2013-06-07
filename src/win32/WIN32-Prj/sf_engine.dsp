@@ -4,7 +4,7 @@
 
 # TARGTYPE "Win32 (x86) Dynamic-Link Library" 0x0102
 
-CFG=sf_engine - Win32 IPv6 Debug
+CFG=sf_engine - Win32 IPv6 Release
 !MESSAGE This is not a valid makefile. To build this project using NMAKE,
 !MESSAGE use the Export Makefile command and run
 !MESSAGE 
@@ -13,14 +13,12 @@ CFG=sf_engine - Win32 IPv6 Debug
 !MESSAGE You can specify a configuration when running NMAKE
 !MESSAGE by defining the macro CFG on the command line. For example:
 !MESSAGE 
-!MESSAGE NMAKE /f "sf_engine.mak" CFG="sf_engine - Win32 IPv6 Debug"
+!MESSAGE NMAKE /f "sf_engine.mak" CFG="sf_engine - Win32 IPv6 Release"
 !MESSAGE 
 !MESSAGE Possible choices for configuration are:
 !MESSAGE 
 !MESSAGE "sf_engine - Win32 Release" (based on "Win32 (x86) Dynamic-Link Library")
 !MESSAGE "sf_engine - Win32 Debug" (based on "Win32 (x86) Dynamic-Link Library")
-!MESSAGE "sf_engine - Win32 IPv6 Debug" (based on "Win32 (x86) Dynamic-Link Library")
-!MESSAGE "sf_engine - Win32 IPv6 Release" (based on "Win32 (x86) Dynamic-Link Library")
 !MESSAGE 
 
 # Begin Project
@@ -85,70 +83,12 @@ LINK32=link.exe
 # ADD BASE LINK32 kernel32.lib user32.lib gdi32.lib winspool.lib comdlg32.lib advapi32.lib shell32.lib ole32.lib oleaut32.lib uuid.lib odbc32.lib odbccp32.lib /nologo /dll /debug /machine:I386 /pdbtype:sept
 # ADD LINK32 zlib1.lib Ws2_32.lib pcre.lib /nologo /dll /debug /machine:I386 /pdbtype:sept /libpath:"..\Win32-Libraries"
 
-!ELSEIF  "$(CFG)" == "sf_engine - Win32 IPv6 Debug"
-
-# PROP BASE Use_MFC 0
-# PROP BASE Use_Debug_Libraries 1
-# PROP BASE Output_Dir "sf_engine___Win32_IPv6_Debug"
-# PROP BASE Intermediate_Dir "sf_engine___Win32_IPv6_Debug"
-# PROP BASE Ignore_Export_Lib 0
-# PROP BASE Target_Dir ""
-# PROP Use_MFC 2
-# PROP Use_Debug_Libraries 1
-# PROP Output_Dir "SF_Engine_IPv6_Debug"
-# PROP Intermediate_Dir "SF_Engine_IPv6_Debug"
-# PROP Ignore_Export_Lib 0
-# PROP Target_Dir ""
-# ADD BASE CPP /nologo /MDd /W3 /Gm /GX /ZI /Od /I "..\Win32-Includes" /I "..\..\dynamic-plugins" /I "..\..\sfutil" /D "_DEBUG" /D "WIN32" /D "_WINDOWS" /D "_MBCS" /D "_USRDLL" /D "HAVE_CONFIG_H" /D "SF_SNORT_ENGINE_DLL" /D "MODULUS_HASH" /FR /YX /FD /GZ /c
-# ADD CPP /nologo /MDd /W3 /Gm /GX /ZI /Od /I "..\..\dynamic-plugins" /I "..\..\dynamic-plugins\sf_engine" /I "..\Win32-Includes" /I "..\Win32-Includes\zlib" /I "..\..\..\daq\api" /I "..\..\..\daq\sfbpf" /D "SUP_IP6" /D "_DEBUG" /D "DEBUG" /D "ENABLE_PAF" /D "SF_SNORT_ENGINE_DLL" /D "DYNAMIC_PLUGIN" /D "_WINDOWS" /D "_USRDLL" /D "ACTIVE_RESPONSE" /D "GRE" /D "MPLS" /D "TARGET_BASED" /D "PERF_PROFILING" /D "ENABLE_RESPOND" /D "ENABLE_REACT" /D "ZLIB" /D "_WINDLL" /D "WIN32" /D "_MBCS" /D "HAVE_CONFIG_H" /D "_AFXDLL" /D SIGNAL_SNORT_READ_ATTR_TBL=30 /FR /FD /GZ /c
-# SUBTRACT CPP /YX
-# ADD BASE MTL /nologo /D "_DEBUG" /mktyplib203 /win32
-# ADD MTL /nologo /D "_DEBUG" /mktyplib203 /win32
-# ADD BASE RSC /l 0x409 /d "_DEBUG"
-# ADD RSC /l 0x409 /d "_DEBUG" /d "_AFXDLL"
-BSC32=bscmake.exe
-# ADD BASE BSC32 /nologo
-# ADD BSC32 /nologo
-LINK32=link.exe
-# ADD BASE LINK32 Ws2_32.lib pcre.lib kernel32.lib user32.lib gdi32.lib winspool.lib comdlg32.lib advapi32.lib shell32.lib ole32.lib oleaut32.lib uuid.lib odbc32.lib odbccp32.lib /nologo /dll /debug /machine:I386 /pdbtype:sept /libpath:"..\Win32-Libraries"
-# ADD LINK32 zlib1.lib Ws2_32.lib pcre.lib /nologo /dll /debug /machine:I386 /pdbtype:sept /libpath:"..\Win32-Libraries"
-
-!ELSEIF  "$(CFG)" == "sf_engine - Win32 IPv6 Release"
-
-# PROP BASE Use_MFC 0
-# PROP BASE Use_Debug_Libraries 0
-# PROP BASE Output_Dir "sf_engine___Win32_IPv6_Release"
-# PROP BASE Intermediate_Dir "sf_engine___Win32_IPv6_Release"
-# PROP BASE Ignore_Export_Lib 0
-# PROP BASE Target_Dir ""
-# PROP Use_MFC 2
-# PROP Use_Debug_Libraries 0
-# PROP Output_Dir "SF_Engine_IPv6_Release"
-# PROP Intermediate_Dir "SF_Engine_IPv6_Release"
-# PROP Ignore_Export_Lib 0
-# PROP Target_Dir ""
-# ADD BASE CPP /nologo /MT /W3 /GX /O2 /I "..\Win32-Includes" /I "..\..\dynamic-plugins" /I "..\..\sfutil" /D "NDEBUG" /D "WIN32" /D "_WINDOWS" /D "_MBCS" /D "_USRDLL" /D "HAVE_CONFIG_H" /D "SF_SNORT_ENGINE_DLL" /FR /YX /FD /c
-# ADD CPP /nologo /MD /W3 /GX /O2 /I "..\..\dynamic-plugins" /I "..\..\dynamic-plugins\sf_engine" /I "..\Win32-Includes" /I "..\Win32-Includes\zlib" /I "..\..\..\daq\api" /I "..\..\..\daq\sfbpf" /D "NDEBUG" /D "SUP_IP6" /D "ENABLE_PAF" /D "SF_SNORT_ENGINE_DLL" /D "DYNAMIC_PLUGIN" /D "_WINDOWS" /D "_USRDLL" /D "ACTIVE_RESPONSE" /D "GRE" /D "MPLS" /D "TARGET_BASED" /D "PERF_PROFILING" /D "ENABLE_RESPOND" /D "ENABLE_REACT" /D "ZLIB" /D "_WINDLL" /D "WIN32" /D "_MBCS" /D "HAVE_CONFIG_H" /D "_AFXDLL" /D SIGNAL_SNORT_READ_ATTR_TBL=30 /FR /FD /c
-# SUBTRACT CPP /YX
-# ADD BASE MTL /nologo /D "NDEBUG" /mktyplib203 /win32
-# ADD MTL /nologo /D "NDEBUG" /mktyplib203 /win32
-# ADD BASE RSC /l 0x409 /d "NDEBUG"
-# ADD RSC /l 0x409 /d "NDEBUG" /d "_AFXDLL"
-BSC32=bscmake.exe
-# ADD BASE BSC32 /nologo
-# ADD BSC32 /nologo
-LINK32=link.exe
-# ADD BASE LINK32 Ws2_32.lib pcre.lib kernel32.lib user32.lib gdi32.lib winspool.lib comdlg32.lib advapi32.lib shell32.lib ole32.lib oleaut32.lib uuid.lib odbc32.lib odbccp32.lib /nologo /dll /machine:I386 /libpath:"..\Win32-Libraries"
-# ADD LINK32 zlib1.lib Ws2_32.lib pcre.lib /nologo /dll /machine:I386 /libpath:"..\Win32-Libraries"
-
 !ENDIF 
 
 # Begin Target
 
 # Name "sf_engine - Win32 Release"
 # Name "sf_engine - Win32 Debug"
-# Name "sf_engine - Win32 IPv6 Debug"
-# Name "sf_engine - Win32 IPv6 Release"
 # Begin Group "Source Files"
 
 # PROP Default_Filter "cpp;c;cxx;rc;def;r;odl;idl;hpj;bat"
@@ -161,13 +101,6 @@ SOURCE="..\..\dynamic-plugins\sf_engine\bmh.c"
 # ADD CPP /D "MODULUS_HASH"
 
 !ELSEIF  "$(CFG)" == "sf_engine - Win32 Debug"
-
-!ELSEIF  "$(CFG)" == "sf_engine - Win32 IPv6 Debug"
-
-!ELSEIF  "$(CFG)" == "sf_engine - Win32 IPv6 Release"
-
-# ADD BASE CPP /D "MODULUS_HASH"
-# ADD CPP /D "MODULUS_HASH"
 
 !ENDIF 
 
@@ -188,16 +121,6 @@ SOURCE="..\..\dynamic-plugins\sf_engine\sf_snort_detection_engine.c"
 
 # ADD CPP /I "..\..\.." /I "..\Win32-Includes\mysql" /I "..\Win32-Includes\libnet" /I "..\..\output-plugins" /I "..\..\detection-plugins" /I "..\..\preprocessors" /I "..\..\preprocessors\flow" /I "..\..\preprocessors\portscan" /I "..\..\preprocessors\flow\int-snort" /I "..\..\preprocessors\HttpInspect\Include"
 
-!ELSEIF  "$(CFG)" == "sf_engine - Win32 IPv6 Debug"
-
-# ADD BASE CPP /I "..\..\.." /I "..\Win32-Includes\mysql" /I "..\Win32-Includes\libnet" /I "..\..\output-plugins" /I "..\..\detection-plugins" /I "..\..\preprocessors" /I "..\..\preprocessors\flow" /I "..\..\preprocessors\portscan" /I "..\..\preprocessors\flow\int-snort" /I "..\..\preprocessors\HttpInspect\Include"
-# ADD CPP /I "..\..\.." /I "..\Win32-Includes\mysql" /I "..\Win32-Includes\libnet" /I "..\..\output-plugins" /I "..\..\detection-plugins" /I "..\..\preprocessors" /I "..\..\preprocessors\flow" /I "..\..\preprocessors\portscan" /I "..\..\preprocessors\flow\int-snort" /I "..\..\preprocessors\HttpInspect\Include"
-
-!ELSEIF  "$(CFG)" == "sf_engine - Win32 IPv6 Release"
-
-# ADD BASE CPP /I "..\..\.." /I "..\Win32-Includes\mysql" /I "..\Win32-Includes\libnet" /I "..\..\output-plugins" /I "..\..\detection-plugins" /I "..\..\preprocessors" /I "..\..\preprocessors\flow" /I "..\..\preprocessors\portscan" /I "..\..\preprocessors\flow\int-snort" /I "..\..\preprocessors\HttpInspect\Include" /D "MODULUS_HASH"
-# ADD CPP /I "..\..\.." /I "..\Win32-Includes\mysql" /I "..\Win32-Includes\libnet" /I "..\..\output-plugins" /I "..\..\detection-plugins" /I "..\..\preprocessors" /I "..\..\preprocessors\flow" /I "..\..\preprocessors\portscan" /I "..\..\preprocessors\flow\int-snort" /I "..\..\preprocessors\HttpInspect\Include" /D "MODULUS_HASH"
-
 !ENDIF 
 
 # End Source File
@@ -213,16 +136,6 @@ SOURCE="..\..\dynamic-plugins\sf_engine\sf_snort_plugin_api.c"
 
 # ADD CPP /I "..\..\.." /I "..\Win32-Includes\mysql" /I "..\Win32-Includes\libnet" /I "..\..\output-plugins" /I "..\..\detection-plugins" /I "..\..\preprocessors" /I "..\..\preprocessors\flow" /I "..\..\preprocessors\portscan" /I "..\..\preprocessors\flow\int-snort" /I "..\..\preprocessors\HttpInspect\Include"
 
-!ELSEIF  "$(CFG)" == "sf_engine - Win32 IPv6 Debug"
-
-# ADD BASE CPP /I "..\..\.." /I "..\Win32-Includes\mysql" /I "..\Win32-Includes\libnet" /I "..\..\output-plugins" /I "..\..\detection-plugins" /I "..\..\preprocessors" /I "..\..\preprocessors\flow" /I "..\..\preprocessors\portscan" /I "..\..\preprocessors\flow\int-snort" /I "..\..\preprocessors\HttpInspect\Include"
-# ADD CPP /I "..\..\.." /I "..\Win32-Includes\mysql" /I "..\Win32-Includes\libnet" /I "..\..\output-plugins" /I "..\..\detection-plugins" /I "..\..\preprocessors" /I "..\..\preprocessors\flow" /I "..\..\preprocessors\portscan" /I "..\..\preprocessors\flow\int-snort" /I "..\..\preprocessors\HttpInspect\Include"
-
-!ELSEIF  "$(CFG)" == "sf_engine - Win32 IPv6 Release"
-
-# ADD BASE CPP /I "..\..\.." /I "..\Win32-Includes\mysql" /I "..\Win32-Includes\libnet" /I "..\..\output-plugins" /I "..\..\detection-plugins" /I "..\..\preprocessors" /I "..\..\preprocessors\flow" /I "..\..\preprocessors\portscan" /I "..\..\preprocessors\flow\int-snort" /I "..\..\preprocessors\HttpInspect\Include" /D "MODULUS_HASH"
-# ADD CPP /I "..\..\.." /I "..\Win32-Includes\mysql" /I "..\Win32-Includes\libnet" /I "..\..\output-plugins" /I "..\..\detection-plugins" /I "..\..\preprocessors" /I "..\..\preprocessors\flow" /I "..\..\preprocessors\portscan" /I "..\..\preprocessors\flow\int-snort" /I "..\..\preprocessors\HttpInspect\Include" /D "MODULUS_HASH"
-
 !ENDIF 
 
 # End Source File
@@ -235,13 +148,6 @@ SOURCE="..\..\dynamic-plugins\sf_engine\sf_snort_plugin_byte.c"
 # ADD CPP /D "MODULUS_HASH"
 
 !ELSEIF  "$(CFG)" == "sf_engine - Win32 Debug"
-
-!ELSEIF  "$(CFG)" == "sf_engine - Win32 IPv6 Debug"
-
-!ELSEIF  "$(CFG)" == "sf_engine - Win32 IPv6 Release"
-
-# ADD BASE CPP /D "MODULUS_HASH"
-# ADD CPP /D "MODULUS_HASH"
 
 !ENDIF 
 
@@ -256,13 +162,6 @@ SOURCE="..\..\dynamic-plugins\sf_engine\sf_snort_plugin_content.c"
 
 !ELSEIF  "$(CFG)" == "sf_engine - Win32 Debug"
 
-!ELSEIF  "$(CFG)" == "sf_engine - Win32 IPv6 Debug"
-
-!ELSEIF  "$(CFG)" == "sf_engine - Win32 IPv6 Release"
-
-# ADD BASE CPP /D "MODULUS_HASH"
-# ADD CPP /D "MODULUS_HASH"
-
 !ENDIF 
 
 # End Source File
@@ -275,13 +174,6 @@ SOURCE="..\..\dynamic-plugins\sf_engine\sf_snort_plugin_hdropts.c"
 # ADD CPP /D "MODULUS_HASH"
 
 !ELSEIF  "$(CFG)" == "sf_engine - Win32 Debug"
-
-!ELSEIF  "$(CFG)" == "sf_engine - Win32 IPv6 Debug"
-
-!ELSEIF  "$(CFG)" == "sf_engine - Win32 IPv6 Release"
-
-# ADD BASE CPP /D "MODULUS_HASH"
-# ADD CPP /D "MODULUS_HASH"
 
 !ENDIF 
 
@@ -296,13 +188,6 @@ SOURCE="..\..\dynamic-plugins\sf_engine\sf_snort_plugin_loop.c"
 
 !ELSEIF  "$(CFG)" == "sf_engine - Win32 Debug"
 
-!ELSEIF  "$(CFG)" == "sf_engine - Win32 IPv6 Debug"
-
-!ELSEIF  "$(CFG)" == "sf_engine - Win32 IPv6 Release"
-
-# ADD BASE CPP /D "MODULUS_HASH"
-# ADD CPP /D "MODULUS_HASH"
-
 !ENDIF 
 
 # End Source File
@@ -316,13 +201,6 @@ SOURCE="..\..\dynamic-plugins\sf_engine\sf_snort_plugin_pcre.c"
 
 !ELSEIF  "$(CFG)" == "sf_engine - Win32 Debug"
 
-!ELSEIF  "$(CFG)" == "sf_engine - Win32 IPv6 Debug"
-
-!ELSEIF  "$(CFG)" == "sf_engine - Win32 IPv6 Release"
-
-# ADD BASE CPP /D "MODULUS_HASH"
-# ADD CPP /D "MODULUS_HASH"
-
 !ENDIF 
 
 # End Source File
@@ -335,13 +213,6 @@ SOURCE="..\..\dynamic-plugins\sf_engine\sf_snort_plugin_rc4.c"
 # ADD CPP /D "MODULUS_HASH"
 
 !ELSEIF  "$(CFG)" == "sf_engine - Win32 Debug"
-
-!ELSEIF  "$(CFG)" == "sf_engine - Win32 IPv6 Debug"
-
-!ELSEIF  "$(CFG)" == "sf_engine - Win32 IPv6 Release"
-
-# ADD BASE CPP /D "MODULUS_HASH"
-# ADD CPP /D "MODULUS_HASH"
 
 !ENDIF 
 

@@ -17,7 +17,7 @@
 **
 ** You should have received a copy of the GNU General Public License
 ** along with this program; if not, write to the Free Software
-** Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA 02111-1307, USA.
+** Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 */
 
 #include <sys/types.h>
@@ -384,6 +384,9 @@ void SnortPcreParse(char *data, PcreData *pcre_data, OptTreeNode *otn)
 
     /* find ending delimiter, trim delimit chars */
     opts = strrchr(re, delimit);
+    if (opts == NULL)
+        goto syntax;
+
     if(!((opts - re) > 1)) /* empty regex(m||) or missing delim not OK */
         goto syntax;
 

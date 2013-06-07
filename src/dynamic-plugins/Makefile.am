@@ -18,8 +18,7 @@ sp_dynamic.h \
 sp_preprocopt.c \
 sp_preprocopt.h \
 sf_convert_dynamic.c \
-sf_convert_dynamic.h \
-attribute_table_api.h
+sf_convert_dynamic.h
 
 INCLUDES = @INCLUDES@
 

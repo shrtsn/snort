@@ -180,6 +180,19 @@ Verdicts are rendered by Snort on each packet:
   by this instance of Snort.  Like blacklist, this is done by the DAQ or by
   Snort on subsequent packets.
 
+* Int Blklst = packets that are GTP or Teredo encapsulated that are being
+  blocked.  These packets could get the Blacklist verdict if 
+  config tunnel_verdicts was set for the given protocol.  Note that these 
+  counts are output only if non-zero.  Also, this count is incremented on 
+  the first packet in the flow that alerts.  The alerting packet and all
+  following packets on the flow will be counted under Block.
+
+* Int Whtlst = packets that are GTP or Teredo encapsulated that are being
+  allowed.  These packets could get the Whitelist verdict if 
+  config tunnel_verdicts was set for the given protocol.  Note that these
+  counts are output only if non-zero.  Also, this count is incremented
+  for all packets on the flow starting with the alerting packet.
+
 Example:
 
 ===============================================================================

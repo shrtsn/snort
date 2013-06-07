@@ -15,7 +15,7 @@
  *
  * You should have received a copy of the GNU General Public License
  * along with this program; if not, write to the Free Software
- * Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA 02111-1307, USA.
+ * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
  *
  ****************************************************************************/
 /* $Id$ */
@@ -125,7 +125,7 @@
  * should both match the ones specified in the
  * AM_INIT_AUTOMAKE() macro of configure.in
  */
-#define VERSION "2.9.3.1"VERSION_ENABLE_ODBC""VERSION_ENABLE_MYSQL""VERSION_ENABLE_MSSQL""VERSION_ENABLE_ORACLE""VERSION_ENABLE_RESPONSE"-WIN32"VERSION_DEBUG
+#define VERSION "2.9.4"VERSION_ENABLE_ODBC""VERSION_ENABLE_MYSQL""VERSION_ENABLE_MSSQL""VERSION_ENABLE_ORACLE""VERSION_ENABLE_RESPONSE"-WIN32"VERSION_DEBUG
 #define PACKAGE "snort"
 
 #define IFNAMSIZ   255

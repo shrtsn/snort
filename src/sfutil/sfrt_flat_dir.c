@@ -15,7 +15,7 @@
  **
  ** You should have received a copy of the GNU General Public License
  ** along with this program; if not, write to the Free Software
- ** Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA 02111-1307, USA.
+ ** Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
  **
  ** 9/7/2011 - Initial implementation ... Hui Cao <hcao@sourcefire.com>
  */
@@ -37,14 +37,10 @@
 #define ARCH_WIDTH 32
 #endif
 
-#ifdef SUP_IP6
 typedef struct {
     snort_ip_p ip;
     int bits;
 } IPLOOKUP;
-#else
-typedef snort_ip_p IPLOOKUP;
-#endif
 
 /* Create new "sub" table of 2^width entries */
 static TABLE_PTR _sub_table_flat_new(dir_table_flat_t *root, uint32_t dimension,
@@ -360,7 +356,6 @@ static int _dir_sub_insert(IPLOOKUP *ip, int length, int cur_len, INFO ptr,
     uint8_t *base = (uint8_t *)segment_basePtr();
     dir_sub_table_flat_t *sub_table = (dir_sub_table_flat_t *)(&base[sub_ptr]);
 
-#ifdef SUP_IP6
     {
         uint32_t local_index, i;
         /* need to handle bits usage across multiple 32bit vals within IPv6. */
@@ -394,11 +389,6 @@ static int _dir_sub_insert(IPLOOKUP *ip, int length, int cur_len, INFO ptr,
         local_index = ip->ip->ip32[i] << (ip->bits %32);
         index = local_index >> (ARCH_WIDTH - sub_table->width);
     }
-#else
-    IPLOOKUP iplu;
-    /* Index is determined by the highest 'len' bits in 'ip' */
-    index = *ip >> (ARCH_WIDTH - sub_table->width);
-#endif
 
     /* Check if this is the last table to traverse to */
     if(sub_table->width >= cur_len)
@@ -463,17 +453,10 @@ static int _dir_sub_insert(IPLOOKUP *ip, int length, int cur_len, INFO ptr,
         }
         /* Recurse to next level.  Rightshift off appropriate number of
          * bits and update the length accordingly. */
-#ifdef SUP_IP6
         ip->bits += sub_table->width;
         return (_dir_sub_insert(ip, length,
                 cur_len - sub_table->width, ptr, current_depth+1,
                 behavior, entry[index].value, root_table, updateEntry, data));
-#else
-        iplu = *ip << sub_table->width;
-        return ( _dir_sub_insert(&iplu, length,
-                cur_len - sub_table->width, ptr, current_depth+1,
-                behavior, entry[index].value, root_table, updateEntry, data));
-#endif
     }
 
     return RT_SUCCESS;
@@ -493,13 +476,9 @@ int sfrt_dir_flat_insert(snort_ip_p ip, int len, word data_index,
 
 
 
-#ifdef SUP_IP6
     IPLOOKUP iplu;
     iplu.ip = ip;
     iplu.bits = 0;
-#else
-    IPLOOKUP iplu = ip;
-#endif
 
     base = (uint8_t *)segment_basePtr();
     root = (dir_table_flat_t *)(&base[table_ptr]);
@@ -523,7 +502,6 @@ static tuple_flat_t _dir_sub_flat_lookup(IPLOOKUP *ip, TABLE_PTR table_ptr)
     DIR_Entry *entry;
     dir_sub_table_flat_t *table = (dir_sub_table_flat_t *)(&base[table_ptr]);
 
-#ifdef SUP_IP6
     {
         uint32_t local_index, i;
         /* need to handle bits usage across multiple 32bit vals within IPv6. */
@@ -558,10 +536,6 @@ static tuple_flat_t _dir_sub_flat_lookup(IPLOOKUP *ip, TABLE_PTR table_ptr)
         local_index = ip->ip->ip32[i] << (ip->bits %32);
         index = local_index >> (ARCH_WIDTH - table->width);
     }
-#else
-    IPLOOKUP iplu;
-    index = *ip >> (ARCH_WIDTH - table->width);
-#endif
     entry = (DIR_Entry *)(&base[table->entries]);
 
     if( !entry[index].value || entry[index].length )
@@ -572,13 +546,8 @@ static tuple_flat_t _dir_sub_flat_lookup(IPLOOKUP *ip, TABLE_PTR table_ptr)
         return ret;
     }
 
-#ifdef SUP_IP6
     ip->bits += table->width;
     return _dir_sub_flat_lookup( ip, entry[index].value);
-#else
-    iplu = *ip << table->width;
-    return _dir_sub_flat_lookup( &iplu, entry[index].value);
-#endif
 }
 
 /* Lookup information associated with the value "ip" */
@@ -586,13 +555,9 @@ tuple_flat_t sfrt_dir_flat_lookup(snort_ip_p ip, TABLE_PTR table_ptr)
 {
     dir_table_flat_t *root;
     uint8_t *base = (uint8_t *)segment_basePtr();
-#ifdef SUP_IP6
     IPLOOKUP iplu;
     iplu.ip = ip;
     iplu.bits = 0;
-#else
-    IPLOOKUP iplu = ip;
-#endif
 
     if(!table_ptr )
     {

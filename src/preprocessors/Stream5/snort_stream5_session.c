@@ -17,7 +17,7 @@
 **
 ** You should have received a copy of the GNU General Public License
 ** along with this program; if not, write to the Free Software
-** Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA 02111-1307, USA.
+** Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 */
 
 /* snort_stream5_session.c
@@ -63,13 +63,16 @@
 void PrintSessionKey(SessionKey *skey)
 {
     LogMessage("SessionKey:\n");
-    LogMessage("    ip_l     = 0x%08X\n", skey->ip_l);
-    LogMessage("    ip_h     = 0x%08X\n", skey->ip_h);
-    LogMessage("    prt_l    = %d\n", skey->port_l);
-    LogMessage("    prt_h    = %d\n", skey->port_h);
-    LogMessage("    vlan_tag = %d\n", skey->vlan_tag);
+    LogMessage("      ip_l     = 0x%08X\n", skey->ip_l);
+    LogMessage("      ip_h     = 0x%08X\n", skey->ip_h);
+    LogMessage("      prt_l    = %d\n", skey->port_l);
+    LogMessage("      prt_h    = %d\n", skey->port_h);
+    LogMessage("      vlan_tag = %d\n", skey->vlan_tag);
 #ifdef MPLS
-    LogMessage("  mpls label = 0x%08X\n", skey->mplsLabel);
+    LogMessage("    mpls label = 0x%08X\n", skey->mplsLabel);
+#endif
+#ifdef HAVE_DAQ_ADDRESS_SPACE_ID
+    LogMessage(" addr space id = %d\n", skey->addressSpaceId);
 #endif
 }
 #endif
@@ -90,6 +93,7 @@ int GetLWSessionKeyFromIpPort(
                     char proto,
                     uint16_t vlan,
                     uint32_t mplsId,
+                    uint16_t addressSpaceId,
                     SessionKey *key)
 {
     uint16_t sport;
@@ -103,7 +107,6 @@ int GetLWSessionKeyFromIpPort(
     if (!key)
         return 0;
 
-#ifdef SUP_IP6
     if (IS_IP4(srcIP))
     {
         uint32_t *src;
@@ -229,62 +232,6 @@ int GetLWSessionKeyFromIpPort(
         }
 # endif
     }
-#else
-    switch (proto)
-    {
-        case IPPROTO_TCP:
-        case IPPROTO_UDP:
-            sport = srcPort;
-            dport = dstPort;
-            break;
-        case IPPROTO_ICMP:
-        default:
-            sport = dport = 0;
-            break;
-    }
-
-    /* These comparisons are done in this fashion for performance reasons */
-    if (IP_LESSER(srcIP, dstIP))
-    {
-        IP_COPY_VALUE(key->ip_l, srcIP);
-        key->port_l = sport;
-        IP_COPY_VALUE(key->ip_h, dstIP);
-        key->port_h = dport;
-    }
-    else if (IP_EQUALITY(srcIP, dstIP))
-    {
-        IP_COPY_VALUE(key->ip_l, srcIP);
-        IP_COPY_VALUE(key->ip_h, dstIP);
-        if (sport < dport)
-        {
-            key->port_l = sport;
-            key->port_h = dport;
-        }
-        else
-        {
-            key->port_l = dport;
-            key->port_h = sport;
-        }
-    }
-    else
-    {
-        IP_COPY_VALUE(key->ip_l, dstIP);
-        key->port_l = dport;
-        IP_COPY_VALUE(key->ip_h, srcIP);
-        key->port_h = sport;
-    }
-# ifdef MPLS
-    if (ScMplsOverlappingIp() &&
-        isPrivateIP(key->ip_l) && isPrivateIP(key->ip_h))
-    {
-        key->mplsLabel = mplsId;
-    }
-    else
-    {
-    	key->mplsLabel = 0;
-    }
-# endif
-#endif
 
     key->protocol = proto;
 
@@ -295,7 +242,24 @@ int GetLWSessionKeyFromIpPort(
 
     key->pad = 0;
 #ifdef MPLS
+#ifdef HAVE_DAQ_ADDRESS_SPACE_ID
+    if (!ScAddressSpaceAgnostic())
+        key->addressSpaceId = addressSpaceId;
+    else
+        key->addressSpaceId = 0;
+    key->addressSpaceIdPad1 = 0;
+#else
     key->mplsPad = 0;
+#endif
+#else /* MPLS */
+#ifdef HAVE_DAQ_ADDRESS_SPACE_ID
+    if (!ScAddressSpaceAgnostic())
+        key->addressSpaceId = addressSpaceId;
+    else
+        key->addressSpaceId = 0;
+    key->addressSpaceIdPad1 = 0;
+    key->addressSpaceIdPad2 = 0;
+#endif
 #endif
     return 1;
 }
@@ -305,86 +269,26 @@ int GetLWSessionKey(Packet *p, SessionKey *key)
     char proto = GET_IPH_PROTO(p);
     uint32_t mplsId = 0;
     uint16_t vlanId = 0;
+    uint16_t addressSpaceId = 0;
 # ifdef MPLS
     if (ScMplsOverlappingIp() && (p->mpls != NULL))
     {
         mplsId = p->mplsHdr.label;
     }
 #endif
+#ifdef HAVE_DAQ_ADDRESS_SPACE_ID
+    addressSpaceId = DAQ_GetAddressSpaceID(p->pkth);
+#endif
+
     if (p->vh && !ScVlanAgnostic())
         vlanId = (uint16_t)VTH_VLAN(p->vh);
     return GetLWSessionKeyFromIpPort(GET_SRC_IP(p), p->sp,
         GET_DST_IP(p), p->dp,
-        proto, vlanId, mplsId, key);
+        proto, vlanId, mplsId, addressSpaceId, key);
 }
 
 void GetLWPacketDirection(Packet *p, Stream5LWSession *ssn)
 {
-#ifndef SUP_IP6
-    if (p->iph->ip_src.s_addr == ssn->client_ip)
-    {
-        if ( IsTCP(p) )
-        {
-            if (p->tcph->th_sport == ssn->client_port)
-            {
-                p->packet_flags |= PKT_FROM_CLIENT;
-            }
-            else
-            {
-                p->packet_flags |= PKT_FROM_SERVER;
-            }
-        }
-        else if ( IsUDP(p) )
-        {
-            if (p->udph->uh_sport == ssn->client_port)
-            {
-                p->packet_flags |= PKT_FROM_CLIENT;
-            }
-            else
-            {
-                p->packet_flags |= PKT_FROM_SERVER;
-            }
-        }
-        else
-        {
-            p->packet_flags |= PKT_FROM_CLIENT;
-        }
-    }
-    else if (p->iph->ip_dst.s_addr == ssn->client_ip)
-    {
-        if ( IsTCP(p) )
-        {
-            if (p->tcph->th_dport == ssn->client_port)
-            {
-                p->packet_flags |= PKT_FROM_SERVER;
-            }
-            else
-            {
-                p->packet_flags |= PKT_FROM_CLIENT;
-            }
-        }
-        else if ( IsUDP(p) )
-        {
-            if (p->udph->uh_dport == ssn->client_port)
-            {
-                p->packet_flags |= PKT_FROM_SERVER;
-            }
-            else
-            {
-                p->packet_flags |= PKT_FROM_CLIENT;
-            }
-        }
-        else
-        {
-            p->packet_flags |= PKT_FROM_SERVER;
-        }
-    }
-    else
-    {
-        /* Uh, no match of the packet to the session. */
-        /* Probably should log an error */
-    }
-#else
     if(IS_IP4(p))
     {
         if (sfip_fast_eq4(&p->ip4h->ip_src, &ssn->client_ip))
@@ -507,7 +411,6 @@ void GetLWPacketDirection(Packet *p, Stream5LWSession *ssn)
             }
         }
     }
-#endif /* SUP_IP6 */
 }
 
 Stream5LWSession *GetLWSession(Stream5SessionCache *sessionCache, Packet *p, SessionKey *key)
@@ -621,13 +524,8 @@ int DeleteLWSession(Stream5SessionCache *sessionCache,
     uint32_t old_mem_in_use = mem_in_use;
 
     /* And save some info on that session */
-#ifdef SUP_IP6
     sfip_t client_ip;
     sfip_t server_ip;
-#else
-    struct in_addr client_ip;
-    struct in_addr server_ip;
-#endif
     uint16_t client_port = ntohs(ssn->client_port);
     uint16_t server_port = ntohs(ssn->server_port);
     uint16_t lw_session_state = ssn->session_state;
@@ -636,13 +534,8 @@ int DeleteLWSession(Stream5SessionCache *sessionCache,
     int16_t app_proto_id = ssn->application_protocol;
 #endif
 
-#ifdef SUP_IP6
     sfip_set_ip(&client_ip, &ssn->client_ip);
     sfip_set_ip(&server_ip, &ssn->server_ip);
-#else
-    client_ip.s_addr = ssn->client_ip;
-    server_ip.s_addr = ssn->server_ip;
-#endif
 
     /*
      * Call callback to cleanup the protocol (TCP/UDP/ICMP)
@@ -666,13 +559,8 @@ int DeleteLWSession(Stream5SessionCache *sessionCache,
             && ((old_mem_in_use - mem_in_use ) > prune_log_max))
     {
         char *client_ip_str, *server_ip_str;
-#ifdef SUP_IP6
         client_ip_str = SnortStrdup(inet_ntoa(&client_ip));
         server_ip_str = SnortStrdup(inet_ntoa(&server_ip));
-#else
-        client_ip_str = SnortStrdup(inet_ntoa(client_ip));
-        server_ip_str = SnortStrdup(inet_ntoa(server_ip));
-#endif
         LogMessage("S5: Pruned session from cache that was "
                    "using %d bytes (%s). %s %d --> %s %d "
 #ifdef TARGET_BASED
@@ -971,11 +859,14 @@ Stream5LWSession *NewLWSession(Stream5SessionCache *sessionCache, Packet *p,
 uint32_t HashFunc(SFHASHFCN *p, unsigned char *d, int n)
 {
     uint32_t a,b,c;
+    uint32_t offset = 0;
 #ifdef MPLS
     uint32_t tmp = 0;
 #endif
+#ifdef HAVE_DAQ_ADDRESS_SPACE_ID
+    uint32_t tmp2 = 0;
+#endif
 
-#ifdef SUP_IP6
     a = *(uint32_t*)d;         /* IPv6 lo[0] */
     b = *(uint32_t*)(d+4);     /* IPv6 lo[1] */
     c = *(uint32_t*)(d+8);     /* IPv6 lo[2] */
@@ -994,33 +885,22 @@ uint32_t HashFunc(SFHASHFCN *p, unsigned char *d, int n)
 
     mix(a,b,c);
 
-    a += *(uint32_t*)(d+36);   /* vlan, protocol, & pad */
+    offset=36;
+    a += *(uint32_t*)(d+offset);   /* vlan, protocol, & pad */
 #ifdef MPLS
-    tmp = *(uint32_t *)(d+40);
+    tmp = *(uint32_t *)(d+offset+4);
     if( tmp )
     {
         b += tmp;   /* mpls label */
     }
-    mix(a,b,c);
-#endif
+    offset += 8;    /* skip past vlan/proto/ipver & mpls label */
 #else
-    a = *(uint32_t*)d;         /* IPv4 lo */
-    b = *(uint32_t*)(d+4);     /* IPv4 hi */
-    c = *(uint32_t*)(d+8);     /* port lo & port hi */
-
-    mix(a,b,c);
-
-    a += *(uint32_t*)(d+12);   /* vlan, protocol, & pad */
-#ifdef MPLS
-    tmp = *(uint32_t *)(d+16);
-    if( tmp )
-    {
-        b += tmp;   /* mpls label */
-    }
-    mix(a,b,c);
+    offset += 4;    /* skip past vlan/proto/ipver */
 #endif
+#ifdef HAVE_DAQ_ADDRESS_SPACE_ID
+    tmp2 = *(uint32_t*)(d+offset); /* after offset that has been moved */
+    c += tmp2; /* address space id and 16bits of zero'd pad */
 #endif
-
     final(a,b,c);
 
     return c;
@@ -1034,30 +914,83 @@ int HashKeyCmp(const void *s1, const void *s2, size_t n)
     a = (uint64_t*)s1;
     b = (uint64_t*)s2;
     if(*a - *b) return 1;       /* Compares IPv4 lo/hi */
-                                /* SUP_IP6 Compares IPv6 low[0,1] */
+                                /* Compares IPv6 low[0,1] */
 
     a++;
     b++;
     if(*a - *b) return 1;       /* Compares port lo/hi, vlan, protocol, pad */
-                                /* SUP_IP6 Compares IPv6 low[2,3] */
-
-#ifdef SUP_IP6
-    a++;
-    b++;
-    if(*a - *b) return 1;       /* SUP_IP6 Compares IPv6 hi[0,1] */
+                                /* Compares IPv6 low[2,3] */
 
     a++;
     b++;
-    if(*a - *b) return 1;       /* SUP_IP6 Compares IPv6 hi[2,3] */
+    if(*a - *b) return 1;       /* Compares IPv6 hi[0,1] */
 
     a++;
     b++;
-    if(*a - *b) return 1;       /* SUP_IP6 Compares port lo/hi, vlan, protocol, pad */
-#endif
+    if(*a - *b) return 1;       /* Compares IPv6 hi[2,3] */
+
+    a++;
+    b++;
+    if(*a - *b) return 1;       /* Compares port lo/hi, vlan, protocol, pad */
 
 #ifdef MPLS
     a++;
     b++;
+#ifdef HAVE_DAQ_ADDRESS_SPACE_ID
+    if (*a - *b) return 1;      /* Compares MPLS label, AddressSpace ID and 16bit pad */
+#else
+    {
+        uint32_t *x, *y;
+        x = (uint32_t *)a;
+        y = (uint32_t *)b;
+        //x++;
+        //y++;
+        if (*x - *y) return 1;  /* Compares mpls label, no pad */
+    }
+#endif
+#else
+#ifdef HAVE_DAQ_ADDRESS_SPACE_ID
+    a++;
+    b++;
+    {
+        uint16_t *x, *y;
+        x = (uint16_t *)a;
+        y = (uint16_t *)b;
+        //x++;
+        //y++;
+        if (*x - *y) return 1;  /* Compares addressSpaceID, no pad */
+    }
+#endif
+#endif
+
+#else /* SPARCV9 */
+    uint32_t *a,*b;
+
+    a = (uint32_t*)s1;
+    b = (uint32_t*)s2;
+    if ((*a - *b) || (*(a+1) - *(b+1))) return 1;       /* Compares IPv4 lo/hi */
+                                /* Compares IPv6 low[0,1] */
+
+    a+=2;
+    b+=2;
+    if ((*a - *b) || (*(a+1) - *(b+1))) return 1;       /* Compares port lo/hi, vlan, protocol, pad */
+                                /* Compares IPv6 low[2,3] */
+
+    a+=2;
+    b+=2;
+    if ((*a - *b) || (*(a+1) - *(b+1))) return 1;       /* Compares IPv6 hi[0,1] */
+
+    a+=2;
+    b+=2;
+    if ((*a - *b) || (*(a+1) - *(b+1))) return 1;       /* Compares IPv6 hi[2,3] */
+
+    a+=2;
+    b+=2;
+    if ((*a - *b) || (*(a+1) - *(b+1))) return 1;       /* Compares port lo/hi, vlan, protocol, pad */
+
+#ifdef MPLS
+    a+=2;
+    b+=2;
     {
         uint32_t *x, *y;
         x = (uint32_t *)a;
@@ -1067,44 +1000,21 @@ int HashKeyCmp(const void *s1, const void *s2, size_t n)
         if (*x - *y) return 1;  /* Compares mpls label */
     }
 #endif
-
-#else /* SPARCV9 */
-    uint32_t *a,*b;
-
-    a = (uint32_t*)s1;
-    b = (uint32_t*)s2;
-    if ((*a - *b) || (*(a+1) - *(b+1))) return 1;       /* Compares IPv4 lo/hi */
-                                /* SUP_IP6 Compares IPv6 low[0,1] */
-
-    a+=2;
-    b+=2;
-    if ((*a - *b) || (*(a+1) - *(b+1))) return 1;       /* Compares port lo/hi, vlan, protocol, pad */
-                                /* SUP_IP6 Compares IPv6 low[2,3] */
-
-#ifdef SUP_IP6
-    a+=2;
-    b+=2;
-    if ((*a - *b) || (*(a+1) - *(b+1))) return 1;       /* SUP_IP6 Compares IPv6 hi[0,1] */
-
-    a+=2;
-    b+=2;
-    if ((*a - *b) || (*(a+1) - *(b+1))) return 1;       /* SUP_IP6 Compares IPv6 hi[2,3] */
-
-    a+=2;
-    b+=2;
-    if ((*a - *b) || (*(a+1) - *(b+1))) return 1;       /* SUP_IP6 Compares port lo/hi, vlan, protocol, pad */
-#endif
-
+#ifdef HAVE_DAQ_ADDRESS_SPACE_ID
 #ifdef MPLS
+    a++; 
+    b++;
+#else
     a+=2;
     b+=2;
+#endif
     {
-        uint32_t *x, *y;
-        x = (uint32_t *)a;
-        y = (uint32_t *)b;
+        uint16_t *x, *y;
+        x = (uint16_t *)a;
+        y = (uint16_t *)b;
         //x++;
         //y++;
-        if (*x - *y) return 1;  /* Compares mpls label */
+        if (*x - *y) return 1;  /* Compares addressSpaceID, no pad */
     }
 #endif
 #endif /* SPARCV9 */
@@ -1167,9 +1077,7 @@ Stream5SessionCache *InitLWSessionCache(int max_sessions,
             0, 0, NULL, NULL, 1);
 
         sfxhash_set_max_nodes(sessionCache->hashTable, max_sessions);
-//#ifdef SUP_IP6
         sfxhash_set_keyops(sessionCache->hashTable, HashFunc, HashKeyCmp);
-//#endif
     }
 
     return sessionCache;

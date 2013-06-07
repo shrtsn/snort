@@ -14,7 +14,7 @@
  **
  ** You should have received a copy of the GNU General Public License
  ** along with this program; if not, write to the Free Software
- ** Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA 02111-1307, USA.
+ ** Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
  **
  ** Date: 01-27-2012
  ** Author: Hui Cao <hcao@sourcefire.com>
@@ -71,7 +71,7 @@ const char *GetProtocolName(void* p)
 int GetVlanId(void* p)
 {
    Packet *packet = (Packet *)p;
-   return ( htons(VTH_VLAN(packet->vh)));
+   return (VTH_VLAN(packet->vh));
 }
 
 tSfPolicyId GetParserPolicy(void)

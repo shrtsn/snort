@@ -15,7 +15,7 @@
  *
  * You should have received a copy of the GNU General Public License
  * along with this program; if not, write to the Free Software
- * Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA 02111-1307, USA.
+ * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
  *
  ****************************************************************************/
 
@@ -120,14 +120,6 @@ table_t *sfrt_new(char table_type, char ip_type, long data_size, uint32_t mem_ca
         return NULL;
     }
 
-#ifndef SUP_IP6
-    /* IPv6 is not supported */
-    if(ip_type == IPv6)
-    {
-        free(table);
-        return NULL;
-    }
-#endif
 
     /* If this limit is exceeded, there will be no way to distinguish
      * between pointers and indeces into the data table.  Only
@@ -172,9 +164,7 @@ table_t *sfrt_new(char table_type, char ip_type, long data_size, uint32_t mem_ca
 
     /* This will point to the actual table lookup algorithm */
     table->rt = NULL;
-#ifdef SUP_IP6
     table->rt6 = NULL;
-#endif
 
     /* index 0 will be used for failed lookups, so set this to 1 */
     table->num_ent = 1;
@@ -207,12 +197,10 @@ table_t *sfrt_new(char table_type, char ip_type, long data_size, uint32_t mem_ca
         case DIR_8x4:
         case DIR_4x8:
         case DIR_2x16:
-#ifdef SUP_IP6
         case DIR_16_4x4_16x5_4x4:
         case DIR_16x7_4x4:
         case DIR_16x8:
         case DIR_8x16:
-#endif
             table->insert = sfrt_dir_insert;
             table->lookup = sfrt_dir_lookup;
             table->free = sfrt_dir_free;
@@ -257,7 +245,6 @@ table_t *sfrt_new(char table_type, char ip_type, long data_size, uint32_t mem_ca
             table->rt = sfrt_dir_new(mem_cap, 16,
                             2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2);
             break;
-#ifdef SUP_IP6
         case DIR_16_4x4_16x5_4x4:
             table->rt = sfrt_dir_new(mem_cap, 5, 16,4,4,4,4);
             table->rt6 = sfrt_dir_new(mem_cap, 14, 16,4,4,4,4,16,16,16,16,16,4,4,4,4);
@@ -275,7 +262,6 @@ table_t *sfrt_new(char table_type, char ip_type, long data_size, uint32_t mem_ca
             table->rt6 = sfrt_dir_new(mem_cap, 16,
                             8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8);
             break;
-#endif
     };
 
     if(!table->rt)
@@ -285,14 +271,12 @@ table_t *sfrt_new(char table_type, char ip_type, long data_size, uint32_t mem_ca
         return NULL;
     }
 
-#ifdef SUP_IP6
     if (!table->rt6)
     {
         table->free( table->rt );
         free(table->data);
         free(table);
     }
-#endif
 
     return table;
 }
@@ -324,7 +308,6 @@ void sfrt_free(table_t *table)
         table->free( table->rt );
     }
 
-#ifdef SUP_IP6
     if(!table->rt6)
     {
         /* This should not have happened either */
@@ -333,7 +316,6 @@ void sfrt_free(table_t *table)
     {
         table->free( table->rt6 );
     }
-#endif
 
     free(table);
 }
@@ -342,11 +324,7 @@ void sfrt_free(table_t *table)
 GENERIC sfrt_lookup(void *adr, table_t* table)
 {
     tuple_t tuple;
-#ifdef SUP_IP6
     sfip_t *ip;
-#else
-    uint32_t ip;
-#endif
     void *rt = NULL;
 
     if(!adr)
@@ -359,7 +337,6 @@ GENERIC sfrt_lookup(void *adr, table_t* table)
         return NULL;
     }
 
-#ifdef SUP_IP6
     ip = adr;
     if (ip->family == AF_INET)
     {
@@ -369,16 +346,6 @@ GENERIC sfrt_lookup(void *adr, table_t* table)
     {
         rt = table->rt6;
     }
-#else
-    /* IPv6 not yet supported */
-    if(table->ip_type == IPv6)
-    {
-        return NULL;
-    }
-
-    ip = *(uint32_t*)adr;
-    rt = table->rt;
-#endif
 
     if (!rt)
     {
@@ -494,18 +461,13 @@ void sfrt_cleanup(table_t* table, sfrt_iterator_callback cleanup_func)
 
 GENERIC sfrt_search(void *adr, unsigned char len, table_t *table)
 {
-#ifdef SUP_IP6
     sfip_t *ip;
-#else
-    uint32_t ip;
-#endif
     tuple_t tuple;
     void *rt = NULL;
 
     if ((adr == NULL) || (table == NULL) || (len == 0))
         return NULL;
 
-#ifdef SUP_IP6
     ip = adr;
     if (ip->family == AF_INET)
     {
@@ -515,16 +477,6 @@ GENERIC sfrt_search(void *adr, unsigned char len, table_t *table)
     {
         rt = table->rt6;
     }
-#else
-    /* IPv6 not yet supported */
-    if(table->ip_type == IPv6)
-    {
-        return NULL;
-    }
-
-    ip = *(uint32_t*)adr;
-    rt = table->rt;
-#endif
     /* IPv6 not yet supported */
     if (table->ip_type == IPv6)
         return NULL;
@@ -535,11 +487,7 @@ GENERIC sfrt_search(void *adr, unsigned char len, table_t *table)
         return NULL;
     }
 
-#ifdef SUP_IP6
     ip = adr;
-#else
-    ip = *(uint32_t*)adr;
-#endif
 
     tuple = table->lookup(ip, rt);
 
@@ -557,11 +505,7 @@ int sfrt_insert(void *adr, unsigned char len, GENERIC ptr,
     int index;
     int newIndex = 0;
     int res;
-#ifdef SUP_IP6
     sfip_t *ip;
-#else
-    uint32_t ip;
-#endif
     tuple_t tuple;
     void *rt = NULL;
 
@@ -584,11 +528,7 @@ int sfrt_insert(void *adr, unsigned char len, GENERIC ptr,
         return RT_INSERT_FAILURE;
     }
 
-#ifdef SUP_IP6
     ip = adr;
-#else
-    ip = *(uint32_t*)adr;
-#endif
 
     /* Check if we can reuse an existing data table entry by
      * seeing if there is an existing entry with the same length. */
@@ -598,7 +538,6 @@ int sfrt_insert(void *adr, unsigned char len, GENERIC ptr,
     {
 #endif
 
-#ifdef SUP_IP6
         if (ip->family == AF_INET)
         {
             rt = table->rt;
@@ -607,9 +546,6 @@ int sfrt_insert(void *adr, unsigned char len, GENERIC ptr,
         {
             rt = table->rt6;
         }
-#else
-        rt = table->rt;
-#endif
         if (!rt)
         {
             return RT_INSERT_FAILURE;
@@ -667,10 +603,8 @@ void sfrt_print(table_t *table)
 
     if (table->rt)
         table->print(table->rt);
-#ifdef SUP_IP6
     if (table->rt6)
         table->print(table->rt6);
-#endif
 }
 
 uint32_t sfrt_num_entries(table_t *table)
@@ -694,12 +628,10 @@ uint32_t sfrt_usage(table_t *table)
 
     usage = table->allocated + table->usage( table->rt );
 
-#ifdef SUP_IP6
     if (table->rt6)
     {
         usage += table->usage( table->rt6 );
     }
-#endif
 
     return usage;
 }
@@ -718,11 +650,7 @@ int sfrt_remove(void *adr, unsigned char len, GENERIC *ptr,
 					   int behavior, table_t *table)
 {
     int index;
-#ifdef SUP_IP6
     sfip_t *ip;
-#else
-    uint32_t ip;
-#endif
     void *rt = NULL;
 
     if(!adr)
@@ -745,18 +673,13 @@ int sfrt_remove(void *adr, unsigned char len, GENERIC *ptr,
         return RT_REMOVE_FAILURE;
     }
 
-#ifdef SUP_IP6
     ip = adr;
-#else
-    ip = *(uint32_t*)adr;
-#endif
 
 #ifdef SUPPORT_LCTRIE
     if(table->table_type != LCT)
     {
 #endif
 
-#ifdef SUP_IP6
         if (ip->family == AF_INET)
         {
             rt = table->rt;
@@ -765,9 +688,6 @@ int sfrt_remove(void *adr, unsigned char len, GENERIC *ptr,
         {
             rt = table->rt6;
         }
-#else
-        rt = table->rt;
-#endif
         if (!rt)
         {
             return RT_REMOVE_FAILURE;

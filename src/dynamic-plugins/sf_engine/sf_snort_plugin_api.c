@@ -14,7 +14,7 @@
  *
  * You should have received a copy of the GNU General Public License
  * along with this program; if not, write to the Free Software
- * Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA 02111-1307, USA.
+ * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
  *
  * Copyright (C) 2005-2012 Sourcefire, Inc.
  *
@@ -40,6 +40,11 @@
 const uint8_t base64decodebuf[BLEN];
 uint32_t base64decodesize;
 
+static int processFlowbitsInternal(void *, FlowBitsInfo *);
+static int checkFlowInternal(void *, FlowFlags *);
+static int detectAsn1Internal(void *, Asn1Context*, const uint8_t *);
+static int fileDataInternal(void *, CursorInfo*, const uint8_t **);
+static int base64DataInternal(void *, CursorInfo*, const uint8_t **);
 
 int CursorInfoInitialize(Rule *rule, CursorInfo *cursor)
 {
@@ -316,7 +321,6 @@ int setCursorInternal(void *p, int flags, int offset, const uint8_t **cursor)
 
         /*    API FUNCTIONS    */
 
-
 /*
  *  Check cursor function
  *
@@ -352,10 +356,9 @@ ENGINE_LINKAGE int checkCursor(void *p, CursorInfo* cursorInfo, const uint8_t *c
 {
     /* Get byte_extracted offset if present */
     if (cursorInfo->offset_location)
-    {
         cursorInfo->offset = *cursorInfo->offset_location;
-    }
-
+    if (cursorInfo->flags & NOT_FLAG)
+        return invertMatchResult(checkCursorInternal(p, cursorInfo->flags, cursorInfo->offset, cursor));
     return checkCursorInternal(p, cursorInfo->flags, cursorInfo->offset, cursor);
 }
 
@@ -389,6 +392,8 @@ ENGINE_LINKAGE int checkCursor(void *p, CursorInfo* cursorInfo, const uint8_t *c
  */
 ENGINE_LINKAGE int setCursor(void *p, CursorInfo* cursorInfo, const uint8_t **cursor)
 {
+    if (cursorInfo->flags & NOT_FLAG)
+        return invertMatchResult(setCursorInternal(p, cursorInfo->flags, cursorInfo->offset, cursor));
     return setCursorInternal(p, cursorInfo->flags, cursorInfo->offset, cursor);
 }
 
@@ -400,6 +405,13 @@ ENGINE_LINKAGE void setTempCursor(const uint8_t **temp_cursor, const uint8_t **c
 ENGINE_LINKAGE void revertTempCursor(const uint8_t **temp_cursor, const uint8_t **cursor)
 {
     *cursor = *temp_cursor;
+}
+
+ENGINE_LINKAGE int checkFlow(void *p, FlowFlags *flowFlags)
+{
+    if (flowFlags->flags & NOT_FLAG)
+        return invertMatchResult(checkFlowInternal(p, flowFlags));
+    return checkFlowInternal(p, flowFlags);
 }
 
 /*
@@ -418,7 +430,7 @@ ENGINE_LINKAGE void revertTempCursor(const uint8_t **temp_cursor, const uint8_t 
  *    RULE_NOMATCH -  if packet flow does not match rule
  *
  */
-ENGINE_LINKAGE int checkFlow(void *p, FlowFlags *flowFlags)
+static int checkFlowInternal(void *p, FlowFlags *flowFlags)
 {
     SFSnortPacket *sp = (SFSnortPacket *) p;
 
@@ -447,6 +459,13 @@ ENGINE_LINKAGE int checkFlow(void *p, FlowFlags *flowFlags)
     return RULE_MATCH;
 }
 
+ENGINE_LINKAGE int processFlowbits(void *p, FlowBitsInfo *flowBits)
+{
+    if (flowBits->flags & NOT_FLAG)
+        return invertMatchResult(processFlowbitsInternal(p, flowBits));
+    return processFlowbitsInternal(p, flowBits);
+}
+
 /*
  *  Process flowbits function
  *
@@ -463,14 +482,20 @@ ENGINE_LINKAGE int checkFlow(void *p, FlowFlags *flowFlags)
  *    RULE_NOMATCH -  if flowbit operation failed
  *
  */
-ENGINE_LINKAGE int processFlowbits(void *p, FlowBitsInfo *flowBits)
+static int processFlowbitsInternal(void *p, FlowBitsInfo *flowBits)
 {
     /* flowbitCheck returns non-zero if the flow bit operation succeeded. */
     if (_ded.flowbitCheck(p, flowBits) == RULE_MATCH)
         return RULE_MATCH;
 
     return RULE_NOMATCH;
+}
 
+ENGINE_LINKAGE int detectAsn1(void *p, Asn1Context* asn1, const uint8_t *cursor)
+{
+    if (asn1->flags & NOT_FLAG)
+        return invertMatchResult(detectAsn1Internal(p, asn1, cursor));
+    return detectAsn1Internal(p, asn1, cursor);
 }
 
 /*
@@ -490,7 +515,7 @@ ENGINE_LINKAGE int processFlowbits(void *p, FlowBitsInfo *flowBits)
  *    RULE_NOMATCH -  if asn1 specifier is not found within buffer
  *
  */
-ENGINE_LINKAGE int detectAsn1(void *p, Asn1Context* asn1, const uint8_t *cursor)
+static int detectAsn1Internal(void *p, Asn1Context* asn1, const uint8_t *cursor)
 {
     /* asn1Detect returns non-zero if the options matched. */
     if (_ded.asn1Detect(p, (void *) asn1, cursor))
@@ -501,6 +526,13 @@ ENGINE_LINKAGE int detectAsn1(void *p, Asn1Context* asn1, const uint8_t *cursor)
 
 ENGINE_LINKAGE int fileData(void *p, CursorInfo* cursorInfo, const uint8_t **cursor)
 {
+    if (cursorInfo->flags & NOT_FLAG)
+        return invertMatchResult(fileDataInternal(p, cursorInfo, cursor));
+    return fileDataInternal(p, cursorInfo, cursor);
+}
+
+static int fileDataInternal(void *p, CursorInfo* cursorInfo, const uint8_t **cursor)
+{
     int retVal = RULE_NOMATCH;
     SFSnortPacket *sp = (SFSnortPacket *) p;
 
@@ -509,7 +541,7 @@ ENGINE_LINKAGE int fileData(void *p, CursorInfo* cursorInfo, const uint8_t **cur
         return RULE_NOMATCH;
     }
     _ded.SetAltDetect(_ded.fileDataBuf->data, _ded.fileDataBuf->len);
-    retVal = setCursor(p, cursorInfo, cursor);
+    retVal = setCursorInternal(p, cursorInfo->flags, cursorInfo->offset, cursor);
 
     if( retVal > RULE_NOMATCH)
         return RULE_MATCH;
@@ -521,15 +553,19 @@ ENGINE_LINKAGE int fileData(void *p, CursorInfo* cursorInfo, const uint8_t **cur
 
 ENGINE_LINKAGE int pktData(void *p, CursorInfo* cursorInfo, const uint8_t **cursor)
 {
-    int retVal = RULE_NOMATCH;
     _ded.DetectFlag_Disable(SF_FLAG_ALT_DETECT);
     cursorInfo->flags |= JUMP_FROM_BEGINNING;
-    retVal=setCursor(p, cursorInfo, cursor);
-
-    return retVal;
+    return setCursor(p, cursorInfo, cursor);
 }
 
 ENGINE_LINKAGE int base64Data(void *p, CursorInfo* cursorInfo, const uint8_t **cursor)
+{
+    if (cursorInfo->flags & NOT_FLAG)
+        return invertMatchResult(base64DataInternal(p, cursorInfo, cursor));
+    return base64DataInternal(p, cursorInfo, cursor);
+}
+
+static int base64DataInternal(void *p, CursorInfo* cursorInfo, const uint8_t **cursor)
 {
     int retVal = RULE_NOMATCH;
     SFSnortPacket *sp = (SFSnortPacket *) p;
@@ -538,7 +574,7 @@ ENGINE_LINKAGE int base64Data(void *p, CursorInfo* cursorInfo, const uint8_t **c
         return retVal;
 
     _ded.SetAltDetect((uint8_t *)base64decodebuf, (uint16_t)base64decodesize);
-    retVal = setCursor(p, cursorInfo, cursor);
+    retVal = setCursorInternal(p, cursorInfo->flags, cursorInfo->offset, cursor);
         
     if( retVal > RULE_NOMATCH)
         return RULE_MATCH;
@@ -546,9 +582,6 @@ ENGINE_LINKAGE int base64Data(void *p, CursorInfo* cursorInfo, const uint8_t **c
     _ded.DetectFlag_Disable(SF_FLAG_ALT_DETECT);
     return retVal;
 }
-
-
-
 
 ENGINE_LINKAGE int base64Decode(void *p, base64DecodeData *data, const uint8_t *cursor)
 {
@@ -681,7 +714,8 @@ ENGINE_LINKAGE void freeRuleData(void *data)
 ENGINE_LINKAGE int preprocOptionEval(void *p, PreprocessorOption *preprocOpt, const uint8_t **cursor)
 {
     PreprocOptionEval evalFunc = (PreprocOptionEval)preprocOpt->optionEval;
-
+    if (preprocOpt->flags & NOT_FLAG)
+        return invertMatchResult(evalFunc(p, cursor, preprocOpt->dataPtr));
     return evalFunc(p, cursor, preprocOpt->dataPtr);
 }
 
@@ -814,77 +848,52 @@ int ruleMatchInternal(SFSnortPacket *p, Rule* rule, uint32_t optIndex, const uin
             break;
         case OPTION_TYPE_FLOWBIT:
             retVal = processFlowbits(p, rule->options[optIndex]->option_u.flowBit);
-            notFlag = rule->options[optIndex]->option_u.flowBit->flags & NOT_FLAG;
             break;
         case OPTION_TYPE_BYTE_TEST:
             retVal = byteTest(p, rule->options[optIndex]->option_u.byte, thisCursor);
-            notFlag = rule->options[optIndex]->option_u.byte->flags & NOT_FLAG;
             break;
         case OPTION_TYPE_BYTE_JUMP:
             retVal = byteJump(p, rule->options[optIndex]->option_u.byte, &thisCursor);
-            notFlag = rule->options[optIndex]->option_u.byte->flags & NOT_FLAG;
             break;
         case OPTION_TYPE_FLOWFLAGS:
             retVal = checkFlow(p, rule->options[optIndex]->option_u.flowFlags);
-            notFlag = rule->options[optIndex]->option_u.flowFlags->flags & NOT_FLAG;
             break;
         case OPTION_TYPE_ASN1:
             retVal = detectAsn1(p, rule->options[optIndex]->option_u.asn1, thisCursor);
-            notFlag = rule->options[optIndex]->option_u.asn1->flags & NOT_FLAG;
             break;
         case OPTION_TYPE_CURSOR:
             retVal = checkCursor(p, rule->options[optIndex]->option_u.cursor, thisCursor);
-            notFlag = rule->options[optIndex]->option_u.cursor->flags & NOT_FLAG;
             break;
         case OPTION_TYPE_SET_CURSOR:
             retVal = setCursor(p, rule->options[optIndex]->option_u.cursor, &thisCursor);
-            notFlag = rule->options[optIndex]->option_u.cursor->flags & NOT_FLAG;
             break;
         case OPTION_TYPE_FILE_DATA:
             retVal = fileData(p, rule->options[optIndex]->option_u.cursor, &thisCursor);
-            notFlag = rule->options[optIndex]->option_u.cursor->flags & NOT_FLAG;
             break;
         case OPTION_TYPE_PKT_DATA:
             retVal = pktData(p, rule->options[optIndex]->option_u.cursor, &thisCursor);
-            notFlag = rule->options[optIndex]->option_u.cursor->flags & NOT_FLAG;
             break;
         case OPTION_TYPE_BASE64_DATA:
             retVal = base64Data(p, rule->options[optIndex]->option_u.cursor, &thisCursor);
-            notFlag = rule->options[optIndex]->option_u.cursor->flags & NOT_FLAG;
             break;
         case OPTION_TYPE_BASE64_DECODE:
             retVal = base64Decode(p, rule->options[optIndex]->option_u.bData, thisCursor);
-            notFlag = rule->options[optIndex]->option_u.cursor->flags & NOT_FLAG;
             break;
         case OPTION_TYPE_HDR_CHECK:
             retVal = checkHdrOpt(p, rule->options[optIndex]->option_u.hdrData);
-            notFlag = rule->options[optIndex]->option_u.hdrData->flags & NOT_FLAG;
             break;
         case OPTION_TYPE_BYTE_EXTRACT:
             retVal = extractValue(p, rule->options[optIndex]->option_u.byteExtract, thisCursor);
-            notFlag = rule->options[optIndex]->option_u.byteExtract->flags & NOT_FLAG;
             break;
         case OPTION_TYPE_LOOP:
             retVal = loopEval(p, rule->options[optIndex]->option_u.loop, &thisCursor);
             notFlag = rule->options[optIndex]->option_u.loop->flags & NOT_FLAG;
+            if (notFlag)
+                retVal = invertMatchResult(retVal);
             break;
         case OPTION_TYPE_PREPROCESSOR:
             retVal = preprocOptionEval(p, rule->options[optIndex]->option_u.preprocOpt, &thisCursor);
-            notFlag = rule->options[optIndex]->option_u.preprocOpt->flags & NOT_FLAG;
             break;
-        }
-
-        if ( notFlag )
-        {
-            if ((retVal <= RULE_NOMATCH))
-            {
-                /* Set this as a positive match -- a ! was specified. */
-                retVal = RULE_MATCH;
-            }
-            else  /* Match */
-            {
-                retVal = RULE_NOMATCH;
-            }
         }
 
         if (retVal > RULE_NOMATCH)

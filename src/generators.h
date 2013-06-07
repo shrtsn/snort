@@ -16,7 +16,7 @@
 **
 ** You should have received a copy of the GNU General Public License
 ** along with this program; if not, write to the Free Software
-** Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA 02111-1307, USA.
+** Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 */
 
 #ifndef __GENERATORS_H__
@@ -404,6 +404,7 @@ enum {
 #define     STREAM5_BAD_ACK                        17
 #define     STREAM5_DATA_AFTER_RST_RCVD            18
 #define     STREAM5_WINDOW_SLAM                    19
+#define     STREAM5_NO_3WHS                        20
 
 #define GENERATOR_DNS                             131
 #define     DNS_EVENT_OBSOLETE_TYPES                1
@@ -473,6 +474,7 @@ enum {
 #define GENERATOR_PPM                               134
 #define     PPM_EVENT_RULE_TREE_DISABLED              1
 #define     PPM_EVENT_RULE_TREE_ENABLED               2
+#define     PPM_EVENT_PACKET_ABORTED                  3
 
 #define GENERATOR_INTERNAL                          135
 #define     INTERNAL_EVENT_SYN_RECEIVED               1
@@ -497,6 +499,10 @@ enum {
 #define GENERATOR_SPP_MODBUS                        144
 
 #define GENERATOR_SPP_DNP3                          145
+
+// #define GENERATOR_FILE_TYPE                      146 //Defined in file_service.h
+// #define GENERATOR_FILE_SIGNATURE                 147 //Defined in file_service.h
+
 
 /*  This is where all the alert messages will be archived for each
     internal alerts */
@@ -549,12 +555,14 @@ enum {
 #define STREAM5_BAD_ACK_STR "ACK number is greater than prior FIN"
 #define STREAM5_DATA_AFTER_RST_RCVD_STR "Data sent on stream after TCP Reset received"
 #define STREAM5_WINDOW_SLAM_STR "TCP window closed before receiving data"
+#define STREAM5_NO_3WHS_STR "TCP session without 3-way handshake"
 
 #define STREAM5_INTERNAL_EVENT_STR ""
 
 /* PPM strings */
-#define PPM_EVENT_RULE_TREE_DISABLED_STR "Rule Options Disabled by Rule Latency"
-#define PPM_EVENT_RULE_TREE_ENABLED_STR "Rule Options Re-enabled by Rule Latency"
+#define PPM_EVENT_RULE_TREE_DISABLED_STR "PPM Rule Options Disabled by Rule Latency"
+#define PPM_EVENT_RULE_TREE_ENABLED_STR  "PPM Rule Options Re-enabled by Rule Latency"
+#define PPM_EVENT_PACKET_ABORTED_STR     "PPM Packet Aborted due to Latency"
 
 /*   Snort decoder strings */
 #define DECODE_NOT_IPV4_DGRAM_STR "(snort_decoder) WARNING: Not IPv4 datagram"

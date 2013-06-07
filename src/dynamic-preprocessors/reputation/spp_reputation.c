@@ -17,7 +17,7 @@
  **
  ** You should have received a copy of the GNU General Public License
  ** along with this program; if not, write to the Free Software
- ** Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA 02111-1307, USA.
+ ** Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
  */
 
 
@@ -67,11 +67,7 @@ const int MAJOR_VERSION = 1;
 const int MINOR_VERSION = 1;
 const int BUILD_VERSION = 1;
 
-#ifdef SUP_IP6
-const char *PREPROC_NAME = "SF_REPUTATION (IPV6)";
-#else
 const char *PREPROC_NAME = "SF_REPUTATION";
-#endif
 
 #define SetupReputation DYNAMIC_PREPROC_SETUP
 
@@ -167,11 +163,7 @@ static int Reputation_Lookup(uint16_t type, const uint8_t *data, uint32_t length
     }
 
     /* Convert tokstr to sfip type */
-#ifndef SUP_IP6
-    if (inet_pton(AF_INET, tokstr, &addr) <= 0)
-#else
     if (sfip_pton(tokstr, IP_ARG(addr)))
-#endif
     {
         free(data_copy);
         return -1;
@@ -186,7 +178,7 @@ static int Reputation_Lookup(uint16_t type, const uint8_t *data, uint32_t length
         free(data_copy);
         return -1;
     }
-    
+
     /* Are we looking to obtain the decision? */
     tokstr = strtok_r(NULL, " \t\n", &save);
     if (tokstr)
@@ -227,7 +219,7 @@ static int Reputation_Lookup(uint16_t type, const uint8_t *data, uint32_t length
             case WHITELISTED_TRUST:
             decision = "WHITELISTED TRUST";
             break;
-            
+
             default:
             decision = "UNKNOWN";
             break;
@@ -324,7 +316,7 @@ static int Reputation_Control(uint16_t type, void *new_config, void **old_config
     return -1;
 }
 
-static void Reputation_PostControl(uint16_t type, void *old_config)
+static void Reputation_PostControl(uint16_t type, void *old_config, struct _THREAD_ELEMENT *te, ControlDataSendFunc f)
 {
     ReputationConfig *config = (ReputationConfig *) old_config;
     ReputationConfig *pDefaultPolicyConfig = NULL;
@@ -592,11 +584,7 @@ static inline IPrepInfo*  ReputationLookup(snort_ip_p ip)
     IPrepInfo * result;
 
 
-#ifdef SUP_IP6
     DEBUG_WRAP( DebugMessage(DEBUG_REPUTATION, "Lookup address: %s \n",sfip_to_str(ip) ););
-#else
-    DEBUG_WRAP( DebugMessage(DEBUG_REPUTATION, "Lookup address: %lx \n", ip););
-#endif
     if (!reputation_eval_config->scanlocal)
     {
         if (sfip_is_private(ip) )
@@ -606,15 +594,9 @@ static inline IPrepInfo*  ReputationLookup(snort_ip_p ip)
         }
     }
 
-#ifdef SUP_IP6
 
     result = (IPrepInfo *) sfrt_flat_dir8x_lookup((void *)ip, reputation_eval_config->iplist );
 
-#else
-
-    result = (IPrepInfo *) sfrt_flat_dir8x_lookup((void *)&ip, reputation_eval_config->iplist);
-
-#endif
 
     return (result);
 

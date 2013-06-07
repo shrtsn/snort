@@ -15,7 +15,7 @@
  *
  * You should have received a copy of the GNU General Public License
  * along with this program; if not, write to the Free Software
- * Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA 02111-1307, USA.
+ * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
  *
  ****************************************************************************/
 
@@ -755,10 +755,10 @@ static inline int hi_server_extract_body(
     const u_char *post_end = end;
     uint32_t updated_chunk_remainder = 0;
     uint32_t chunk_read = 0;
-    int bytes_to_read = 0;
+    int64_t bytes_to_read = 0;
     ServerConf = Session->server_conf;
 
-    switch(ServerConf->server_flow_depth)
+    switch(ServerConf->server_extract_size)
     {
         case -1:
             result->uri = result->uri_end = NULL;
@@ -766,16 +766,16 @@ static inline int hi_server_extract_body(
         case 0:
             break;
         default:
-            if(sd->resp_state.flow_depth_read < ServerConf->server_flow_depth)
+            if(sd->resp_state.data_extracted < ServerConf->server_extract_size)
             {
-                bytes_to_read = ServerConf->server_flow_depth - sd->resp_state.flow_depth_read;
+                bytes_to_read = ServerConf->server_extract_size - sd->resp_state.data_extracted;
                 if((end-ptr) > bytes_to_read )
                 {
                     end = ptr + bytes_to_read;
                 }
                 else
                     bytes_to_read = (end-ptr);
-                sd->resp_state.flow_depth_read +=bytes_to_read;
+                sd->resp_state.data_extracted += (int)bytes_to_read;
             }
             else
             {
@@ -847,8 +847,16 @@ static void SetGzipBuffers(HttpSessionData *hsd, HI_SESSION *session)
         {
             hsd->decomp_state = bkt->data;
             hsd->decomp_state->bkt = bkt;
-            hsd->decomp_state->compr_depth = session->global_conf->compr_depth;
-            hsd->decomp_state->decompr_depth = session->global_conf->decompr_depth;
+            if (session->server_conf->unlimited_decompress)
+            {
+                hsd->decomp_state->compr_depth = MAX_GZIP_DEPTH;
+                hsd->decomp_state->decompr_depth = MAX_GZIP_DEPTH;
+            }
+            else
+            {
+                hsd->decomp_state->compr_depth = session->global_conf->compr_depth;
+                hsd->decomp_state->decompr_depth = session->global_conf->decompr_depth;
+            }
             hsd->decomp_state->inflate_init = 0;
         }
         else
@@ -981,11 +989,11 @@ static inline int hi_server_decompress(HI_SESSION *Session, HttpSessionData *sd,
         decompr_avail = decompr_depth - decompr_bytes_read;
     }
 
-    /* Apply the server flow depth
-     * If the server flow depth is set then we need to decompress only upto the
+    /* Apply the server extract size
+     * If the server extract size is set then we need to decompress only upto the
      * server flow depth
      */
-    switch ( Session->server_conf->server_flow_depth)
+    switch ( Session->server_conf->server_extract_size)
     {
         case -1:
             decompr_avail=0;
@@ -993,10 +1001,10 @@ static inline int hi_server_decompress(HI_SESSION *Session, HttpSessionData *sd,
         case 0:
             break;
         default:
-            if(sd->resp_state.flow_depth_read < Session->server_conf->server_flow_depth)
+            if(sd->resp_state.data_extracted < Session->server_conf->server_extract_size)
             {
-                if(decompr_avail > (Session->server_conf->server_flow_depth - sd->resp_state.flow_depth_read))
-                    decompr_avail = Session->server_conf->server_flow_depth - sd->resp_state.flow_depth_read;
+                if(decompr_avail > (Session->server_conf->server_extract_size - sd->resp_state.data_extracted))
+                    decompr_avail = (int)(Session->server_conf->server_extract_size - sd->resp_state.data_extracted);
             }
             else
             {
@@ -1059,14 +1067,14 @@ static inline int hi_server_decompress(HI_SESSION *Session, HttpSessionData *sd,
         {
             result->uri_end = decompression_buffer + total_bytes_read;
             sd->decomp_state->decompr_bytes_read += total_bytes_read;
-            sd->resp_state.flow_depth_read += total_bytes_read;
+            sd->resp_state.data_extracted += total_bytes_read;
             hi_stats.decompr_bytes_read += total_bytes_read;
         }
         else
         {
             result->uri_end = decompression_buffer + decompr_avail;
             sd->decomp_state->decompr_bytes_read += decompr_avail;
-            sd->resp_state.flow_depth_read += decompr_avail;
+            sd->resp_state.data_extracted += decompr_avail;
             hi_stats.decompr_bytes_read += decompr_avail;
         }
     }
@@ -1119,7 +1127,7 @@ static inline int hi_server_inspect_body(HI_SESSION *Session, HttpSessionData *s
     }
 
 #ifdef ZLIB
-    if((sd->decomp_state != NULL) && sd->decomp_state->decompress_data)
+    if(sd && (sd->decomp_state != NULL) && sd->decomp_state->decompress_data)
     {
         iRet = hi_server_decompress(Session, sd, ptr, end, result);
         if(iRet == HI_NONFATAL_ERR)
@@ -1289,11 +1297,10 @@ int HttpResponseInspection(HI_SESSION *Session, Packet *p, const unsigned char *
             else
                 simple_response = false;
 
-            if(ServerConf->server_flow_depth)
+            if(ServerConf->server_extract_size)
             {
-                /*Packet is beyond the flow depth*/
-                if ( (ServerConf->server_flow_depth < 0) || (sd->resp_state.flow_depth_excd) ||
-                    !SEQ_LT(seq_num, (sd->resp_state.max_seq)) )
+                /*Packet is beyond the extract limit*/
+                if ( sd->resp_state.data_extracted > ServerConf->server_extract_size )
                 {
                     expected_pkt = 0;
                     ResetState(sd);
@@ -1339,10 +1346,10 @@ int HttpResponseInspection(HI_SESSION *Session, Packet *p, const unsigned char *
 #endif
         if(sd->resp_state.inspect_body && not_stream_insert)
         {
-            /* If the server flow depth is 0 then we need to check if the packet
+            /* If the server extrtact size is 0 then we need to check if the packet
              * is in sequence
              */
-            if(!ServerConf->server_flow_depth)
+            if(!ServerConf->server_extract_size)
             {
                 if( sd->resp_state.next_seq &&
                         (seq_num == sd->resp_state.next_seq) )
@@ -1360,32 +1367,19 @@ int HttpResponseInspection(HI_SESSION *Session, Packet *p, const unsigned char *
             }
             else
             {
-                /*Check if the sequence number of the packet is within the allowed
-                 * flow_depth
-                 */
-                if((ServerConf->server_flow_depth < 0) || sd->resp_state.flow_depth_excd)
+
+                if( (ServerConf->server_extract_size > 0) &&(sd->resp_state.data_extracted > ServerConf->server_extract_size))
+                {
+                    expected_pkt = 1;
+                }
+                else
                 {
 #ifdef ZLIB
                     ResetGzipState(sd->decomp_state);
 #endif
                     ResetRespState(&(sd->resp_state));
-                    sd->resp_state.flow_depth_excd = true;
                 }
-                else
-                {
-                    if( SEQ_LT(seq_num, (sd->resp_state.max_seq)))
-                    {
-                        expected_pkt = 1;
-                    }
-                    else
-                    {
-#ifdef ZLIB
-                        ResetGzipState(sd->decomp_state);
-#endif
-                        ResetRespState(&(sd->resp_state));
-                        sd->resp_state.flow_depth_excd = true;
-                    }
-                }
+
             }
 
         }
@@ -1665,7 +1659,7 @@ int HttpResponseInspection(HI_SESSION *Session, Packet *p, const unsigned char *
                 alt_dsize = sizeof(HttpDecodeBuf.data);
             }
 #ifdef ZLIB
-            if(sd->decomp_state && sd->decomp_state->decompress_data)
+            if(sd && sd->decomp_state && sd->decomp_state->decompress_data)
             {
                 status = SafeMemcpy(HttpDecodeBuf.data, Server->response.body,
                                             alt_dsize, HttpDecodeBuf.data, HttpDecodeBuf.data + sizeof(HttpDecodeBuf.data));

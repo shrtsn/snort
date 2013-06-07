@@ -69,10 +69,11 @@ include/obfuscation.h \
 include/stream_api.h \
 include/str_search.h \
 include/preprocids.h \
-include/attribute_table_api.h \
 include/sfcontrol.h \
 include/idle_processing.h \
-include/sf_seqnums.h
+include/sf_seqnums.h \
+include/file_api.h \
+include/file_lib.h
 
 all-local: $(LTLIBRARIES)
 	$(MAKE) DESTDIR=`pwd`/build install-preproclibLTLIBRARIES
@@ -144,10 +145,11 @@ BUILT_SOURCES = \
 	include/rule_option_types.h \
 	include/event.h \
 	include/Unified2_common.h \
-	include/attribute_table_api.h \
 	include/sfcontrol.h \
 	include/idle_processing.h \
-	include/sf_seqnums.h
+	include/sf_seqnums.h \
+	include/file_api.h \
+	include/file_lib.h
 
 sed_ipv6_headers = \
 	sed -e "s/->iph->ip_src/->ip4_header->source/" \
@@ -333,9 +335,6 @@ include/sf_dynamic_meta.h: $(srcdir)/../dynamic-plugins/sf_dynamic_meta.h
 include/sf_dynamic_preprocessor.h: $(srcdir)/../dynamic-plugins/sf_dynamic_preprocessor.h
 	@src_header=$?; dst_header=$@; $(massage_headers)
 
-include/attribute_table_api.h: $(srcdir)/../dynamic-plugins/attribute_table_api.h
-	@src_header=$?; dst_header=$@; $(massage_headers)
-
 # From dynamic-plugins/sf_preproc_example
 include/sf_dynamic_preproc_lib.c: $(srcdir)/../dynamic-plugins/sf_preproc_example/sf_dynamic_preproc_lib.c
 	@src_header=$?; dst_header=$@; $(copy_headers)
@@ -488,6 +487,12 @@ include/idle_processing.h: $(top_srcdir)/src/idle_processing.h
 include/sf_seqnums.h: $(top_srcdir)/src/sfutil/sf_seqnums.h
 	@src_header=$?; dst_header=$@; $(copy_headers)
 
+include/file_api.h: $(top_srcdir)/src/file-process/file_api.h
+	@src_header=$?; dst_header=$@; $(copy_headers)
+
+include/file_lib.h: $(top_srcdir)/src/file-process/libs/file_lib.h
+	@src_header=$?; dst_header=$@; $(copy_headers)
+	
 if WANT_SF_SAAC
 RZB_SAAC_DIR=rzb_saac
 endif
@@ -547,10 +552,11 @@ include/obfuscation.h \
 include/rule_option_types.h \
 include/event.h \
 include/Unified2_common.h \
-include/attribute_table_api.h \
 include/sfcontrol.h \
 include/idle_processing.h \
-include/sf_seqnums.h
+include/sf_seqnums.h \
+include/file_api.h \
+include/file_lib.h
 
 install-data-local:
 	@for f in $(exported_files); do \

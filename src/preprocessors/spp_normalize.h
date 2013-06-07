@@ -15,7 +15,7 @@
 **
 ** You should have received a copy of the GNU General Public License
 ** along with this program; if not, write to the Free Software
-** Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA 02111-1307, USA.
+** Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 */
 
 #ifndef __SPP_NORMALIZE_H__
@@ -34,11 +34,9 @@ typedef enum {
     NORM_IP4_RF          = 0x00000008, // clear rf
     NORM_IP4_TTL         = 0x00000010, // ensure min ttl
     NORM_ICMP4           = 0x00000020, // core icmp4 norms
-#ifdef SUP_IP6
     NORM_IP6             = 0x00000040, // core ip6 norms
     NORM_IP6_TTL         = 0x00000080, // ensure min hop limit
     NORM_ICMP6           = 0x00000100, // core icmp6 norms
-#endif
     NORM_TCP             = 0x00000200, // core tcp norms
     NORM_TCP_ECN_PKT     = 0x00000400, // clear ece and cwr
     NORM_TCP_ECN_STR     = 0x00000800, // clear if not negotiated (stream)

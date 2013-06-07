@@ -16,7 +16,7 @@
  *
  * You should have received a copy of the GNU General Public License
  * along with this program; if not, write to the Free Software
- * Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA 02111-1307, USA.
+ * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
  *
  ****************************************************************************/
 
@@ -698,7 +698,7 @@ static PAF_Status hi_paf (
 // public stuff
 //--------------------------------------------------------------------
 
-int hi_paf_register (uint16_t port, bool client, bool server, tSfPolicyId pid)
+int hi_paf_register (uint16_t port, bool client, bool server, tSfPolicyId pid, bool auto_on)
 {
     if ( !ScPafEnabled() )
         return 0;
@@ -710,10 +710,10 @@ int hi_paf_register (uint16_t port, bool client, bool server, tSfPolicyId pid)
         return -1;
 
     if ( client )
-        stream_api->register_paf_cb(pid, port, true, hi_paf, false);
+        stream_api->register_paf_cb(pid, port, true, hi_paf, auto_on);
 
     if ( server )
-        stream_api->register_paf_cb(pid, port, false, hi_paf, false);
+        stream_api->register_paf_cb(pid, port, false, hi_paf, auto_on);
 
     return 0;
 }

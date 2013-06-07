@@ -357,21 +357,6 @@ Alerts
 ======
 Stream5 uses generator ID 129.  It is capable of alerting on 10
 anomalies, all of which relate to TCP anomalies.  There are no
-anomaly detection capabilities for UDP or ICMP.
+anomaly detection capabilities for UDP or ICMP.  Check etc/gen-msg.map
+for the current list of GID 129 alerts.
 
-SID   Description
----   -----------
-1     SYN on established session
-2     Data on SYN packet
-3     Data sent on stream not accepting data
-4     TCP Timestamp is outside of PAWS window
-5     Bad segment, overlap adjusted size less than/equal 0
-6     Window size (after scaling) larger than policy allows
-7     Limit on number of overlapping TCP packets reached
-8     Data after Reset packet
-9     Possible Hijacked Client
-10    Possible Hijacked Server
-11    TCP packet with any control flags set
-12    Limit on number of consecutive small segments reached
-13    4-way handshake detected
-14    Packet missing timestamp

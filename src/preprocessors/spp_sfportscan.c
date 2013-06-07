@@ -15,7 +15,7 @@
  *
  * You should have received a copy of the GNU General Public License
  * along with this program; if not, write to the Free Software
- * Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA 02111-1307, USA.
+ * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
  *
  ****************************************************************************/
 
@@ -173,11 +173,7 @@ static void PortscanResetStatsFunction(int signal, void *foo)
 static int MakeProtoInfo(PS_PROTO *proto, u_char *buffer, u_int *total_size)
 {
     int             dsize;
-#ifdef SUP_IP6
     sfip_t          *ip1, *ip2;
-#else
-    struct          in_addr ip1, ip2;
-#endif
 
 
     if(!total_size || !buffer)
@@ -188,15 +184,8 @@ static int MakeProtoInfo(PS_PROTO *proto, u_char *buffer, u_int *total_size)
     if(dsize < PROTO_BUFFER_SIZE)
        return -1;
 
-#ifdef SUP_IP6
     ip1 = &proto->low_ip;
     ip2 = &proto->high_ip;
-#else
-    /* low & high are already in host order.  Make them network
-     * order so we can use inet_ntoa below */
-    ip1.s_addr = htonl(proto->low_ip);
-    ip2.s_addr = htonl(proto->high_ip);
-#endif
 
     if(proto->alerts == PS_ALERT_PORTSWEEP ||
        proto->alerts == PS_ALERT_PORTSWEEP_FILTERED)
@@ -439,11 +428,8 @@ static int MakePortscanPkt(PS_PKT *ps_pkt, PS_PROTO *proto, int proto_type,
         if(IS_IP4(p))
         {
             ((IPHdr*)g_tmp_pkt->iph)->ip_proto = IPPROTO_PS;
-#ifdef SUP_IP6
             g_tmp_pkt->inner_ip4h.ip_proto = IPPROTO_PS;
-#endif
         }
-#ifdef SUP_IP6
         else if (IS_IP6(p))
         {
             if ( g_tmp_pkt->raw_ip6h )
@@ -451,7 +437,6 @@ static int MakePortscanPkt(PS_PKT *ps_pkt, PS_PROTO *proto, int proto_type,
             g_tmp_pkt->inner_ip6h.next = IPPROTO_PS;
             g_tmp_pkt->ip6h = &g_tmp_pkt->inner_ip6h;
         }
-#endif
         else
         {
             return -1;
@@ -484,7 +469,6 @@ static int MakePortscanPkt(PS_PKT *ps_pkt, PS_PROTO *proto, int proto_type,
     */
      Encode_Update(g_tmp_pkt);
 
-#ifdef SUP_IP6
     if(IS_IP4(g_tmp_pkt))
     {
         g_tmp_pkt->inner_ip4h.ip_len = ((IPHdr *)g_tmp_pkt->iph)->ip_len;
@@ -493,7 +477,6 @@ static int MakePortscanPkt(PS_PKT *ps_pkt, PS_PROTO *proto, int proto_type,
     {
         g_tmp_pkt->inner_ip6h.len = htons((uint16_t)ip_size);
     }
-#endif
 
     return 0;
 }
@@ -964,11 +947,7 @@ static void ParseIpList(IPSET **ip_list, char *option, char **savptr)
     if(!pcTok)
         FatalErrorInvalidArg(option);
 
-#ifdef SUP_IP6
     *ip_list = ipset_new();
-#else
-    *ip_list = ipset_new(IPV4_FAMILY);
-#endif
     if(!*ip_list)
         FatalError("Failed to initialize ip_list in portscan preprocessor.\n");
 
@@ -1008,7 +987,6 @@ static void ParseMemcap(unsigned long *memcap, char **savptr)
     return;
 }
 
-#ifdef SUP_IP6
 static void PrintIPPortSet(IP_PORT *p)
 {
     char ip_str[80], output_str[80];
@@ -1043,46 +1021,6 @@ static void PrintIPPortSet(IP_PORT *p)
     }
     LogMessage("%s\n", output_str);
 }
-#else
-static void PrintCIDRBLOCK(CIDRBLOCK *p)
-{
-    char ip_str[80], mask_str[80], output_str[80];
-    PORTRANGE *pr;
-
-    output_str[0] = '\0';
-    ip4_sprintx(ip_str, sizeof(ip_str), &p->ip);
-    ip4_sprintx(mask_str, sizeof(mask_str), &p->mask);
-
-    if(p->notflag)
-    {
-        SnortSnprintfAppend(output_str, sizeof(output_str),
-            "        !%s / %s", ip_str, mask_str);
-    }
-    else
-    {
-        SnortSnprintfAppend(output_str, sizeof(output_str),
-            "        %s / %s", ip_str, mask_str);
-    }
-
-    pr=(PORTRANGE*)sflist_first(&p->portset.port_list);
-    if ( pr && pr->port_lo != 0 )
-        SnortSnprintfAppend(output_str, sizeof(output_str), " : ");
-    for( ; pr != 0;
-        pr=(PORTRANGE*)sflist_next(&p->portset.port_list) )
-    {
-        if ( pr->port_lo != 0 )
-        {
-            SnortSnprintfAppend(output_str, sizeof(output_str), "%d", pr->port_lo);
-            if ( pr->port_hi != pr->port_lo )
-            {
-                SnortSnprintfAppend(output_str, sizeof(output_str), "-%d", pr->port_hi);
-            }
-            SnortSnprintfAppend(output_str, sizeof(output_str), " ");
-        }
-    }
-    LogMessage("%s\n", output_str);
-}
-#endif
 
 static void PrintPortscanConf(int detect_scans, int detect_scan_type,
         int sense_level, IPSET *scanner, IPSET *scanned, IPSET *watch,
@@ -1090,11 +1028,7 @@ static void PrintPortscanConf(int detect_scans, int detect_scan_type,
 {
     char buf[STD_BUF + 1];
     int proto_cnt = 0;
-#ifdef SUP_IP6
     IP_PORT *p;
-#else
-    CIDRBLOCK *p;
-#endif
 
     LogMessage("Portscan Detection Config:\n");
     if(disabled)
@@ -1153,61 +1087,34 @@ static void PrintPortscanConf(int detect_scans, int detect_scan_type,
         if(scanner)
         {
             LogMessage("    Ignore Scanner IP List:\n");
-#ifdef SUP_IP6
             for(p = (IP_PORT*)sflist_first(&scanner->ip_list);
                 p;
                 p = (IP_PORT*)sflist_next(&scanner->ip_list))
             {
                 PrintIPPortSet(p);
             }
-#else
-            for(p = (CIDRBLOCK*)sflist_first(&scanner->cidr_list);
-                p;
-                p = (CIDRBLOCK*)sflist_next(&scanner->cidr_list))
-            {
-                PrintCIDRBLOCK(p);
-            }
-#endif
         }
 
         if(scanned)
         {
             LogMessage("    Ignore Scanned IP List:\n");
-#ifdef SUP_IP6
             for(p = (IP_PORT*)sflist_first(&scanned->ip_list);
                 p;
                 p = (IP_PORT*)sflist_next(&scanned->ip_list))
             {
                 PrintIPPortSet(p);
             }
-#else
-            for(p = (CIDRBLOCK*)sflist_first(&scanned->cidr_list);
-                p;
-                p = (CIDRBLOCK*)sflist_next(&scanned->cidr_list))
-            {
-                PrintCIDRBLOCK(p);
-            }
-#endif
         }
 
         if(watch)
         {
             LogMessage("    Watch IP List:\n");
-#ifdef SUP_IP6
             for(p = (IP_PORT*)sflist_first(&watch->ip_list);
                 p;
                 p = (IP_PORT*)sflist_next(&watch->ip_list))
             {
                 PrintIPPortSet(p);
             }
-#else
-            for(p = (CIDRBLOCK*)sflist_first(&watch->cidr_list);
-                p;
-                p = (CIDRBLOCK*)sflist_next(&watch->cidr_list))
-            {
-                PrintCIDRBLOCK(p);
-            }
-#endif
         }
     }
 }

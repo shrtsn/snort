@@ -14,7 +14,7 @@
  *
  * You should have received a copy of the GNU General Public License
  * along with this program; if not, write to the Free Software
- * Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA 02111-1307, USA.
+ * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
  *
  ****************************************************************************
  *
@@ -917,7 +917,6 @@ SFSnortPacket * DCE2_GetRpkt(const SFSnortPacket *wire_pkt, DCE2_RpktType rpkt_t
     rpkt->payload_size = (uint16_t)(data_overhead + data_len);
     _dpd.encodeUpdate(rpkt);
 
-#ifdef SUP_IP6
     if (wire_pkt->family == AF_INET)
     {
         rpkt->ip4h->ip_len = rpkt->ip4_header->data_length;
@@ -927,7 +926,6 @@ SFSnortPacket * DCE2_GetRpkt(const SFSnortPacket *wire_pkt, DCE2_RpktType rpkt_t
         IP6RawHdr* ip6h = (IP6RawHdr*)rpkt->raw_ip6_header;
         if ( ip6h ) rpkt->ip6h->len = ip6h->payload_len;
     }
-#endif
 
     rpkt->flags |= (FLAG_STREAM_EST | FLAG_ALLOW_MULTIPLE_DETECT);
     if (DCE2_SsnFromClient(wire_pkt))
@@ -1023,7 +1021,6 @@ DCE2_Ret DCE2_AddDataToRpkt(SFSnortPacket *rpkt, DCE2_RpktType rtype,
     // will suffice.
     _dpd.encodeUpdate(rpkt);
 
-#ifdef SUP_IP6
     if (rpkt->family == AF_INET)
     {
         rpkt->ip4h->ip_len = rpkt->ip4_header->data_length;
@@ -1033,7 +1030,6 @@ DCE2_Ret DCE2_AddDataToRpkt(SFSnortPacket *rpkt, DCE2_RpktType rtype,
         IP6RawHdr* ip6h = (IP6RawHdr*)rpkt->raw_ip6_header;
         if ( ip6h ) rpkt->ip6h->len = ip6h->payload_len;
     }
-#endif
     return DCE2_RET__SUCCESS;
 }
 

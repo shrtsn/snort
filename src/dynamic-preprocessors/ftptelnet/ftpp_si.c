@@ -20,7 +20,7 @@
  *
  * You should have received a copy of the GNU General Public License
  * along with this program; if not, write to the Free Software
- * Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA 02111-1307, USA.
+ * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
  *
  * Description:
  *
@@ -453,7 +453,6 @@ static int FTPInitConf(SFSnortPacket *p, FTPTELNET_GLOBAL_CONF *GlobalConf,
     sip = SiInput->sip;
     dip = SiInput->dip;
 
-#ifdef SUP_IP6
     if (sip.family == AF_INET)
     {
         sip.ip.u6_addr32[0] = ntohl(sip.ip.u6_addr32[0]);
@@ -462,10 +461,6 @@ static int FTPInitConf(SFSnortPacket *p, FTPTELNET_GLOBAL_CONF *GlobalConf,
     {
         dip.ip.u6_addr32[0] = ntohl(dip.ip.u6_addr32[0]);
     }
-#else
-    sip = ntohl(sip);
-    dip = ntohl(dip);
-#endif
 
     /*
      * We find the client configurations for both the source and dest IPs.
@@ -474,11 +469,7 @@ static int FTPInitConf(SFSnortPacket *p, FTPTELNET_GLOBAL_CONF *GlobalConf,
      * assume the global client configuration.
      */
     ClientConfDip = ftpp_ui_client_lookup_find(GlobalConf->client_lookup,
-#ifdef SUP_IP6
             &dip,
-#else
-            dip,
-#endif
             &iErr);
 
     if(!ClientConfDip)
@@ -487,11 +478,7 @@ static int FTPInitConf(SFSnortPacket *p, FTPTELNET_GLOBAL_CONF *GlobalConf,
     }
 
     ClientConfSip = ftpp_ui_client_lookup_find(GlobalConf->client_lookup,
-#ifdef SUP_IP6
             &sip,
-#else
-            sip,
-#endif
             &iErr);
 
     if(!ClientConfSip)
@@ -506,11 +493,7 @@ static int FTPInitConf(SFSnortPacket *p, FTPTELNET_GLOBAL_CONF *GlobalConf,
      * assume the global client configuration.
      */
     ServerConfDip = ftpp_ui_server_lookup_find(GlobalConf->server_lookup,
-#ifdef SUP_IP6
             &dip,
-#else
-            dip,
-#endif
             &iErr);
 
     if(!ServerConfDip)
@@ -519,11 +502,7 @@ static int FTPInitConf(SFSnortPacket *p, FTPTELNET_GLOBAL_CONF *GlobalConf,
     }
 
     ServerConfSip = ftpp_ui_server_lookup_find(GlobalConf->server_lookup,
-#ifdef SUP_IP6
             &sip,
-#else
-            sip,
-#endif
             &iErr);
 
     if(!ServerConfSip)

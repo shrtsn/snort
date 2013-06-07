@@ -20,7 +20,7 @@
  *
  * You should have received a copy of the GNU General Public License
  * along with this program; if not, write to the Free Software
- * Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA 02111-1307, USA.
+ * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
  *
  * Description:
  *
@@ -68,11 +68,7 @@ static void clientConfFree(void *pData);
 #define FTPP_UI_CONFIG_MAX_CLIENTS 20
 int ftpp_ui_client_lookup_init(CLIENT_LOOKUP **ClientLookup)
 {
-#ifdef SUP_IP6
     *ClientLookup =  sfrt_new(DIR_16_4x4_16x5_4x4, IPv6, FTPP_UI_CONFIG_MAX_CLIENTS, 20);
-#else
-    *ClientLookup =  sfrt_new(DIR_16x2, IPv4, FTPP_UI_CONFIG_MAX_CLIENTS, 20);
-#endif
 
     if(*ClientLookup == NULL)
     {
@@ -138,11 +134,7 @@ int ftpp_ui_client_lookup_add(
         return FTPP_INVALID_ARG;
     }
 
-#ifdef SUP_IP6
     iRet = sfrt_insert((void *)Ip, (unsigned char)Ip->bits, (void *)ClientConf, RT_FAVOR_SPECIFIC, ClientLookup);
-#else
-    iRet = sfrt_insert((void *)&(Ip->ip.u6_addr32[0]), (unsigned char)Ip->bits, (void *)ClientConf, RT_FAVOR_SPECIFIC, ClientLookup);
-#endif
 
     if (iRet)
     {
@@ -204,11 +196,7 @@ FTP_CLIENT_PROTO_CONF *ftpp_ui_client_lookup_find(CLIENT_LOOKUP *ClientLookup,
 
     *iError = FTPP_SUCCESS;
 
-#ifdef SUP_IP6
     ClientConf = (FTP_CLIENT_PROTO_CONF *)sfrt_lookup((void *)Ip, ClientLookup);
-#else
-    ClientConf = (FTP_CLIENT_PROTO_CONF *)sfrt_lookup((void *)&Ip, ClientLookup);
-#endif
     if (!ClientConf)
     {
         *iError = FTPP_NOT_FOUND;

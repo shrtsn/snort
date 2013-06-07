@@ -14,7 +14,7 @@
 **
 ** You should have received a copy of the GNU General Public License
 ** along with this program; if not, write to the Free Software
-** Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA 02111-1307, USA.
+** Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 */
 
 /* spo_unified2.c
@@ -536,7 +536,6 @@ static void _AlertIP4_v2(Packet *p, char *msg, Unified2Config *config, Event *ev
 
 static void _AlertIP6(Packet *p, char *msg, Unified2Config *config, Event *event)
 {
-#ifdef SUP_IP6
     Serial_Unified2_Header hdr;
     Serial_Unified2IDSEventIPv6_legacy alertdata;
     uint32_t write_len = sizeof(Serial_Unified2_Header) + sizeof(Serial_Unified2IDSEventIPv6_legacy);
@@ -621,12 +620,10 @@ static void _AlertIP6(Packet *p, char *msg, Unified2Config *config, Event *event
     }
 
     Unified2Write(write_pkt_buffer, write_len, config);
-#endif
 }
 
 static void _AlertIP6_v2(Packet *p, char *msg, Unified2Config *config, Event *event)
 {
-#ifdef SUP_IP6
     Serial_Unified2_Header hdr;
     Unified2IDSEventIPv6 alertdata;
     uint32_t write_len = sizeof(Serial_Unified2_Header) + sizeof(Unified2IDSEventIPv6);
@@ -727,7 +724,6 @@ static void _AlertIP6_v2(Packet *p, char *msg, Unified2Config *config, Event *ev
     }
 
     Unified2Write(write_pkt_buffer_v2, write_len, config);
-#endif
 }
 
 static inline void UUIDPack(uint8_t *policy_uuid, char *str, int size)
@@ -895,7 +891,6 @@ static void Unified2LogAlert(Packet *p, char *msg, void *arg, Event *event)
         else
             _AlertIP6(p, msg, config, event);
 
-#ifdef SUP_IP6
         if(ScLogIPv6Extra() && IS_IP6(p))
         {
             snort_ip_p ip = GET_SRC_IP(p);
@@ -905,7 +900,6 @@ static void Unified2LogAlert(Packet *p, char *msg, void *arg, Event *event)
             _WriteExtraData(config, event->event_id, event->ref_time.tv_sec,
                 &ip->ip8[0], sizeof(struct in6_addr),  EVENT_INFO_IPV6_DST);
         }
-#endif
     }
 
     if(p->ssnptr)
@@ -1254,6 +1248,9 @@ static void _Unified2LogStreamAlert(Packet *p, char *msg, Unified2Config *config
         /* Reset since we failed */
         unifiedData.num_bytes = 0;
     }
+
+    if (!p)
+        return;
 
     stream_api->traverse_reassembled(p, Unified2LogStreamCallback, &unifiedData);
 }

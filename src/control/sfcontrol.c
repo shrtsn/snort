@@ -21,7 +21,7 @@
  **
  **  You should have received a copy of the GNU General Public License
  **  along with this program; if not, write to the Free Software
- **  Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA 02111-1307, USA.
+ **  Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
  **
  */
 
@@ -62,6 +62,14 @@ typedef struct _CS_RESPONSE_MESSAGE
     CSMessageDataHeader msg_hdr;
     char msg[1024];
 } CSResponseMessage;
+#pragma pack()
+
+#pragma pack(1)
+typedef struct _CS_RESPONSE_MESSAGE_HEADER
+{
+    CSMessageHeader hdr;
+    CSMessageDataHeader msg_hdr;
+} CSResponseMessageHeader;
 #pragma pack()
 
 typedef struct _CS_MESSAGE
@@ -230,6 +238,58 @@ static int ReadData(ThreadElement *t, uint8_t *buffer, uint32_t length)
     return 1;
 }
 
+static int SendResponseSeparateData(ThreadElement *t, const CSResponseMessageHeader *resp,
+                                    const uint8_t *data, uint16_t len)
+{
+    ssize_t numsent;
+    unsigned total_len;
+    unsigned total;
+
+    total_len = sizeof(*resp);
+    total = 0;
+    do
+    {
+        numsent = write(t->socket_fd, (*(uint8_t **)&resp) + total, total_len - total);
+        if (!numsent)
+            return -1;
+        else if (numsent > 0)
+            total += numsent;
+        else if (errno != EINTR && errno != EAGAIN)
+            return -1;
+    } while (total < total_len && !t->stop_processing);
+    if (!t->stop_processing && len)
+    {
+        total_len = (unsigned)len;
+        total = 0;
+        do
+        {
+            numsent = write(t->socket_fd, data + total, total_len - total);
+            if (!numsent)
+                return -1;
+            else if (numsent > 0)
+                total += numsent;
+            else if (errno != EINTR && errno != EAGAIN)
+                return -1;
+        } while (total < total_len && !t->stop_processing);
+    }
+    return 0;
+}
+
+static int ControlDataSend(ThreadElement *t, const uint8_t *data, uint16_t length)
+{
+    CSResponseMessageHeader response;
+    uint32_t len;
+
+    response.hdr.version = htons(CS_HEADER_VERSION);
+    response.hdr.type = htons(CS_HEADER_DATA);
+    response.msg_hdr.code = 0;
+    len = (uint32_t)length;
+    response.msg_hdr.length = htons(length);
+    len += sizeof(response.msg_hdr);
+    response.hdr.length = htonl(len);
+    return SendResponseSeparateData(t, &response, data, length);
+}
+
 static void *ControlSocketProcessThread(void *arg)
 {
     CSResponseMessage response;
@@ -260,7 +320,10 @@ static void *ControlSocketProcessThread(void *arg)
         if ((rval = ReadHeader(t, &hdr)) == 0)
             goto done;
         else if (rval < 0)
+        {
+            DEBUG_WRAP( DebugMessage(DEBUG_CONTROL, "Control Socket %d: Failed to read %d\n", t->socket_fd, rval););
             goto done;
+        }
 
         if (hdr.version != CS_HEADER_VERSION)
         {
@@ -273,6 +336,7 @@ static void *ControlSocketProcessThread(void *arg)
             len += sizeof(response.msg_hdr);
             response.hdr.length = htonl(len);
             SendResponse(t, &response, len);
+            DEBUG_WRAP( DebugMessage(DEBUG_CONTROL, "Control Socket %d: Invalid header version %u\n", t->socket_fd, hdr.version););
             goto done;
         }
 
@@ -281,26 +345,38 @@ static void *ControlSocketProcessThread(void *arg)
             static const char * const bad_data = "Bad message data";
 
             SendErrorResponse(t, bad_data);
+            DEBUG_WRAP( DebugMessage(DEBUG_CONTROL, "Control Socket %d: Meassge too long - %u\n", t->socket_fd, hdr.length););
             goto done;
         }
 
         if (hdr.length && hdr.length < sizeof(*msg_hdr))
         {
-            static const char * const bad_len = 
+            static const char * const bad_len =
                 "Bad message header length";
 
             SendErrorResponse(t, bad_len);
+            DEBUG_WRAP( DebugMessage(DEBUG_CONTROL, "Control Socket %d: Message too short %u\n", t->socket_fd, hdr.length););
             goto done;
         }
         else if (hdr.length >= sizeof(*msg_hdr))
         {
             if ((data = malloc(hdr.length)) == NULL)
+            {
+                DEBUG_WRAP( DebugMessage(DEBUG_CONTROL, "Control Socket %d: Failed to allocate %u bytes\n", t->socket_fd, hdr.length););
                 goto done;
+            }
 
+            DEBUG_WRAP( DebugMessage(DEBUG_CONTROL, "Control Socket %d: Reading %u bytes\n", t->socket_fd, hdr.length););
             if ((rval = ReadData(t, data, hdr.length)) == 0)
+            {
+                DEBUG_WRAP( DebugMessage(DEBUG_CONTROL, "Control Socket %d: Socket closed before data read\n", t->socket_fd););
                 goto done;
+            }
             else if (rval < 0)
+            {
+                DEBUG_WRAP( DebugMessage(DEBUG_CONTROL, "Control Socket %d: Failed to read %d\n", t->socket_fd, rval););
                 goto done;
+            }
 
             msg_hdr = (CSMessageDataHeader *)data;
             msg_hdr->code = ntohl(msg_hdr->code);
@@ -319,6 +395,7 @@ static void *ControlSocketProcessThread(void *arg)
             static const char invalid_type[] = "Invalid type. Must be 0-2047 inclusive.";
 
             SendErrorResponse(t, invalid_type);
+            DEBUG_WRAP( DebugMessage(DEBUG_CONTROL, "Control Socket %d: Invalid message type - %u\n", t->socket_fd, hdr.type););
         }
         else
         {
@@ -331,6 +408,7 @@ static void *ControlSocketProcessThread(void *arg)
             {
                 static const char failed[] = "Failed to process the command.";
 
+                DEBUG_WRAP( DebugMessage(DEBUG_CONTROL, "Control Socket %d: Processing message type - %u\n", t->socket_fd, hdr.type););
                 pthread_mutex_lock(&handler->mutex);
 
                 handler->handled = 0;
@@ -356,6 +434,7 @@ static void *ControlSocketProcessThread(void *arg)
                     response.hdr.length = htonl(len);
                     SendResponse(t, &response, len);
                     pthread_mutex_unlock(&handler->mutex);
+                    DEBUG_WRAP( DebugMessage(DEBUG_CONTROL, "Control Socket %d: oobpre failed %d\n", t->socket_fd, rval););
                     goto next;
                 }
                 if (response.msg[0])
@@ -367,6 +446,7 @@ static void *ControlSocketProcessThread(void *arg)
                     len += sizeof(response.msg_hdr);
                     response.hdr.length = htonl(len);
                     SendResponse(t, &response, len);
+                    DEBUG_WRAP( DebugMessage(DEBUG_CONTROL, "Control Socket %d: Sent %u response bytes\n", t->socket_fd, len););
                 }
 
                 if (handler->ibcontrol)
@@ -379,32 +459,39 @@ static void *ControlSocketProcessThread(void *arg)
                         work_queue = handler;
                     s_work_to_do++;
                     pthread_mutex_unlock(&work_mutex);
+                    DEBUG_WRAP( DebugMessage(DEBUG_CONTROL, "Control Socket %d: Waiting for ibcontrol\n", t->socket_fd););
                     while (!handler->handled && !t->stop_processing)
                         usleep(100000);
                     if (handler->ib_rval || !handler->handled)
                     {
-                        if (handler->oobpost && handler->new_context)
-                            handler->oobpost(hdr.type, handler->new_context);
+                        if (handler->oobpost)
+                            handler->oobpost(hdr.type, handler->new_context, t, ControlDataSend);
                         SendErrorResponse(t, failed);
 
                         pthread_mutex_unlock(&handler->mutex);
+                        DEBUG_WRAP( DebugMessage(DEBUG_CONTROL, "Control Socket %d: ibcontrol failed %d\n", t->socket_fd, handler->ib_rval););
                         goto next;
                     }
                 }
                 if (handler->oobpost)
-                    handler->oobpost(hdr.type, handler->old_context);
+                {
+                    handler->oobpost(hdr.type, handler->old_context, t, ControlDataSend);
+                    DEBUG_WRAP( DebugMessage(DEBUG_CONTROL, "Control Socket %d: oobpost finished\n", t->socket_fd););
+                }
 
                 pthread_mutex_unlock(&handler->mutex);
 
                 response.hdr.type = htons(CS_HEADER_SUCCESS);
                 response.hdr.length = 0;
                 SendResponse(t, &response, 0);
+                DEBUG_WRAP( DebugMessage(DEBUG_CONTROL, "Control Socket %d: Sent success\n", t->socket_fd););
             }
             else
             {
                 static const char no_handler[] = "No handler for the command.";
 
                 SendErrorResponse(t, no_handler);
+                DEBUG_WRAP( DebugMessage(DEBUG_CONTROL, "Control Socket %d: No handler for message type - %u\n", t->socket_fd, hdr.type););
             }
         }
 next:;
@@ -430,6 +517,7 @@ done:;
         }
     }
     pthread_mutex_unlock(&thread_mutex);
+    DEBUG_WRAP( DebugMessage(DEBUG_CONTROL, "Control Socket %d: Closed socket\n", t->socket_fd););
     pthread_detach(tid);
     return NULL;
 }
@@ -472,7 +560,7 @@ static void *ControlSocketThread(void *arg)
             }
             else
             {
-                DEBUG_WRAP( DebugMessage(DEBUG_INIT, "Control Socket: Creating a processing thread for %d\n",
+                DEBUG_WRAP( DebugMessage(DEBUG_CONTROL, "Control Socket: Creating a processing thread for %d\n",
                                          socket););
                 if ((t = calloc(1, sizeof(*t))) == NULL)
                 {
@@ -505,7 +593,7 @@ static void *ControlSocketThread(void *arg)
 
 bail:;
     close(config_unix_socket);
-    DEBUG_WRAP( DebugMessage(DEBUG_INIT, "Control Socket: Thread exiting\n"););
+    DEBUG_WRAP( DebugMessage(DEBUG_CONTROL, "Control Socket: Thread exiting\n"););
     return NULL;
 }
 

@@ -15,7 +15,7 @@
  *
  * You should have received a copy of the GNU General Public License
  * along with this program; if not, write to the Free Software
- * Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA 02111-1307, USA.
+ * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
  *
  ****************************************************************************/
 
@@ -107,7 +107,7 @@ typedef struct s_HTTP_RESP_STATE
     uint8_t last_pkt_chunked;
     uint32_t next_seq;
     uint32_t chunk_remainder;
-    int flow_depth_read;
+    int data_extracted;
     uint32_t max_seq;
     bool flow_depth_excd;
 }HTTP_RESP_STATE;
@@ -294,7 +294,7 @@ static inline void ResetRespState(HTTP_RESP_STATE *ds)
     ds->inspect_reassembled = 0;
     ds->next_seq = 0;
     ds->chunk_remainder = 0;
-    ds->flow_depth_read = 0;
+    ds->data_extracted = 0;
     ds->max_seq = 0;
 }
 

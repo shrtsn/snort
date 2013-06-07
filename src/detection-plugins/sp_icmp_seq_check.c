@@ -15,7 +15,7 @@
 **
 ** You should have received a copy of the GNU General Public License
 ** along with this program; if not, write to the Free Software
-** Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA 02111-1307, USA.
+** Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 */
 
 /* $Id$ */
@@ -250,9 +250,7 @@ int IcmpSeqCheck(void *option_data, Packet *p)
     PREPROC_PROFILE_START(icmpSeqPerfStats);
 
     if( (p->icmph->type == ICMP_ECHO || p->icmph->type == ICMP_ECHOREPLY)
-#ifdef SUP_IP6
         || (p->icmph->type == ICMP6_ECHO || p->icmph->type == ICMP6_REPLY)
-#endif
       )
     {
         /* test the rule ID value against the ICMP extension ID field */

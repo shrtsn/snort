@@ -20,7 +20,7 @@
  *
  * You should have received a copy of the GNU General Public License
  * along with this program; if not, write to the Free Software
- * Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA 02111-1307, USA.
+ * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
  *
  * Description:
  *
@@ -923,12 +923,7 @@ int ProcessTelnetConf(FTPTELNET_GLOBAL_CONF *GlobalConf,
 static int GetIPAddr(char *addrString, snort_ip *ipAddr,
                              char *ErrorString, int ErrStrLen)
 {
-#ifdef SUP_IP6
     if(sfip_pton(addrString, ipAddr) != SFIP_SUCCESS)
-#else
-    *ipAddr = inet_addr(addrString);
-    if (*ipAddr == INADDR_NONE)
-#endif
     {
         snprintf(ErrorString, ErrStrLen,
                 "Invalid FTP client IP address '%s'.", addrString);
@@ -2264,17 +2259,7 @@ int ParseBounceTo(char* token, FTP_BOUNCE_TO* bounce)
         return FTPP_INVALID_ARG;
     }
 
-#ifdef SUP_IP6
     memcpy(&bounce->ip, &tmp_ip, sizeof(sfip_t));
-#else
-    if (tmp_ip.family != AF_INET)
-    {
-        _dpd.tokenFree(&toks, num_toks);
-        return FTPP_INVALID_ARG;
-    }
-    bounce->ip = ntohl(tmp_ip.ip32[0]);
-    bounce->relevant_bits = tmp_ip.bits;
-#endif
 
     port_lo = _dpd.SnortStrtol(toks[1], &endptr, 10);
     if ((errno == ERANGE) || (*endptr != '\0') ||
@@ -2469,12 +2454,8 @@ static int PrintFTPClientConf(char * client, FTP_CLIENT_PROTO_CONF *ClientConf)
             char *addr_str;
             char bits_str[5];
             uint8_t bits;
-#ifndef SUP_IP6
-            struct in_addr addr;
-#endif
             bits_str[0] = '\0';
 
-#ifdef SUP_IP6
             addr_str = sfip_to_str(&FTPBounce->ip);
             bits = (uint8_t)FTPBounce->ip.bits;
             if (((FTPBounce->ip.family == AF_INET) && (bits != 32)) ||
@@ -2482,14 +2463,6 @@ static int PrintFTPClientConf(char * client, FTP_CLIENT_PROTO_CONF *ClientConf)
             {
                 snprintf(bits_str, sizeof(bits_str), "/%u", bits);
             }
-#else
-            /* because the ip is in host byte order */
-            addr.s_addr = htonl(FTPBounce->ip);
-            addr_str = inet_ntoa(addr);
-            bits = (uint8_t)FTPBounce->relevant_bits;
-            if (bits != 32)  /* Only IPv4 addresses here */
-                snprintf(bits_str, sizeof(bits_str), "/%u", bits);
-#endif
             if (FTPBounce->porthi)
             {
                 _dpd.logMsg("          Address: %s%s, Ports: %d-%d\n",
@@ -2730,16 +2703,6 @@ int ProcessFTPClientConf(FTPTELNET_GLOBAL_CONF *GlobalConf,
                 goto _return;
             }
 
-#ifndef SUP_IP6
-            if (ipAddr.family == AF_INET6)
-            {
-                snprintf(ErrorString, ErrStrLen,
-                        "Invalid IP to '%s' token.", CLIENT);
-
-                retVal = FTPP_INVALID_ARG;
-                goto _return;
-            }
-#endif
             if (ipAddr.family == AF_INET)
             {
                 ipAddr.ip.u6_addr32[0] = ntohl(ipAddr.ip.u6_addr32[0]);
@@ -3257,17 +3220,6 @@ int ProcessFTPServerConf(FTPTELNET_GLOBAL_CONF *GlobalConf,
                 goto _return;
             }
 
-#ifndef SUP_IP6
-            if (ipAddr.family == AF_INET6)
-            {
-                snprintf(ErrorString, ErrStrLen,
-                        "Invalid IP to '%s' token.", SERVER);
-
-                retVal = FTPP_INVALID_ARG;
-                goto _return;
-            }
-
-#endif
             if (ipAddr.family == AF_INET)
             {
                 ipAddr.ip.u6_addr32[0] = ntohl(ipAddr.ip.u6_addr32[0]);
@@ -4332,7 +4284,6 @@ int FTPPBounceEval(void *pkt, const uint8_t **cursor, void *dataPtr)
 
     int dsize;
 
-    // TBD SUP_IP6 support
     if ( !p->ip4_header )
         return 0;
 

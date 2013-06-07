@@ -4,7 +4,7 @@
 
 # TARGTYPE "Win32 (x86) Dynamic-Link Library" 0x0102
 
-CFG=sf_pop - Win32 IPv6 Debug
+CFG=sf_pop - Win32 IPv6 Release
 !MESSAGE This is not a valid makefile. To build this project using NMAKE,
 !MESSAGE use the Export Makefile command and run
 !MESSAGE 
@@ -13,14 +13,12 @@ CFG=sf_pop - Win32 IPv6 Debug
 !MESSAGE You can specify a configuration when running NMAKE
 !MESSAGE by defining the macro CFG on the command line. For example:
 !MESSAGE 
-!MESSAGE NMAKE /f "sf_pop.mak" CFG="sf_pop - Win32 IPv6 Debug"
+!MESSAGE NMAKE /f "sf_pop.mak" CFG="sf_pop - Win32 IPv6 Release"
 !MESSAGE 
 !MESSAGE Possible choices for configuration are:
 !MESSAGE 
 !MESSAGE "sf_pop - Win32 Release" (based on "Win32 (x86) Dynamic-Link Library")
 !MESSAGE "sf_pop - Win32 Debug" (based on "Win32 (x86) Dynamic-Link Library")
-!MESSAGE "sf_pop - Win32 IPv6 Debug" (based on "Win32 (x86) Dynamic-Link Library")
-!MESSAGE "sf_pop - Win32 IPv6 Release" (based on "Win32 (x86) Dynamic-Link Library")
 !MESSAGE 
 
 # Begin Project
@@ -85,73 +83,12 @@ LINK32=link.exe
 # ADD BASE LINK32 kernel32.lib user32.lib gdi32.lib winspool.lib comdlg32.lib advapi32.lib shell32.lib ole32.lib oleaut32.lib uuid.lib odbc32.lib odbccp32.lib /nologo /dll /debug /machine:I386 /pdbtype:sept
 # ADD LINK32 pcre.lib ws2_32.lib ../libs/Debug/sfdynamic_preproc_libs.lib /nologo /dll /debug /machine:I386 /pdbtype:sept /libpath:"../../../src/win32/WIN32-Libraries"
 
-!ELSEIF  "$(CFG)" == "sf_pop - Win32 IPv6 Debug"
-
-# PROP BASE Use_MFC 0
-# PROP BASE Use_Debug_Libraries 1
-# PROP BASE Output_Dir "sf_pop___Win32_IPv6_Debug"
-# PROP BASE Intermediate_Dir "sf_pop___Win32_IPv6_Debug"
-# PROP BASE Ignore_Export_Lib 0
-# PROP BASE Target_Dir ""
-# PROP Use_MFC 2
-# PROP Use_Debug_Libraries 1
-# PROP Output_Dir "IPv6_Debug"
-# PROP Intermediate_Dir "IPv6_Debug"
-# PROP Ignore_Export_Lib 0
-# PROP Target_Dir ""
-# ADD BASE CPP /nologo /MTd /W3 /Gm /GX /ZI /Od /I "..\include" /I "..\..\win32\Win32-Includes" /I "..\..\\" /I ".\\" /D "_DEBUG" /D "WIN32" /D "_WINDOWS" /D "_MBCS" /D "_USRDLL" /D "SF_SNORT_PREPROC_DLL" /D "HAVE_CONFIG_H" /YX /FD /GZ /c
-# SUBTRACT BASE CPP /X
-# ADD CPP /nologo /MDd /W3 /Gm /GX /ZI /Od /I "..\libs" /I "..\include" /I "..\..\win32\Win32-Includes" /I ".\\" /I "..\..\win32\Win32-Includes\WinPCAP" /I "..\..\..\daq\api" /I "..\..\..\daq\sfbpf" /D "SUP_IP6" /D "_DEBUG" /D "DEBUG" /D "ENABLE_PAF" /D "SF_SNORT_PREPROC_DLL" /D "DYNAMIC_PLUGIN" /D "_WINDOWS" /D "_USRDLL" /D "ACTIVE_RESPONSE" /D "GRE" /D "MPLS" /D "TARGET_BASED" /D "PERF_PROFILING" /D "ENABLE_RESPOND" /D "ENABLE_REACT" /D "_WINDLL" /D "WIN32" /D "_MBCS" /D "HAVE_CONFIG_H" /D "_AFXDLL" /D SIGNAL_SNORT_READ_ATTR_TBL=30 /FD /GZ /c
-# SUBTRACT CPP /X /YX
-# ADD BASE MTL /nologo /D "_DEBUG" /mktyplib203 /win32
-# ADD MTL /nologo /D "_DEBUG" /mktyplib203 /win32
-# ADD BASE RSC /l 0x409 /d "_DEBUG"
-# ADD RSC /l 0x409 /d "_DEBUG" /d "_AFXDLL"
-BSC32=bscmake.exe
-# ADD BASE BSC32 /nologo
-# ADD BSC32 /nologo
-LINK32=link.exe
-# ADD BASE LINK32 pcre.lib ws2_32.lib kernel32.lib user32.lib gdi32.lib winspool.lib comdlg32.lib advapi32.lib shell32.lib ole32.lib oleaut32.lib uuid.lib odbc32.lib odbccp32.lib /nologo /dll /debug /machine:I386 /pdbtype:sept /libpath:"../../../src/win32/WIN32-Libraries"
-# ADD LINK32 pcre.lib ws2_32.lib ../libs/IPv6_Debug/sfdynamic_preproc_libs.lib /nologo /dll /debug /machine:I386 /pdbtype:sept /libpath:"../../../src/win32/WIN32-Libraries"
-
-!ELSEIF  "$(CFG)" == "sf_pop - Win32 IPv6 Release"
-
-# PROP BASE Use_MFC 0
-# PROP BASE Use_Debug_Libraries 0
-# PROP BASE Output_Dir "sf_pop___Win32_IPv6_Release"
-# PROP BASE Intermediate_Dir "sf_pop___Win32_IPv6_Release"
-# PROP BASE Ignore_Export_Lib 0
-# PROP BASE Target_Dir ""
-# PROP Use_MFC 2
-# PROP Use_Debug_Libraries 0
-# PROP Output_Dir "IPv6_Release"
-# PROP Intermediate_Dir "IPv6_Release"
-# PROP Ignore_Export_Lib 0
-# PROP Target_Dir ""
-# ADD BASE CPP /nologo /MT /W3 /GX /O2 /I "..\include" /I "..\..\win32\Win32-Includes" /I "..\..\\" /I ".\\" /D "NDEBUG" /D "SF_POP_EXPORTS" /D "WIN32" /D "_WINDOWS" /D "_MBCS" /D "_USRDLL" /D "SF_SNORT_PREPROC_DLL" /D "HAVE_CONFIG_H" /YX /FD /c
-# SUBTRACT BASE CPP /X
-# ADD CPP /nologo /MD /W3 /GX /O2 /I "..\libs" /I "..\include" /I "..\..\win32\Win32-Includes" /I ".\\" /I "..\..\win32\Win32-Includes\WinPCAP" /I "..\..\..\daq\api" /I "..\..\..\daq\sfbpf" /D "NDEBUG" /D "SUP_IP6" /D "ENABLE_PAF" /D "SF_SNORT_PREPROC_DLL" /D "DYNAMIC_PLUGIN" /D "_WINDOWS" /D "_USRDLL" /D "ACTIVE_RESPONSE" /D "GRE" /D "MPLS" /D "TARGET_BASED" /D "PERF_PROFILING" /D "ENABLE_RESPOND" /D "ENABLE_REACT" /D "_WINDLL" /D "WIN32" /D "_MBCS" /D "HAVE_CONFIG_H" /D "_AFXDLL" /D SIGNAL_SNORT_READ_ATTR_TBL=30 /FD /c
-# SUBTRACT CPP /YX
-# ADD BASE MTL /nologo /D "NDEBUG" /mktyplib203 /win32
-# ADD MTL /nologo /D "NDEBUG" /mktyplib203 /win32
-# ADD BASE RSC /l 0x409 /d "NDEBUG"
-# ADD RSC /l 0x409 /d "NDEBUG" /d "_AFXDLL"
-BSC32=bscmake.exe
-# ADD BASE BSC32 /nologo
-# ADD BSC32 /nologo
-LINK32=link.exe
-# ADD BASE LINK32 pcre.lib ws2_32.lib kernel32.lib user32.lib gdi32.lib winspool.lib comdlg32.lib advapi32.lib shell32.lib ole32.lib oleaut32.lib uuid.lib odbc32.lib odbccp32.lib /nologo /dll /machine:I386 /libpath:"../../../src/win32/WIN32-Libraries"
-# ADD LINK32 pcre.lib ws2_32.lib ../libs/IPv6_Release/sfdynamic_preproc_libs.lib /nologo /dll /machine:I386 /libpath:"../../../src/win32/WIN32-Libraries"
-# SUBTRACT LINK32 /pdb:none
-
 !ENDIF 
 
 # Begin Target
 
 # Name "sf_pop - Win32 Release"
 # Name "sf_pop - Win32 Debug"
-# Name "sf_pop - Win32 IPv6 Debug"
-# Name "sf_pop - Win32 IPv6 Release"
 # Begin Group "Source Files"
 
 # PROP Default_Filter "cpp;c;cxx;rc;def;r;odl;idl;hpj;bat"

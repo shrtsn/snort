@@ -17,7 +17,7 @@
 **
 ** You should have received a copy of the GNU General Public License
 ** along with this program; if not, write to the Free Software
-** Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA 02111-1307, USA.
+** Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 */
 
 #ifdef HAVE_CONFIG_H
@@ -95,6 +95,8 @@
 #include "sfutil/sfportobject.h"
 #include "sfutil/strvec.h"
 #include "active.h"
+#include "file_config.h"
+#include "file_service_config.h"
 
 #ifdef TARGET_BASED
 # include "sftarget_reader.h"
@@ -500,6 +502,7 @@ static void ParseRuleTypeDeclaration(SnortConfig *, SnortPolicy *, char *);
 static void ParseSuppress(SnortConfig *, SnortPolicy *, char *);
 static void ParseThreshold(SnortConfig *, SnortPolicy *, char *);
 static void ParseVar(SnortConfig *, SnortPolicy *, char *);
+static void ParseFile(SnortConfig *, SnortPolicy *, char *);
 static void AddVarToTable(SnortConfig *, char *, char *);
 
 int ParseBool(char *arg);
@@ -545,7 +548,7 @@ static const KeywordFunc snort_conf_keywords[] =
     { SNORT_CONF_KEYWORD__SUPPRESS,          KEYWORD_TYPE__MAIN, 0, 0, ParseSuppress },
     { SNORT_CONF_KEYWORD__THRESHOLD,         KEYWORD_TYPE__MAIN, 1, 0, ParseThreshold },
     { SNORT_CONF_KEYWORD__VAR,               KEYWORD_TYPE__MAIN, 0, 0, ParseVar },
-
+    { SNORT_CONF_KEYWORD__FILE,              KEYWORD_TYPE__MAIN, 0, 1, ParseFile },
     { NULL, KEYWORD_TYPE__ALL, 0, 0, NULL }   /* Marks end of array */
 };
 
@@ -737,11 +740,14 @@ static const ConfigFunc config_opts[] =
     { CONFIG_OPT__UTC, 0, 1, 1, ConfigUtc },
     { CONFIG_OPT__VERBOSE, 0, 1, 1, ConfigVerbose },
     { CONFIG_OPT__VLAN_AGNOSTIC, 0, 1, 1, ConfigVlanAgnostic },
+    { CONFIG_OPT__ADDRESSSPACE_AGNOSTIC, 0, 1, 1, ConfigAddressSpaceAgnostic },
     { CONFIG_OPT__LOG_IPV6_EXTRA, 0, 1, 1, ConfigLogIPv6Extra },
 #ifdef DYNAMIC_PLUGIN
     { CONFIG_OPT__DUMP_DYNAMIC_RULES_PATH, 1, 1, 1, ConfigDumpDynamicRulesPath },
 #endif
     { CONFIG_OPT__CONTROL_SOCKET_DIR, 1, 1, 1, ConfigControlSocketDirectory },
+    { CONFIG_OPT__FILE, 1, 1, 1, ConfigFile },
+    { CONFIG_OPT__TUNNEL_BYPASS, 1, 1, 1, ConfigTunnelVerdicts },
     { NULL, 0, 0, 0, NULL }   /* Marks end of array */
 };
 
@@ -755,9 +761,7 @@ static uint8_t config_opt_configured[sizeof(config_opts) / sizeof(ConfigFunc)];
 static void InitVarTables(SnortPolicy *);
 static void InitPolicyMode(SnortPolicy *);
 static void InitParser(void);
-#ifdef SUP_IP6
 static int VarIsIpAddr(vartable_t *, char *);
-#endif
 static RuleType GetRuleType(char *);
 static void CreateDefaultRules(SnortConfig *);
 static void ParseConfigFile(SnortConfig *, SnortPolicy *, char *);
@@ -786,10 +790,6 @@ static uint16_t ConvPort(char *, char *);
 static char * ReadLine(FILE *);
 static void DeleteVars(VarEntry *);
 static int ValidateIPList(IpAddrSet *, char *);
-#ifndef SUP_IP6
-static int CompareIPAddrSets(IpAddrSet *, IpAddrSet *);
-static int CompareIPLists(IpAddrNode *, IpAddrNode *);
-#endif
 static int PortVarDefine(SnortConfig *, char *, char *);
 static void port_entry_free(port_entry_t *);
 static int port_list_add_entry(port_list_t *, port_entry_t *);
@@ -826,9 +826,6 @@ static void DumpRuleChains(RuleListNode *);
 #endif
 static void SetLinks(SnortConfig *, int);
 static int ProcessIP(SnortConfig *, char *, RuleTreeNode *, int, int);
-#ifndef SUP_IP6
-static int ProcessIpList(SnortConfig *, char *, RuleTreeNode *, int, int);
-#endif
 static int TestHeader(RuleTreeNode *, RuleTreeNode *);
 static void FreeRuleTreeNode(RuleTreeNode *rtn);
 static void DestroyRuleTreeNode(RuleTreeNode *rtn);
@@ -1233,11 +1230,7 @@ static void DumpRuleChains(RuleListNode *rule_lists)
  ***************************************************************************/
 static void DumpChain(char *name, int mode, int proto)
 {
-#ifdef SUP_IP6
     // XXX Not yet implemented - Rule chain dumping
-#else
-    /* XXX XXX FIX THIS */
-#endif  /* SUP_IP6 */
 }
 
 /****************************************************************************
@@ -1260,16 +1253,9 @@ static void DumpList(IpAddrNode *idx, int negated)
 
     while(idx != NULL)
     {
-#ifdef SUP_IP6
        DEBUG_WRAP(DebugMessage(DEBUG_RULES,
                         "[%d]    %s",
                         i++, sfip_ntoa(idx->ip)););
-#else
-       DEBUG_WRAP(DebugMessage(DEBUG_RULES,
-                        "[%d]    0x%.8lX / 0x%.8lX",
-                        i++, (u_long) idx->ip_addr,
-                        (u_long) idx->netmask););
-#endif
 
        if(negated)
        {
@@ -1818,34 +1804,8 @@ static int ParsePortList(RuleTreeNode *rtn, PortVarTable *pvt, PortTable *noname
  ***************************************************************************/
 int CheckForIPListConflicts(IpAddrSet *addrset)
 {
-#ifdef SUP_IP6
     /* Conflict checking takes place inside the SFIP library */
     return 0;
-#else
-    IpAddrNode *idx = NULL, *neg_idx = NULL;
-
-    if( !addrset ) return( -1 );
-
-    if(!addrset->iplist || !addrset->neg_iplist)
-        return 0;
-
-    for(idx = addrset->iplist; idx; idx = idx->next)
-    {
-        for(neg_idx = addrset->neg_iplist; neg_idx; neg_idx = neg_idx->next)
-        {
-            /* A smaller netmask means "less specific" */
-            if(neg_idx->netmask <= idx->netmask &&
-                /* Verify they overlap */
-                ((neg_idx->ip_addr & neg_idx->netmask) ==
-                 (idx->ip_addr & neg_idx->netmask)))
-            {
-                return 1;
-            }
-        }
-    }
-
-    return 0;
-#endif
 }
 
 /****************************************************************************
@@ -2735,24 +2695,12 @@ static void FreeRuleTreeNode(RuleTreeNode *rtn)
 
     if (rtn->sip)
     {
-#ifdef SUP_IP6
         sfvar_free(rtn->sip);
-#else
-        IpAddrSetDestroy(rtn->sip);
-        free(rtn->sip);
-        rtn->sip = NULL;
-#endif
     }
 
     if (rtn->dip)
     {
-#ifdef SUP_IP6
         sfvar_free(rtn->dip);
-#else
-        IpAddrSetDestroy(rtn->dip);
-        free(rtn->dip);
-        rtn->dip = NULL;
-#endif
     }
 
     idx = rtn->rule_func;
@@ -3248,17 +3196,11 @@ static int GetRuleProtocol(char *proto_str)
 
 static int ProcessIP(SnortConfig *sc, char *addr, RuleTreeNode *rtn, int mode, int neg_list)
 {
-#ifndef SUP_IP6
-    VarEntry *var_table = sc->targeted_policies[getParserPolicy()]->var_table;
-    VarEntry *ip_var = NULL;
-#else
     vartable_t *ip_vartable = sc->targeted_policies[getParserPolicy()]->ip_vartable;
-#endif
 
     DEBUG_WRAP(DebugMessage(DEBUG_CONFIGRULES,"Got address string: %s\n",
                 addr););
     assert(rtn);
-#ifdef SUP_IP6
     /* If a rule has a variable in it, we want to copy that variable's
      * contents to the IP variable (IP list) stored with the rtn.
      * This code tries to look up the variable, and if found, will copy it
@@ -3371,53 +3313,6 @@ static int ProcessIP(SnortConfig *sc, char *addr, RuleTreeNode *rtn, int mode, i
             rtn->flags |= ANY_DST_IP;
         }
     }
-#else
-
-    if ((var_table != NULL) && (*addr == '$'))
-    {
-        VarEntry *tmp = var_table;
-
-        do
-        {
-            /* addr+1 to move past $ */
-            if (strcmp(tmp->name, addr+1) == 0)
-            {
-                if (tmp->addrset != NULL)
-                {
-                    if (mode == SRC)
-                        rtn->sip = IpAddrSetCopy(tmp->addrset);
-                    else
-                        rtn->dip = IpAddrSetCopy(tmp->addrset);
-
-                    return 0;
-                }
-
-                ip_var = tmp;
-                break;
-            }
-
-            tmp = tmp->next;
-
-        } while (tmp != var_table);
-    }
-
-    ProcessIpList(sc, addr, rtn, mode, neg_list);
-
-    if (ip_var != NULL)
-    {
-        if ((mode == SRC) && (rtn->sip))
-        {
-            rtn->sip->id = ip_var->id;
-            ip_var->addrset = IpAddrSetCopy(rtn->sip);
-        }
-        else if ((mode == DST) && (rtn->dip))
-        {
-            rtn->dip->id = ip_var->id;
-            ip_var->addrset = IpAddrSetCopy(rtn->dip);
-        }
-    }
-
-#endif
 
     /* Make sure the IP lists provided by the user are valid */
     if (mode == SRC)
@@ -3428,124 +3323,6 @@ static int ProcessIP(SnortConfig *sc, char *addr, RuleTreeNode *rtn, int mode, i
     return 0;
 }
 
-#ifndef SUP_IP6
-static int ProcessIpList(SnortConfig *sc, char *addr, RuleTreeNode *rtn, int mode, int neg_list)
-{
-    char *tok, *end, *tmp;
-    int neg_ip;
-
-    while (*addr)
-    {
-        /* Skip whitespace and leading commas */
-        for(; *addr && (isspace((int)*addr) || *addr == ','); addr++) ;
-
-        /* Handle multiple negations (such as if someone negates variable that
-         * contains a negated IP */
-        neg_ip = 0;
-        for(; *addr == '!'; addr++)
-            neg_ip = !neg_ip;
-
-        /* Find end of this token */
-        for(end = addr+1;
-                *end && !isspace((int)*end) && *end != ']' && *end != ',';
-                end++) ;
-
-        tok = SnortStrndup(addr, end - addr);
-
-        if (!tok)
-            ParseError("Unterminated IP List '%s'.", addr);
-
-        if(*addr == '[')
-        {
-            int brack_count = 0;
-            char *list_tok;
-
-            /* Find corresponding ending bracket */
-            for(end = addr; *end; end++)
-            {
-                if(*end == '[')
-                    brack_count++;
-                else if(*end == ']')
-                    brack_count--;
-
-                if(!brack_count)
-                    break;
-            }
-
-            if(!*end)
-                ParseError("Unterminated IP List '%s'.", addr);
-
-            addr++;
-
-            list_tok = SnortStrndup(addr, end - addr);
-
-            if(!list_tok)
-                ParseError("Failed to allocate space for parsing '%s'.", addr);
-
-            ProcessIpList(sc, list_tok, rtn, mode, neg_list ^ neg_ip);
-            free(list_tok);
-        }
-        else if(*addr == '$')
-        {
-            if((tmp = VarGet(tok + 1)) == NULL)
-                ParseError("Undefined variable %s.", addr);
-
-            ProcessIpList(sc, tmp, rtn, mode, neg_list ^ neg_ip);
-        }
-        else if(*addr == ']')
-        {
-            if(!(*(addr+1)))
-            {
-                /* Succesfully reached the end of this list */
-                free(tok);
-                return 0;
-            }
-
-            ParseError("Mismatched bracket in '%s'.", addr);
-        }
-        else
-        {
-            /* Skip leading commas */
-            for(; *addr && (*addr == ',' || isspace((int)*addr)); addr++) ;
-
-            if(mode == SRC)
-            {
-                if(!rtn->sip)
-                    rtn->sip = (IpAddrSet*)SnortAlloc(sizeof(IpAddrSet));
-
-                ParseIP(tok, rtn->sip, neg_list ^ neg_ip);
-
-                if(rtn->sip->iplist &&
-                        !rtn->sip->iplist->ip_addr && !rtn->sip->iplist->netmask)
-                    rtn->flags |= ANY_SRC_IP;
-
-            }
-            else
-            {
-                if(!rtn->dip)
-                    rtn->dip = (IpAddrSet*)SnortAlloc(sizeof(IpAddrSet));
-
-                ParseIP(tok, rtn->dip, neg_list ^ neg_ip);
-
-                if(rtn->dip->iplist &&
-                        !rtn->dip->iplist->ip_addr && !rtn->dip->iplist->netmask)
-                    rtn->flags |= ANY_DST_IP;
-
-                /* Note: the neg_iplist is not checked for '!any' here since
-                 * ParseIP should have already FatalError'ed on it. */
-            }
-        }
-
-        free(tok);
-
-        if(*end)
-            addr = end + 1;
-        else break;
-    }
-
-    return 0;
-}
-#endif
 
 /****************************************************************************
  *
@@ -3747,99 +3524,13 @@ static void XferHeader(RuleTreeNode *test_node, RuleTreeNode *rtn)
  ***************************************************************************/
 int CompareIPNodes(IpAddrNode *one, IpAddrNode *two)
 {
-#ifdef SUP_IP6
      if( (sfip_compare(one->ip, two->ip) != SFIP_EQUAL) ||
          (sfip_bits(one->ip) != sfip_bits(two->ip)) ||
          (sfvar_flags(one) != sfvar_flags(two)) )
          return 0;
-#else
-
-     if( (one->ip_addr != two->ip_addr) ||
-         (one->netmask != two->netmask) ||
-         (one->addr_flags != two->addr_flags) )
-         return 0;
-#endif
     return 1;
 }
 
-#ifndef SUP_IP6
-static int CompareIPAddrSets(IpAddrSet *one, IpAddrSet *two)
-{
-    if ((one->id != 0) && (one->id == two->id))
-        return 1;
-
-    if (!CompareIPLists(one->iplist, two->iplist))
-        return 0;
-
-    if (!CompareIPLists(one->neg_iplist, two->neg_iplist))
-        return 0;
-
-    return 1;
-}
-
-/****************************************************************************
- *
- * Function: CompareIPLists(RuleTreeNode *, RuleTreeNode *).  Support function
- *           for TestHeader.
- *
- * Purpose: Checks if all nodes in each list are present in the other
- *
- * Returns: 1 if they match, 0 if they don't
- *
- ***************************************************************************/
-static int CompareIPLists(IpAddrNode *one, IpAddrNode *two)
-{
-    IpAddrNode *idx1, *idx2;
-    int i, match;
-    int total1 = 0;
-    int total2 = 0;
-    char *usage;
-
-    if ((one == NULL) && (two == NULL))
-        return 1;
-
-    /* Walk first list.  For each node, check if there is an equal
-     * counterpart in the second list.  This method breaks down of there are
-     * duplicated nodes.  For instance, if one = {a, b} and two = {a, a}.
-     * Therefore, need additional data structure[s] ('usage') to check off
-     * which nodes have been accounted for already.
-     *
-     * Also, the lists are unordered, so comparing node-for-node won't work */
-
-    for(idx1 = one; idx1; idx1 = idx1->next)
-        total1++;
-    for(idx2 = two; idx2; idx2 = idx2->next)
-        total2++;
-
-    if(total1 != total2)
-        return 0;
-
-    usage = (char *)SnortAlloc(total1);
-
-    for(idx1 = one; idx1; idx1 = idx1->next, i++)
-    {
-        match = 0;
-
-        for(idx2 = two, i = 0; idx2; idx2 = idx2->next, i++)
-        {
-            if(CompareIPNodes(idx1, idx2) && !usage[i])
-            {
-                match = 1;
-                usage[i] = 1;
-                break;
-            }
-        }
-
-        if(!match) {
-            free(usage);
-            return 0;
-        }
-    }
-
-    free(usage);
-    return 1;
-}
-#endif
 
 /****************************************************************************
  *
@@ -3872,21 +3563,13 @@ static int TestHeader(RuleTreeNode * rule, RuleTreeNode * rtn)
         return 0;
 
     if ((rule->sip != NULL) && (rtn->sip != NULL) &&
-#ifdef SUP_IP6
             (sfvar_compare(rule->sip, rtn->sip) != SFIP_EQUAL))
-#else
-            (!CompareIPAddrSets(rule->sip, rtn->sip)))
-#endif
     {
         return 0;
     }
 
     if ((rule->dip != NULL) && (rtn->dip != NULL) &&
-#ifdef SUP_IP6
             (sfvar_compare(rule->dip, rtn->dip) != SFIP_EQUAL))
-#else
-            (!CompareIPAddrSets(rule->dip, rtn->dip)))
-#endif
     {
         return 0;
     }
@@ -3991,7 +3674,6 @@ VarEntry *VarAlloc()
     return(new);
 }
 
-#ifdef SUP_IP6
 /****************************************************************************
  *
  * Function: VarIsIpAddr(char *, char *)
@@ -4138,7 +3820,6 @@ static int VarIsIpList(vartable_t *ip_vartable, char *value)
     free(copy);
     return item_is_ip;
 }
-#endif
 
 /****************************************************************************
  *
@@ -4162,9 +3843,7 @@ static void DisallowCrossTableDuplicateVars(SnortConfig *sc, char *name, VarType
     VarEntry *var_table = sc->targeted_policies[getParserPolicy()]->var_table;
     PortVarTable *portVarTable = sc->targeted_policies[getParserPolicy()]->portVarTable;
     VarEntry *p = var_table;
-#ifdef SUP_IP6
     vartable_t *ip_vartable = sc->targeted_policies[getParserPolicy()]->ip_vartable;
-#endif
 
     /* If this is a faked Portvar, treat as a portvar */
     if ((var_type == VAR_TYPE__DEFAULT) &&
@@ -4177,9 +3856,7 @@ static void DisallowCrossTableDuplicateVars(SnortConfig *sc, char *name, VarType
     {
         case VAR_TYPE__DEFAULT:
             if (PortVarTableFind(portVarTable, name)
-#ifdef SUP_IP6
                     || sfvt_lookup_var(ip_vartable, name)
-#endif
                )
             {
                 ParseError("Can not redefine variable name %s to be of type "
@@ -4201,17 +3878,14 @@ static void DisallowCrossTableDuplicateVars(SnortConfig *sc, char *name, VarType
                 } while(p != var_table);
             }
 
-#ifdef SUP_IP6
             if(sfvt_lookup_var(ip_vartable, name))
             {
                 ParseError("Can not redefine variable name %s to be of type "
                            "'portvar'. Use a different name.", name);
             }
-#endif /* SUP_IP6 */
 
             break;
 
-#ifdef SUP_IP6
         case VAR_TYPE__IPVAR:
             if (var_table != NULL)
             {
@@ -4232,7 +3906,6 @@ static void DisallowCrossTableDuplicateVars(SnortConfig *sc, char *name, VarType
                 ParseError("Can not redefine variable name %s to be of type "
                            "'ipvar'. Use a different name.", name);
             }
-#endif /* SUP_IP6 */
 
         default:
             /* Invalid function usage */
@@ -4255,9 +3928,7 @@ static void DisallowCrossTableDuplicateVars(SnortConfig *sc, char *name, VarType
 VarEntry * VarDefine(SnortConfig *sc, char *name, char *value)
 {
     VarEntry *var_table = sc->targeted_policies[getParserPolicy()]->var_table;
-#ifdef SUP_IP6
     vartable_t *ip_vartable = sc->targeted_policies[getParserPolicy()]->ip_vartable;
-#endif
     VarEntry *p;
     uint32_t var_id = 0;
 
@@ -4267,7 +3938,6 @@ VarEntry * VarDefine(SnortConfig *sc, char *name, char *value)
                    "have a \"$\" in the var name.");
     }
 
-#ifdef SUP_IP6
     if(VarIsIpList(ip_vartable, value))
     {
         SFIP_RET ret;
@@ -4320,7 +3990,6 @@ VarEntry * VarDefine(SnortConfig *sc, char *name, char *value)
         }
     }
 
-#endif
 
     DEBUG_WRAP(DebugMessage(DEBUG_PORTLISTS,
                "VarDefine: name=%s value=%s\n",name,value););
@@ -4446,7 +4115,6 @@ static void DeleteVars(VarEntry *var_table)
         if (p->addrset)
         {
             IpAddrSetDestroy(p->addrset);
-            free(p->addrset);
         }
         free(p);
         p = q;
@@ -4472,13 +4140,8 @@ char *VarGet(char *name)
     SnortConfig *sc = snort_conf_for_parsing;
     SnortPolicy *policy;
     VarEntry *var_table;
-#ifdef SUP_IP6
     vartable_t *ip_vartable;
     sfip_var_t *var;
-#else
-    VarEntry *p = NULL;
-    char *ret = NULL;
-#endif
 
     if (sc == NULL)
         return NULL;
@@ -4489,7 +4152,6 @@ char *VarGet(char *name)
 
     var_table = sc->targeted_policies[getParserPolicy()]->var_table;
 
-#ifdef SUP_IP6
 // XXX-IPv6 This function should never be used if IP6 support is enabled!
 // Infact it won't presently even work for IP variables since the raw ASCII
 // value is never stored, and is never meant to be used.
@@ -4514,30 +4176,6 @@ char *VarGet(char *name)
 
     return name;
 
-#else
-
-    if (var_table != NULL)
-    {
-        p = var_table;
-
-        do
-        {
-            if (strcasecmp(p->name, name) == 0)
-            {
-                ret = p->value;
-                break;
-            }
-
-            p = p->next;
-
-        } while (p != var_table);
-    }
-
-    if (ret == NULL)
-        ParseError("Undefined variable name: %s.", name);
-
-    return ret;
-#endif
 }
 
 /****************************************************************************
@@ -5705,13 +5343,11 @@ static char * VarSearch(SnortConfig *sc, char *name)
 {
     VarEntry *var_table = sc->targeted_policies[getParserPolicy()]->var_table;
     PortVarTable *portVarTable = sc->targeted_policies[getParserPolicy()]->portVarTable;
-#ifdef SUP_IP6
     vartable_t *ip_vartable = sc->targeted_policies[getParserPolicy()]->ip_vartable;
     sfip_var_t *ipvar;
 
     if ((ipvar = sfvt_lookup_var(ip_vartable, name)) != NULL)
         return ExpandVars(sc, ipvar->value);
-#endif
 
     /* XXX Return a string value */
     if (PortVarTableFind(portVarTable, name))
@@ -5964,7 +5600,6 @@ int GetPcaps(SF_LIST *pol, SF_QUEUE *pcap_queue)
 int ValidateIPList(IpAddrSet *addrset, char *token)
 {
     int check_flag = 0;
-#ifdef SUP_IP6
     if(!addrset || !(addrset->head||addrset->neg_head))
     {
         check_flag = -1;
@@ -5972,9 +5607,6 @@ int ValidateIPList(IpAddrSet *addrset, char *token)
         /* more conflict checking takes place inside the SFIP library */
         return 0;
     }
-#else
-    check_flag = CheckForIPListConflicts(addrset);
-#endif
 
     switch( check_flag )
     {
@@ -6016,11 +5648,9 @@ static void InitVarTables(SnortPolicy *p)
         DeleteVars(p->var_table);
     p->var_id = 1;
 
-#ifdef SUP_IP6
     if (p->ip_vartable != NULL)
         sfvt_free_table(p->ip_vartable);
     p->ip_vartable = sfvt_alloc_table();
-#endif
 
     if (p->portVarTable != NULL)
         PortVarTableFree(p->portVarTable);
@@ -8238,15 +7868,6 @@ void ConfigObfuscate(SnortConfig *sc, char *args)
 
 void ConfigObfuscationMask(SnortConfig *sc, char *args)
 {
-#ifndef SUP_IP6
-    struct in_addr net;       /* place to stick the local network data */
-    char **toks;              /* dbl ptr to store mSplit return data in */
-    int num_toks;             /* number of tokens mSplit returns */
-    int nmask;                /* temporary netmask storage */
-#ifdef DEBUG_MSGS
-    struct in_addr sin;
-#endif
-#endif
 
     if ((sc == NULL) || (args == NULL))
         return;
@@ -8255,55 +7876,7 @@ void ConfigObfuscationMask(SnortConfig *sc, char *args)
 
     sc->output_flags |= OUTPUT_FLAG__OBFUSCATE;
 
-#ifdef SUP_IP6
     sfip_pton(args, &sc->obfuscation_net);
-#else
-    /* break out the CIDR notation from the IP address */
-    toks = mSplit(args, "/", 2, &num_toks, 0);
-
-    if(num_toks > 1)
-    {
-        /* convert the CIDR notation into a real live netmask */
-        nmask = atoi(toks[1]);
-
-        if((nmask > 0) && (nmask < 33))
-        {
-            sc->obfuscation_mask = htonl(netmasks[nmask]);
-        }
-        else
-        {
-            ParseError("Bad CIDR block (%s) in obfuscation mask %s. "
-                       "1 to 32 please!", toks[1], args);
-        }
-    }
-    else
-    {
-        ParseError("No netmask specified for obsucation mask!");
-    }
-
-    DEBUG_WRAP(DebugMessage(DEBUG_INIT, "obfuscation netmask = %#8lX\n",
-                            sc->obfuscation_mask););
-
-    /* convert the IP addr into its 32-bit value */
-    if((net.s_addr = inet_addr(toks[0])) == INADDR_NONE)
-        ParseError("Obfuscation mask (%s) didn't translate.", toks[0]);
-
-    DEBUG_WRAP(DebugMessage(DEBUG_INIT, "Obfuscation Net = %s (%X)\n",
-                            inet_ntoa(net), net.s_addr););
-
-    /* set the final homenet address up */
-    sc->obfuscation_net = net.s_addr & sc->obfuscation_mask;
-
-#ifdef DEBUG_MSGS
-    sin.s_addr = sc->obfuscation_net;
-    DEBUG_WRAP(DebugMessage(DEBUG_INIT, "Obfuscation Net = %s (%X)\n",
-                            inet_ntoa(sin), sin.s_addr););
-#endif
-
-    sc->obfuscation_mask = ~sc->obfuscation_mask;
-
-    mSplitFree(&toks, num_toks);
-#endif
 }
 
 void ConfigPafMax (SnortConfig *sc, char *args)
@@ -8732,12 +8305,30 @@ void ConfigPPM(SnortConfig *sc, char *args)
         }
         else if (strcasecmp(opts[0], PPM_OPT__PKT_LOG) == 0)
         {
-            if (num_opts != 1)
+            if (num_opts == 1)
             {
-                ParseError("config ppm: too many arguments for '%s'.", opts[0]);
+                ppm_set_pkt_log(&sc->ppm_cfg, PPM_LOG_MESSAGE);
             }
+            else
+            {
+                int k;
 
-            ppm_set_pkt_log(&sc->ppm_cfg, PPM_LOG_MESSAGE);
+                for (k = 1; k < num_opts; k++)
+                {
+                    if (strcasecmp(opts[k], PPM_OPT__ALERT) == 0)
+                    {
+                        ppm_set_pkt_log(&sc->ppm_cfg, PPM_LOG_ALERT);
+                    }
+                    else if (strcasecmp(opts[k], PPM_OPT__LOG) == 0)
+                    {
+                        ppm_set_pkt_log(&sc->ppm_cfg, PPM_LOG_MESSAGE);
+                    }
+                    else
+                    {
+                        ParseError("config ppm: Invalid %s arg '%s'.", opts[0], opts[k]);
+                    }
+                }
+            }
             pktOpts++;
         }
         else if (strcasecmp(opts[0], PPM_OPT__RULE_LOG) == 0)
@@ -9131,67 +8722,11 @@ void ConfigReference(SnortConfig *sc, char *args)
  */
 void ConfigReferenceNet(SnortConfig *sc, char *args)
 {
-#ifndef SUP_IP6
-    struct in_addr net;    /* place to stick the local network data */
-    char **toks;           /* dbl ptr to store mSplit return data in */
-    int num_toks;          /* number of tokens mSplit returns */
-    int nmask;             /* temporary netmask storage */
-# ifdef DEBUG
-    struct in_addr sin;
-# endif
-#endif
 
     if ((sc == NULL) || (args == NULL))
         return;
 
-#ifdef SUP_IP6
     sfip_pton(args, &sc->homenet);
-#else
-
-    /* break out the CIDR notation from the IP address */
-    toks = mSplit(args, "/", 2, &num_toks, 0);
-
-    if(num_toks > 1)
-    {
-        /* convert the CIDR notation into a real live netmask */
-        nmask = atoi(toks[1]);
-
-        if((nmask > 0) && (nmask < 33))
-        {
-            sc->netmask = htonl(netmasks[nmask]);
-        }
-        else
-        {
-            ParseError("Bad CIDR block (%s) in obfuscation mask %s. "
-                       "1 to 32 please!", toks[1], args);
-        }
-    }
-    else
-    {
-        ParseError("No netmask specified for home network!");
-    }
-
-    DEBUG_WRAP(DebugMessage(DEBUG_INIT, "homenet netmask = %#8lX\n",
-                            sc->netmask););
-
-    /* convert the IP addr into its 32-bit value */
-    if((net.s_addr = inet_addr(toks[0])) == INADDR_NONE)
-        ParseError("Homenet (%s) didn't translate", toks[0]);
-
-    DEBUG_WRAP(DebugMessage(DEBUG_INIT, "Net = %s (%X)\n",
-                            inet_ntoa(net), net.s_addr););
-
-    /* set the final homenet address up */
-    sc->homenet = net.s_addr & sc->netmask;
-
-# ifdef DEBUG
-    sin.s_addr = sc->homenet;
-    DEBUG_WRAP(DebugMessage(DEBUG_INIT, "Homenet = %s (%X)\n",
-                            inet_ntoa(sin), sin.s_addr););
-# endif
-
-    mSplitFree(&toks, num_toks);
-#endif
 }
 
 void ConfigSetGid(SnortConfig *sc, char *args)
@@ -9429,6 +8964,15 @@ void ConfigVlanAgnostic(SnortConfig *sc, char *args)
     sc->vlan_agnostic = 1; /* TODO: add this to some existing flag bitfield? */
 }
 
+void ConfigAddressSpaceAgnostic(SnortConfig *sc, char *args)
+{
+    if (sc == NULL)
+        return;
+
+    DEBUG_WRAP(DebugMessage(DEBUG_INIT, "Address Space Agnostic active\n"););
+    sc->addressspace_agnostic = 1; /* TODO: add this to some existing flag bitfield? */
+}
+
 void ConfigLogIPv6Extra(SnortConfig *sc, char *args)
 {
     if (sc == NULL)
@@ -9454,6 +8998,40 @@ void ConfigControlSocketDirectory(SnortConfig *sc, char *args)
         return;
     if ( args != NULL )
         sc->cs_dir = SnortStrdup(args);
+}
+
+void ConfigFile(SnortConfig *sc, char *args)
+{
+    if (sc == NULL)
+        return;
+    if ( args != NULL )
+        file_service_config(args, &(sc->file_config));
+}
+
+void ConfigTunnelVerdicts ( SnortConfig *sc, char *args )
+{
+    char* tmp, *tok;
+
+    if (sc == NULL)
+        return;
+
+    tmp = SnortStrdup(args);
+    tok = strtok(tmp, " ,");
+
+    while ( tok )
+    {
+        if ( !strcasecmp(tok, "gtp") )
+            sc->tunnel_mask |= TUNNEL_GTP;
+
+        else if ( !strcasecmp(tok, "teredo") )
+            sc->tunnel_mask |= TUNNEL_TEREDO;
+
+        else
+            ParseError("Unknown tunnel bypass protocol");
+
+        tok = strtok(NULL, " ,");
+    }
+    free(tmp);
 }
 
 /****************************************************************************
@@ -9880,7 +9458,6 @@ static void ParsePortVar(SnortConfig *sc, SnortPolicy *p, char *args)
     mSplitFree(&toks, num_toks);
 }
 
-#ifdef SUP_IP6
 static void ParseIpVar(SnortConfig *sc, SnortPolicy *p, char *args)
 {
     char **toks;
@@ -9944,12 +9521,6 @@ static void ParseIpVar(SnortConfig *sc, SnortPolicy *p, char *args)
 
     mSplitFree(&toks, num_toks);
 }
-#else
-static void ParseIpVar(SnortConfig *sc, SnortPolicy *p, char *args)
-{
-    ParseError("Unknown rule type: %s.", "ipvar");
-}
-#endif
 
 static void ParseVar(SnortConfig *sc, SnortPolicy *p, char *args)
 {
@@ -9987,6 +9558,10 @@ static void ParseVar(SnortConfig *sc, SnortPolicy *p, char *args)
     mSplitFree(&toks, num_toks);
 }
 
+static void ParseFile(SnortConfig *sc, SnortPolicy *p, char *args)
+{
+    parse_file_rule(args, &(sc->file_config));
+}
 static void AddVarToTable(SnortConfig *sc, char *name, char *value)
 {
     //TODO: snort.cfg and rules should use PortVar instead ...this allows compatability for now.
@@ -11715,13 +11290,11 @@ void VarTablesFree(SnortConfig *sc)
             p->var_table = NULL;
         }
 
-#ifdef SUP_IP6
         if (p->ip_vartable != NULL)
         {
             sfvt_free_table(p->ip_vartable);
             p->ip_vartable = NULL;
         }
-#endif
 
         if (p->portVarTable != NULL)
         {
@@ -12204,20 +11777,19 @@ int addRtnToOtn(
 {
     if (otn->proto_node_num <= policyId)
     {
-        //realloc the list, initialize missing elements to 0 and add policyId
+        /* realloc the list, initialize missing elements to 0 and add
+         * policyId */
         RuleTreeNode **tmpNodeArray;
         unsigned int numNodes = (policyId + 1);
 
         tmpNodeArray = SnortAlloc(sizeof(RuleTreeNode *) * numNodes);
-        if (!tmpNodeArray)
-        {
-            return -1;
-        }
 
-        //copy original contents, the remaining elements are already zeroed out by snortAlloc
+        /* copy original contents, the remaining elements are already
+         * zeroed out by snortAlloc */
         if (otn->proto_nodes)
         {
-            memcpy(tmpNodeArray, otn->proto_nodes, sizeof(RuleTreeNode *) * otn->proto_node_num);
+            memcpy(tmpNodeArray, otn->proto_nodes, 
+                sizeof(RuleTreeNode *) * otn->proto_node_num);
             free(otn->proto_nodes);
         }
 
@@ -12229,6 +11801,7 @@ int addRtnToOtn(
     if (otn->proto_nodes[policyId])
     {
         DestroyRuleTreeNode(rtn);
+        return -1;
     }
 
     otn->proto_nodes[policyId] = rtn;

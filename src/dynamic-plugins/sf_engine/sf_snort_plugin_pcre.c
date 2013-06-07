@@ -14,7 +14,7 @@
  *
  * You should have received a copy of the GNU General Public License
  * along with this program; if not, write to the Free Software
- * Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA 02111-1307, USA.
+ * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
  *
  * Copyright (C) 2005-2012 Sourcefire, Inc.
  *
@@ -41,6 +41,7 @@
 
 /* Need access to the snort-isms that were passed to the engine */
 extern int checkCursorInternal(void *p, int flags, int offset, const uint8_t *cursor);
+static int pcreMatchInternal(void *, PCREInfo*, const uint8_t **);
 
 int PCRESetup(Rule *rule, PCREInfo *pcreInfo)
 {
@@ -208,6 +209,13 @@ static int pcre_test(const PCREInfo *pcre_info,
 }
 
 ENGINE_LINKAGE int pcreMatch(void *p, PCREInfo* pcre_info, const uint8_t **cursor)
+{
+    if (pcre_info->flags & NOT_FLAG)
+        return invertMatchResult(pcreMatchInternal(p, pcre_info, cursor));
+    return pcreMatchInternal(p, pcre_info, cursor);
+}
+
+static int pcreMatchInternal(void *p, PCREInfo* pcre_info, const uint8_t **cursor)
 {
     const uint8_t *buffer_start;
     const uint8_t *buffer_end;

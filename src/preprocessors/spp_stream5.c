@@ -16,7 +16,7 @@
  *
  * You should have received a copy of the GNU General Public License
  * along with this program; if not, write to the Free Software
- * Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA 02111-1307, USA.
+ * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
  *
  ****************************************************************************/
 
@@ -243,6 +243,7 @@ static void *Stream5GetApplicationDataFromIpPort(
                     char ip_protocol,
                     uint16_t vlan,
                     uint32_t mplsId,
+                    uint16_t addressSpaceId,
                     uint32_t protocol);
 static uint32_t Stream5SetSessionFlags(
                     void *ssnptr,
@@ -341,7 +342,8 @@ static void *Stream5GetSessionPtrFromIpPort(
                     uint16_t dstPort,
                     char ip_protocol,
                     uint16_t vlan,
-                    uint32_t mplsId);
+                    uint32_t mplsId,
+                    uint16_t addressSpaceId);
 
 #ifdef ACTIVE_RESPONSE
 static void s5InitActiveResponse(Packet*, void* ssnptr);
@@ -362,6 +364,8 @@ static bool Stream5ActivatePaf(void* ssnptr, bool to_server);
 static uint32_t Stream5RegisterXtraData(LogFunction );
 static uint32_t Stream5GetXtraDataMap(LogFunction **);
 static void Stream5RegisterXtraDataLog(LogExtraData, void * );
+
+static void Stream5CheckSessionClosed(Packet*);
 
 StreamAPI s5api = {
     STREAM_API_VERSION5,
@@ -422,7 +426,8 @@ StreamAPI s5api = {
     Stream5GetXtraDataMap,
     s5GetMaxSessions,
     Stream5SetIgnoreDirection,
-    Stream5GetSessionPtrFromIpPort
+    Stream5GetSessionPtrFromIpPort,
+    Stream5CheckSessionClosed
 };
 
 void SetupStream5(void)
@@ -845,7 +850,7 @@ static void Stream5ParseGlobalArgs(Stream5GlobalConfig *config, char *args)
             }
             if ( config->max_active_responses > 0 )
             {
-                Active_SetEnabled(1);
+                Active_SetEnabled(2);
             }
         }
         else if(!strcasecmp(stoks[0], "min_response_seconds"))
@@ -1088,7 +1093,7 @@ static void Stream5PolicyInitIp(char *args)
     if (config->ip_config == NULL)
     {
         config->ip_config =
-            (Stream5IpConfig*)SnortAlloc(sizeof(config->ip_config));
+            (Stream5IpConfig*)SnortAlloc(sizeof(*config->ip_config));
 
         Stream5InitIp(config->global_config);
     }
@@ -1603,12 +1608,13 @@ static void * Stream5GetSessionPtrFromIpPort(
                     uint16_t dstPort,
                     char ip_protocol,
                     uint16_t vlan,
-                    uint32_t mplsId)
+                    uint32_t mplsId,
+                    uint16_t addressSpaceId)
 {
     SessionKey key;
     Stream5LWSession *ssn;
 
-    GetLWSessionKeyFromIpPort(srcIP, srcPort, dstIP, dstPort, ip_protocol, vlan, mplsId, &key);
+    GetLWSessionKeyFromIpPort(srcIP, srcPort, dstIP, dstPort, ip_protocol, vlan, mplsId, addressSpaceId, &key);
 
     switch (ip_protocol)
     {
@@ -1638,14 +1644,50 @@ static void * Stream5GetApplicationDataFromIpPort(
                     char ip_protocol,
                     uint16_t vlan,
                     uint32_t mplsId,
+                    uint16_t addressSpaceID,
                     uint32_t protocol)
 {
     Stream5LWSession *ssn;
 
     ssn = (Stream5LWSession *) Stream5GetSessionPtrFromIpPort(srcIP,srcPort,dstIP,dstPort,
-            ip_protocol,vlan,mplsId);
+            ip_protocol,vlan,mplsId, addressSpaceID);
 
     return Stream5GetApplicationData(ssn, protocol);
+}
+
+static void Stream5CheckSessionClosed(Packet* p)
+{
+    Stream5LWSession* ssn;
+
+    if (!p || !p->ssnptr)
+        return;
+
+    ssn = (Stream5LWSession*)p->ssnptr;
+
+    if (ssn->session_state & STREAM5_STATE_CLOSED)
+    {
+        switch (ssn->protocol)
+        {
+        case IPPROTO_TCP:
+            DeleteLWSession(tcp_lws_cache, ssn, "closed normally");
+            p->ssnptr = NULL;
+            break;
+        case IPPROTO_UDP:
+            DeleteLWSession(udp_lws_cache, ssn, "closed normally");
+            p->ssnptr = NULL;
+            break;
+        case IPPROTO_IP:
+            DeleteLWSession(ip_lws_cache, ssn, "closed normally");
+            p->ssnptr = NULL;
+            break;
+        case IPPROTO_ICMP:
+            DeleteLWSession(icmp_lws_cache, ssn, "closed normally");
+            p->ssnptr = NULL;
+            break;
+        default:
+            break;
+        }
+    }
 }
 
 static int Stream5AlertFlushStream(Packet *p)
@@ -2310,13 +2352,13 @@ void Stream5SetIPProtocol(Stream5LWSession *lwssn)
     switch (lwssn->protocol)
     {
     case IPPROTO_TCP:
-        lwssn->ipprotocol = FindProtocolReference("tcp");
+        lwssn->ipprotocol = protocolReferenceTCP;
         break;
     case IPPROTO_UDP:
-        lwssn->ipprotocol = FindProtocolReference("udp");
+        lwssn->ipprotocol = protocolReferenceUDP;
         break;
     case IPPROTO_ICMP:
-        lwssn->ipprotocol = FindProtocolReference("icmp");
+        lwssn->ipprotocol = protocolReferenceICMP;
         break;
     }
 }
@@ -2464,11 +2506,7 @@ static int16_t Stream5GetApplicationProtocolId(void *ssnptr)
         Stream5SetIPProtocol(lwssn);
     }
 
-#ifdef SUP_IP6
     host_entry = SFAT_LookupHostEntryByIP(IP_ARG(lwssn->server_ip));
-#else
-	host_entry = SFAT_LookupHostEntryByIP(ntohl(lwssn->server_ip));
-#endif
     if (host_entry)
     {
         Stream5SetApplicationProtocolIdFromHostEntry(lwssn,
@@ -2480,11 +2518,7 @@ static int16_t Stream5GetApplicationProtocolId(void *ssnptr)
         }
     }
 
-#ifdef SUP_IP6
     host_entry = SFAT_LookupHostEntryByIP(IP_ARG(lwssn->client_ip));
-#else
-	host_entry = SFAT_LookupHostEntryByIP(ntohl(lwssn->client_ip));
-#endif
 
     if (host_entry)
     {
@@ -2510,6 +2544,11 @@ static int16_t Stream5SetApplicationProtocolId(void *ssnptr, int16_t id)
 
     ssn->application_protocol = id;
 
+    if (!ssn->ipprotocol)
+        Stream5SetIPProtocol(ssn);
+
+    SFAT_UpdateApplicationProtocol(IP_ARG(ssn->server_ip), ntohs(ssn->server_port), ssn->ipprotocol, id);
+
     return id;
 }
 
@@ -2517,7 +2556,6 @@ static snort_ip_p Stream5GetSessionIpAddress(void *ssnptr, uint32_t direction)
 {
     Stream5LWSession *ssn = (Stream5LWSession *)ssnptr;
 
-#ifdef SUP_IP6
     if (ssn)
     {
         switch (direction)
@@ -2531,21 +2569,6 @@ static snort_ip_p Stream5GetSessionIpAddress(void *ssnptr, uint32_t direction)
         }
     }
     return NULL;
-#else
-    if (ssn)
-    {
-        switch (direction)
-        {
-            case SSN_DIR_SERVER:
-                return (snort_ip_p)(((Stream5LWSession *)ssn)->server_ip);
-            case SSN_DIR_CLIENT:
-                return (snort_ip_p)(((Stream5LWSession *)ssn)->client_ip);
-            default:
-                break;
-        }
-    }
-    return 0;
-#endif
 }
 #endif
 
@@ -2687,10 +2710,10 @@ static void s5GetMaxSessions(tSfPolicyId policyId, StreamSessionLimits* limits)
 
     if (config && config->global_config)
     {
-        limits->tcp_session_limit = config->global_config->max_tcp_sessions;
-        limits->udp_session_limit = config->global_config->max_udp_sessions;
-        limits->icmp_session_limit = config->global_config->max_icmp_sessions;
-        limits->ip_session_limit = config->global_config->max_ip_sessions;
+        limits->tcp_session_limit = config->global_config->track_tcp_sessions ? config->global_config->max_tcp_sessions : 0;
+        limits->udp_session_limit = config->global_config->track_udp_sessions ? config->global_config->max_udp_sessions : 0;
+        limits->icmp_session_limit = config->global_config->track_icmp_sessions ? config->global_config->max_icmp_sessions : 0;
+        limits->ip_session_limit = config->global_config->track_ip_sessions ? config->global_config->max_ip_sessions : 0;
     }
     else
         memset(limits, 0, sizeof(*limits));
@@ -2875,7 +2898,7 @@ static void Stream5IpReload(char *args)
     }
 
     if (config->ip_config == NULL)
-        config->ip_config = (Stream5IpConfig *)SnortAlloc(sizeof(config->ip_config));
+        config->ip_config = (Stream5IpConfig *)SnortAlloc(sizeof(*config->ip_config));
 
     /* Call the protocol specific initializer */
     Stream5IpPolicyInit(config->ip_config, args);

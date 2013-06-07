@@ -15,7 +15,7 @@
  *
  * You should have received a copy of the GNU General Public License
  * along with this program; if not, write to the Free Software
- * Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA 02111-1307, USA.
+ * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
  *
  ****************************************************************************/
 
@@ -67,6 +67,7 @@ int GetLWSessionKeyFromIpPort(
                     char proto,
                     uint16_t vlan,
                     uint32_t mplsId,
+                    uint16_t addressSpaceId,
                     SessionKey *key);
 Stream5LWSession *GetLWSessionFromKey(Stream5SessionCache *, SessionKey *);
 Stream5LWSession *NewLWSession(Stream5SessionCache *, Packet *, SessionKey *, void *);

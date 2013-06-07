@@ -33,7 +33,7 @@
 **
 **  You should have received a copy of the GNU General Public License
 **  along with this program; if not, write to the Free Software
-**  Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA 02111-1307, USA.
+**  Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 **
 */
 #ifdef HAVE_CONFIG_H
@@ -357,6 +357,7 @@ int fpLogEvent(RuleTreeNode *rtn, OptTreeNode *otn, Packet *p)
 
         case RULE_TYPE__REJECT:
             DropAction(p, otn, &otn->event_data);
+            Active_QueueReject();
             SetTags(p, otn, event_id);
             break;
 
@@ -668,15 +669,11 @@ static int rule_tree_match( void * id, void *tree, int index, void * data, void 
             const uint8_t *tmp_data = eval_data.p->data;
             uint16_t tmp_dsize = eval_data.p->dsize;
             void *tmp_iph = (void *)eval_data.p->iph;
-#ifdef SUP_IP6
             void *tmp_ip4h = (void *)eval_data.p->ip4h;
             void *tmp_ip6h = (void *)eval_data.p->ip6h;
-#endif
             eval_data.p->iph = eval_data.p->inner_iph;
-#ifdef SUP_IP6
             eval_data.p->ip4h = &eval_data.p->inner_ip4h;
             eval_data.p->ip6h = &eval_data.p->inner_ip6h;
-#endif
             eval_data.p->data = eval_data.p->ip_data;
             eval_data.p->dsize = eval_data.p->ip_dsize;
 
@@ -692,10 +689,8 @@ static int rule_tree_match( void * id, void *tree, int index, void * data, void 
 
             /* restore original data & dsize */
             eval_data.p->iph = tmp_iph;
-#ifdef SUP_IP6
             eval_data.p->ip4h = (IP4Hdr*)tmp_ip4h;
             eval_data.p->ip6h = (IP6Hdr*)tmp_ip6h;
-#endif
             eval_data.p->data = tmp_data;
             eval_data.p->dsize = tmp_dsize;
         }
@@ -1086,10 +1081,8 @@ static inline int fpEvalHeaderSW(PORT_GROUP *port_group, Packet *p,
     const uint8_t *tmp_payload = p->data;
     uint16_t tmp_dsize = p->dsize;
     void *tmp_iph = (void *)p->iph;
-#ifdef SUP_IP6
     void *tmp_ip6h = (void *)p->ip6h;
     void *tmp_ip4h = (void *)p->ip4h;
-#endif
     char repeat = 0;
     FastPatternConfig *fp = snort_conf->fast_pattern_config;
     PROFILE_VARS;
@@ -1102,10 +1095,8 @@ static inline int fpEvalHeaderSW(PORT_GROUP *port_group, Packet *p,
         if (p->outer_ip_data)
         {
             p->iph = p->outer_iph;
-# ifdef SUP_IP6
             p->ip6h = &p->outer_ip6h;
             p->ip4h = &p->outer_ip4h;
-# endif
             p->data = p->outer_ip_data;
             p->dsize = p->outer_ip_dsize;
             p->packet_flags |= PKT_IP_RULE;
@@ -1346,10 +1337,8 @@ static inline int fpEvalHeaderSW(PORT_GROUP *port_group, Packet *p,
         {
             /* Evaluate again with the inner IPs */
             p->iph = p->inner_iph;
-# ifdef SUP_IP6
             p->ip6h = &p->inner_ip6h;
             p->ip4h = &p->inner_ip4h;
-# endif
             p->data = p->ip_data;
             p->dsize = p->ip_dsize;
             p->packet_flags |= PKT_IP_RULE_2ND | PKT_IP_RULE;
@@ -1368,10 +1357,8 @@ fp_eval_header_sw_reset_ip:
     {
         /* Set the data & dsize back to original values. */
         p->iph = tmp_iph;
-#ifdef SUP_IP6
         p->ip6h = (IP6Hdr *)tmp_ip6h;
         p->ip4h = (IP4Hdr *)tmp_ip4h;
-#endif
         p->data = tmp_payload;
         p->dsize = tmp_dsize;
         p->packet_flags &= ~(PKT_IP_RULE| PKT_IP_RULE_2ND);
@@ -1693,9 +1680,7 @@ int fpEvalPacket(Packet *p)
 
             return fpEvalHeaderUdp(p, omd);
 
-#ifdef SUP_IP6
         case IPPROTO_ICMPV6:
-#endif
         case IPPROTO_ICMP:
             DEBUG_WRAP(DebugMessage(DEBUG_DETECT,
                         "Detecting on IcmpList\n"););

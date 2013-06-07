@@ -22,7 +22,7 @@
 **
 ** You should have received a copy of the GNU General Public License
 ** along with this program; if not, write to the Free Software
-** Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA 02111-1307, USA.
+** Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 **
 ** 9.1.04  : Added SFBASE iReset (MAN)
 **	     This is set by perfmonitor 'accrure' and 'reset' commands
@@ -58,11 +58,9 @@ typedef enum {
     PERF_COUNT_IP4_TTL,
     PERF_COUNT_IP4_OPTS,
     PERF_COUNT_ICMP4_ECHO,
-#ifdef SUP_IP6
     PERF_COUNT_IP6_TTL,
     PERF_COUNT_IP6_OPTS,
     PERF_COUNT_ICMP6_ECHO,
-#endif
     PERF_COUNT_TCP_SYN_OPT,
     PERF_COUNT_TCP_OPT,
     PERF_COUNT_TCP_PAD,

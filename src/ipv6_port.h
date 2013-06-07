@@ -14,7 +14,7 @@
 **
 ** You should have received a copy of the GNU General Public License
 ** along with this program; if not, write to the Free Software
-** Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA 02111-1307, USA.
+** Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 */
 
 #ifndef IPV6_PORT_H
@@ -24,7 +24,6 @@
 
 ///////////////////
 /* IPv6 and IPv4 */
-#ifdef SUP_IP6
 
 #include "sf_ip.h"
 
@@ -133,76 +132,6 @@ static inline int sfip_equal (snort_ip* ip1, snort_ip* ip2)
     return 0;
 }
 
-#else
-///////////////
-/* IPv4 only */
-#include <sys/types.h>
-
-typedef uint32_t snort_ip; /* 32 bits only -- don't use unsigned long */
-typedef uint32_t snort_ip_p; /* 32 bits only -- don't use unsigned long */
-
-#define IP_SRC_EQUALITY(x,y) ((x)->ip_addr == ((y)->iph->ip_src.s_addr & x->netmask))
-#define IP_DST_EQUALITY(x,y) ((x)->ip_addr == ((y)->iph->ip_dst.s_addr & x->netmask))
-
-#define GET_SRC_IP(x) (x)->iph->ip_src.s_addr
-#define GET_DST_IP(x) (x)->iph->ip_dst.s_addr
-#define GET_INNER_SRC_IP(x) (x)->iph->ip_src.s_addr
-#define GET_INNER_DST_IP(x) (x)->iph->ip_dst.s_addr
-#define GET_OUTER_SRC_IP(x)  (x)->outer_ip4_header->source.s_addr
-#define GET_OUTER_DST_IP(x)  (x)->outer_ip4_header->destination.s_addr
-#define GET_ORIG_SRC(p) ((p)->orig_iph->ip_src.s_addr)
-#define GET_ORIG_DST(p) ((p)->orig_iph->ip_dst.s_addr)
-
-#define GET_SRC_ADDR(x) (x)->iph->ip_src
-#define GET_DST_ADDR(x) (x)->iph->ip_dst
-
-#define IP_CLEAR_SRC(x) (x)->iph->ip_src.s_addr = 0
-#define IP_CLEAR_DST(x) (x)->iph->ip_dst.s_addr = 0
-
-#define IP_EQUALITY(x,y) ((x) == (y))
-#define IP_EQUALITY_UNSET(x,y) ((x) == (y))
-#define IP_LESSER(x,y) ((x) < (y))
-#define IP_GREATER(x,y) ((x) > (y))
-
-#define GET_IPH_PROTO(p) (p)->iph->ip_proto
-#define GET_IPH_TOS(p) (p)->iph->ip_tos
-#define GET_IPH_LEN(p) (p)->iph->ip_len
-#define GET_IPH_TTL(p) (p)->iph->ip_ttl
-#define GET_IPH_VER(p) (((p)->iph->ip_verhl & 0xf0) >> 4)
-#define GET_IPH_ID(p) (p)->iph->ip_id
-#define GET_IPH_OFF(p) (p)->iph->ip_off
-
-#define GET_ORIG_IPH_VER(p) IP_VER((p)->orig_iph)
-#define GET_ORIG_IPH_LEN(p) (p)->orig_iph->ip_len
-#define GET_ORIG_IPH_OFF(p) (p)->orig_iph->ip_off
-#define GET_ORIG_IPH_PROTO(p) (p)->orig_iph->ip_proto
-
-#define IS_IP4(x) 1
-#define IS_IP6(x) 0
-#define IPH_IS_VALID(p) (p)->iph
-
-#define IP_CLEAR(x) x = 0;
-#define IP_IS_SET(x) x
-
-#define IP_COPY_VALUE(x,y) x = y
-
-#define GET_IPH_HLEN(p) ((p)->iph->ip_verhl & 0x0f)
-#define SET_IPH_HLEN(p, val) (((IPHdr *)(p)->iph)->ip_verhl = (unsigned char)(((p)->iph->ip_verhl & 0xf0) | ((val) & 0x0f)))
-
-#define GET_IP_DGMLEN(p) ntohs(GET_IPH_LEN(p))
-#define GET_IP_PAYLEN(p) ntohs(GET_IPH_LEN(p)) - (GET_IPH_HLEN(p) << 2)
-
-#define IP_ARG(ipt)  (ipt)
-#define IP_PTR(ipp)  (&(ipp))
-#define IP_VAL(ipt)  (ipt)
-#define IP_SIZE(ipp) (sizeof(ipp))
-
-static inline int sfip_equal (snort_ip ip1, snort_ip ip2)
-{
-    return IP_EQUALITY(ip1, ip2);
-}
-
-#endif /* SUP_IP6 */
 
 #if !defined(IPPROTO_IPIP) && defined(WIN32)  /* Needed for some Win32 */
 #define IPPROTO_IPIP 4

@@ -31,9 +31,6 @@ I. Configuring Unified2 Output
   * Note that you'll need to have compiled snort with --enable-mpls as
     well as use the mpls_event_types to obtain mpls events.
 
-  * Note that you'll need to have compiled snort with --enable-ipv6 to
-    obtain ipv6 specific logging capabilities.
-
   Example:
     output alert_unified2: filename snort.alert limit 128, nostamp
     output log_unified2: filename snort.log, limit 128, nostamp
@@ -270,9 +267,6 @@ III. Unified2 File Format
   Unified2 IDS Event IP6 is logged for IPv6 Events without VLAN or 
   MPLS tagging. 
 
-  * Note that you'll need to pass --enable-ipv6 to configure in order
-    obtain IPv6 Event types.
-
   E. Unfied2 IDS Event (Version 2)
 
     sensor id               4 bytes
@@ -336,9 +330,6 @@ III. Unified2 File Format
 
   * Note that you'll need to pass --enable-mpls to configure in order
     to have Snort fill in the mpls label field.
-
-  * Note that you'll need to pass --enable-ipv6 to configure in order
-    obtain IPv6 Event types.
 
   * Note that you'll need to configure unified2 logging with either
     mpls_event_types or vlan_event_types to get this record type.

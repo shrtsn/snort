@@ -14,7 +14,7 @@
  *
  * You should have received a copy of the GNU General Public License
  * along with this program; if not, write to the Free Software
- * Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA 02111-1307, USA.
+ * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
  *
  ****************************************************************************
  * Provides convenience functions for parsing and querying configuration.
@@ -149,10 +149,10 @@ uint32_t estimateSizeFromEntries(uint32_t num_entries, uint32_t memcap)
         size = UINT32_MAX;
 
     /*Worst case,  15k ~ 2^14 per entry, plus one Megabytes for empty table*/
-    if (num_entries > ((UINT32_MAX - (1 << 20))>> 14))
+    if (num_entries > ((UINT32_MAX - (1 << 20))>> 15))
         sizeFromEntries = UINT32_MAX;
     else
-        sizeFromEntries = (num_entries  << 14) + (1 << 20);
+        sizeFromEntries = (num_entries  << 15) + (1 << 20);
 
     if (size > sizeFromEntries)
     {
@@ -226,16 +226,11 @@ int LoadFileIntoShmem(void* ptrSegment, ShmemDataFileList** file_list, int num_f
 
     segment_meminit((uint8_t*)ptrSegment, reputation_shmem_config->memsize);
 
-#ifdef SUP_IP6
     /*DIR_16x7_4x4 for performance, but memory usage is high
      *Use  DIR_8x16 worst case IPV4 5K, IPV6 15K (bytes)
      *Use  DIR_16x7_4x4 worst case IPV4 500, IPV6 2.5M
      */
     table = sfrt_flat_new(DIR_8x16, IPv6, reputation_shmem_config->numEntries, reputation_shmem_config->memcap);
-#else
-    table = sfrt_flat_new(DIR_8x4, IPv4, reputation_shmem_config->numEntries, reputation_shmem_config->memcap);
-
-#endif
     if (table == NULL)
     {
         DynamicPreprocessorFatalMessage("Reputation preprocessor: Failed to create IP list.\n");
@@ -371,16 +366,11 @@ int InitPerProcessZeroSegment(void*** data_ptr)
 
     initiated = true;
 
-#ifdef SUP_IP6
     /*DIR_16x7_4x4 for performance, but memory usage is high
      *Use  DIR_8x16 worst case IPV4 5K, IPV6 15K (bytes)
      *Use  DIR_16x7_4x4 worst case IPV4 500, IPV6 2.5M
      */
     emptyIPtables = sfrt_flat_new(DIR_8x16, IPv6, maxEntries, size);
-#else
-    emptyIPtables = sfrt_flat_new(DIR_8x4, IPv4,  maxEntries, size);
-
-#endif
     if (emptyIPtables == NULL)
     {
         DynamicPreprocessorFatalMessage("Reputation preprocessor: Failed to create IP list.\n");
@@ -550,21 +540,14 @@ static void IpListInit(uint32_t maxEntries, ReputationConfig *config)
         segment_meminit((uint8_t*)config->localSegment,mem_size);
         base = (uint8_t *)config->localSegment;
 
-#ifdef SUP_IP6
         /*DIR_16x7_4x4 for performance, but memory usage is high
          *Use  DIR_8x16 worst case IPV4 5K, IPV6 15K (bytes)
          *Use  DIR_16x7_4x4 worst case IPV4 500, IPV6 2.5M
          */
         config->iplist = sfrt_flat_new(DIR_8x16, IPv6, maxEntries, config->memcap);
-#else
-        config->iplist = sfrt_flat_new(DIR_8x4, IPv4,  maxEntries, config->memcap);
-
-#endif
         if (config->iplist == NULL)
         {
-            DynamicPreprocessorFatalMessage("%s(%d): Failed to create IP list.\n",
-                    *(_dpd.config_file), *(_dpd.config_line));
-            return;
+            DynamicPreprocessorFatalMessage("%s(%d): Failed to create IP list.\n", *(_dpd.config_file), *(_dpd.config_line));
         }
 
         list_ptr = segment_calloc((size_t)DECISION_MAX, sizeof(ListInfo));
@@ -717,12 +700,6 @@ static int AddIPtoList(sfip_t *ipAddr,INFO ipInfo_ptr, ReputationConfig *config)
     uint32_t usageBeforeAdd;
     uint32_t usageAfterAdd;
 
-#ifndef SUP_IP6
-    if (ipAddr->family == AF_INET6)
-    {
-        return RT_INSERT_FAILURE;
-    }
-#endif
     if (ipAddr->family == AF_INET)
     {
         ipAddr->ip32[0] = ntohl(ipAddr->ip32[0]);
@@ -755,11 +732,7 @@ static int AddIPtoList(sfip_t *ipAddr,INFO ipInfo_ptr, ReputationConfig *config)
         iFinalRet = IP_INSERT_DUPLICATE;
     }
 
-#ifdef SUP_IP6
     iRet = sfrt_flat_insert((void *)ipAddr, (unsigned char)ipAddr->bits, ipInfo_ptr, RT_FAVOR_ALL, config->iplist, &updateEntryInfo);
-#else
-    iRet = sfrt_flat_insert((void *)&(ipAddr->ip.u6_addr32[0]), (unsigned char)ipAddr->bits, ipInfo_ptr, RT_FAVOR_ALL, config->iplist, &updateEntryInfo);
-#endif
     DEBUG_WRAP(DebugMessage(DEBUG_REPUTATION, "Unused memory: %d \n",segment_unusedmem()););
 
 

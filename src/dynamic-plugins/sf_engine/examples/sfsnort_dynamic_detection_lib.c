@@ -15,7 +15,7 @@
  *
  * You should have received a copy of the GNU General Public License
  * along with this program; if not, write to the Free Software
- * Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA 02111-1307, USA.
+ * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
  *
  ****************************************************************************/
 #ifdef HAVE_CONFIG_H
@@ -49,7 +49,8 @@ DETECTION_LINKAGE int LibVersion(DynamicPluginMeta *dpm)
     dpm->major = DETECTION_LIB_MAJOR;
     dpm->minor = DETECTION_LIB_MINOR;
     dpm->build = DETECTION_LIB_BUILD;
-    strncpy(dpm->uniqueName, DETECTION_LIB_NAME, MAX_NAME_LEN);
+    strncpy(dpm->uniqueName, DETECTION_LIB_NAME, MAX_NAME_LEN-1);
+    dpm->uniqueName[MAX_NAME_LEN-1] = '\0';
     return 0;
 }
 
@@ -60,6 +61,7 @@ DETECTION_LINKAGE int EngineVersion(DynamicPluginMeta *dpm)
     dpm->major = REQ_ENGINE_LIB_MAJOR;
     dpm->minor = REQ_ENGINE_LIB_MINOR;
     dpm->build = 0;
-    strncpy(dpm->uniqueName, REQ_ENGINE_LIB_NAME, MAX_NAME_LEN);
+    strncpy(dpm->uniqueName, REQ_ENGINE_LIB_NAME, MAX_NAME_LEN-1);
+    dpm->uniqueName[MAX_NAME_LEN-1] = '\0';
     return 0;
 }

@@ -72,13 +72,15 @@ target-based/libtarget_based.a \
 preprocessors/HttpInspect/libhttp_inspect.a \
 preprocessors/Stream5/libstream5.a \
 sfutil/libsfutil.a \
-control/libsfcontrol.a
+control/libsfcontrol.a \
+file-process/libfileAPI.a \
+file-process/libs/libfile.a
 
 if BUILD_DYNAMIC_EXAMPLES
 EXAMPLES_DIR = dynamic-examples
 endif
 
 
-SUBDIRS = sfutil win32 output-plugins detection-plugins dynamic-plugins preprocessors parser dynamic-preprocessors dynamic-output target-based control $(EXAMPLES_DIR)
+SUBDIRS = sfutil win32 output-plugins detection-plugins dynamic-plugins preprocessors parser dynamic-preprocessors dynamic-output target-based control file-process $(EXAMPLES_DIR)
 
 INCLUDES = @INCLUDES@

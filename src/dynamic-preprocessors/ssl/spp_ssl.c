@@ -14,7 +14,7 @@
 **
 ** You should have received a copy of the GNU General Public License
 ** along with this program; if not, write to the Free Software
-** Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA 02111-1307, USA.
+** Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 */
 
 /*
@@ -56,11 +56,7 @@
 const int MAJOR_VERSION = 1;
 const int MINOR_VERSION = 1;
 const int BUILD_VERSION = 4;
-#ifdef SUP_IP6
-const char *PREPROC_NAME = "SF_SSLPP (IPV6)";
-#else
 const char *PREPROC_NAME = "SF_SSLPP";
-#endif
 
 #define SetupSSLPP DYNAMIC_PREPROC_SETUP
 
@@ -458,6 +454,13 @@ static void SSLPP_process(void *raw_packet, void *context)
 #endif
 
     new_flags = SSL_decode(packet->payload, (int)packet->payload_size, packet->flags);
+
+    // If the client used an SSLv2 ClientHello with an SSLv3/TLS version and
+    // the server replied with an SSLv3/TLS ServerHello, remove the backward
+    // compatibility flag and the SSLv2 flag since this session will continue
+    // as SSLv3/TLS.
+    if ((ssn_flags & SSL_V3_BACK_COMPAT_V2) && SSL_V3_SERVER_HELLO(new_flags))
+        ssn_flags &= ~(SSL_VER_SSLV2_FLAG|SSL_V3_BACK_COMPAT_V2);
 
     if( SSL_IS_CHELLO(new_flags) && SSL_IS_CHELLO(ssn_flags) && SSL_IS_SHELLO(ssn_flags) )
     {

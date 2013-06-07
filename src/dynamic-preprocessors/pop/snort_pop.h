@@ -15,7 +15,7 @@
  *
  * You should have received a copy of the GNU General Public License
  * along with this program; if not, write to the Free Software
- * Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA 02111-1307, USA.
+ * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
  *
  * **************************************************************************/
 
@@ -100,7 +100,7 @@
 /* Maximum length of header chars before colon, based on Exim 4.32 exploit */
 #define MAX_HEADER_NAME_LEN 64
 
-#define POP_PROTO_REF_STR  "pop"
+#define POP_PROTO_REF_STR  "pop3"
 
 /**************************************************************************/
 

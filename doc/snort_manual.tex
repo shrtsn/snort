@@ -101,7 +101,7 @@
 
 \begin{document}
 
-\title{SNORT\textsuperscript{\textregistered} Users Manual\\2.9.3}
+\title{SNORT\textsuperscript{\textregistered} Users Manual\\2.9.4}
 
 \author{The Snort Project}
 
@@ -145,10 +145,9 @@ displays them for you in a continuous stream on the console (screen).
 
 \item {\em Packet Logger mode,} which logs the packets to disk. 
 
-\item {\em Network Intrusion Detection System (NIDS) mode,} the most complex
-and configurable configuration, which allows Snort to analyze network traffic
-for matches against a user-defined rule set and performs several actions based
-upon what it sees.
+\item {\em Network Intrusion Detection System (NIDS) mode,} which performs
+detection and analysis on network traffic. This is the most complex and
+configurable mode.
 
 \end{itemize}
 
@@ -177,14 +176,14 @@ this:
     ./snort -vde
 \end{verbatim}
 
-(As an aside, these switches may be divided up or smashed together in any
-combination. The last command could also be typed out as:
+As an aside, notice that the command line switches can be listed separately or
+in a combined form. The last command could also be typed out as:
 
 \begin{verbatim}
     ./snort -d -v -e
 \end{verbatim}
 
-and it would do the same thing.)
+to produce the same result.
 
 \section{Packet Logger Mode}
 
@@ -1126,6 +1125,19 @@ block each packet and this count will be higher.
 \item Ignore = packets that caused Snort to allow a flow to pass w/o inspection
 by this instance of Snort.  Like blacklist, this is done by the DAQ or by Snort
 on subsequent packets.
+
+\item Int Blklst = packets that are GTP or Teredo encapsulated that are being
+blocked.  These packets could get the Blacklist verdict if \texttt{config
+tunnel\_verdicts} was set for the given protocol.  Note that this count are
+output only if non-zero.  Also, this count is incremented on the first packet
+in the flow that alerts.  The alerting packet and all following packets on the
+flow will be counted under Block.
+
+\item Int Whtlst = packets that are GTP or Teredo encapsulated that are being
+allowed.  These packets could get the Whitelist verdict if \texttt{config
+tunnel\_verdicts} was set for the given protocol.  Note that this count are
+output only if non-zero.  Also, this count is incremented for all packets on
+the flow starting with the alerting packet.
 \end{itemize}
 
 Example:
@@ -1159,12 +1171,6 @@ configuration option is necessary:
 
 \begin{verbatim}
     $ ./configure --enable-gre
-\end{verbatim}
-
-To enable IPv6 support, one still needs to use the configuration option:
-
-\begin{verbatim}
-    $ ./configure --enable-ipv6
 \end{verbatim}
 
 \subsection{Multiple Encapsulations}
@@ -1557,13 +1563,6 @@ Three types of variables may be defined in Snort:
 \item ipvar
 \end{itemize}
 
-\begin{note}
-
-Note: 'ipvar's are only enabled with IPv6 support. Without IPv6 support, use a
-regular 'var'.
-
-\end{note}
-
 These are simple substitution variables set with the {\tt var}, {\tt ipvar}, or
 {\tt portvar} keywords as follows:
 
@@ -1578,10 +1577,9 @@ These are simple substitution variables set with the {\tt var}, {\tt ipvar}, or
 \subsubsection{IP Variables and IP Lists}
 
 IPs may be specified individually, in a list, as a CIDR block, or any
-combination of the three.  If IPv6 support is enabled, IP variables should be
-specified using 'ipvar' instead of 'var'.  Using 'var' for an IP variable is
-still allowed for backward compatibility, but it will be deprecated in a future
-release.
+combination of the three.  IP variables should be specified using 'ipvar'
+instead of 'var'.  Using 'var' for an IP variable is still allowed for backward
+compatibility, but it will be deprecated in a future release.
 
 IPs, IP lists, and CIDR blocks may be negated with '!'.  Negation is handled
 differently compared with Snort versions 2.7.x and earlier.  Previously, each
@@ -2374,10 +2372,30 @@ Use config event\_filter instead.)\\
 \\
 
 \hline
-\texttt{config vlan\_agnostic} & Causes Snort to ignore vlan headers for the purposes of connection tracking.  This option is only valid in the base configuration when using multiple configurations, and the default is off.  \\
+\texttt{config vlan\_agnostic} & Causes Snort to ignore vlan headers for
+the purposes of connection and frag tracking.  This option is only valid in the
+base configuration when using multiple configurations, and the default is off.
+\\
 
 \hline
-\texttt{config policy\_mode: tap|inline|inline\_test} & Sets the policy mode to either \texttt{passive}, \texttt{inline} or \texttt{inline\_test}. \\
+\texttt{config address\_space\_agnostic} & Causes Snort to ignore DAQ
+address space ID for the purposes of connection and frag tracking.  This option
+is only valid in the base configuration when using multiple configurations, and
+the default is off.  \\
+
+\hline
+\texttt{config policy\_mode: tap|inline|inline\_test} & Sets the policy
+mode to either \texttt{passive}, \texttt{inline} or \texttt{inline\_test}. \\
+
+\hline \texttt{config tunnel\_verdicts: gtp|teredo} & By default, whitelist and
+blacklist verdicts are handled internally by Snort for GTP and Teredo
+encapsulated traffic.  This means Snort actually gives the DAQ a pass or block
+verdict instead.  This is to workaround cases where the DAQ would apply
+the verdict to the whole tunnel instead of the individual session within the
+tunnel.  If your DAQ decodes GTP or Teredo correctly, setting this config
+will allow the whitelist or blacklist verdict to go to the DAQ.  There is a
+modest performance boost by doing this where possible since Snort won't see the
+remaining packets on the session. \\
 
 \hline
 \end{longtable}
@@ -6199,10 +6217,6 @@ A few examples:
 
 \item Allows bounces to IPv6 address fe8::5 port 59340.  
 
-\begin{note}
-IPv6 support must be enabled.
-\end{note}
-
 \begin{verbatim}
     bounce_to { fe8::5,59340 }
 \end{verbatim}
@@ -8957,7 +8971,7 @@ Reputation preprocessor provides basic IP blacklist/whitelist capabilities, to
 block/drop/pass traffic from IP addresses listed. In the past, we use standard 
 Snort rules to implement Reputation-based IP blocking. This preprocessor will 
 address the performance issue and make the IP reputation management easier. 
-This preprocessor runs before other preprossors.
+This preprocessor runs before other preprocessors.
 \subsubsection{Configuration}
 The preprocessor configuration name is \texttt{repuation}.\\
 
@@ -11704,8 +11718,10 @@ Packet Configuration Options
 \texttt{pkt-log}
 \begin{itemize}
 \item enables logging packet event if packet exceeds max-pkt-time
-\item logging is to syslog or console depending upon snort configuration
 \item default is no logging
+\item if no option is given for 'pkt-log', 'pkt-log log' is implied
+\item the log option enables output to syslog or console depending 
+      upon snort configuration
 \end{itemize}
 
 \texttt{debug-pkts}
@@ -11821,7 +11837,8 @@ Sample Snort Run-time Output
     PPM: Pkt[62] Used= 65.3659 usecs
     PPM: Process-EndPkt[62]
     
-    PPM: Pkt-Event Pkt[63] used=56.0438 usecs, 0 rules, 1 nc-rules tested, packet fastpathed.
+    PPM: Pkt-Event Pkt[63] used=56.0438 usecs, 0 rules, 1 nc-rules tested, packet fastpathed
+         (10.4.12.224:0 -> 10.4.14.108:54321).
     PPM: Process-BeginPkt[63] caplen=60
     PPM: Pkt[63] Used= 8.394 usecs
     PPM: Process-EndPkt[63]
@@ -19145,12 +19162,6 @@ options.
   Unified2 IDS Event IP6 is logged for IPv6 Events without VLAN or 
   MPLS tagging. 
 
-\begin{note}
-\begin{itemize}
-\item Note that you'll need to pass --enable-ipv6 to configure in order obtain IPv6 Event types.
-\end{itemize}
-\end{note}
-
 \subsection{Unfied2 IDS Event (Version 2)}
 
 \begin{verbatim}
@@ -19220,8 +19231,6 @@ options.
 \begin{note}
 \begin{itemize}
 \item Note that you'll need to pass --enable-mpls to configure in order to have Snort fill in the mpls label field.
-
-\item Note that you'll need to pass --enable-ipv6 to configure in order obtain IPv6 Event types.
 
 \item Note that you'll need to configure unified2 logging with either mpls\_event\_types or vlan\_event\_types to get this record type.
 \end{itemize}

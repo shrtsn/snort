@@ -14,7 +14,7 @@
  *
  * You should have received a copy of the GNU General Public License
  * along with this program; if not, write to the Free Software
- * Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA 02111-1307, USA.
+ * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
  *
  ****************************************************************************
  * Parses and processes configuration set in snort.conf.
@@ -2930,9 +2930,7 @@ static DCE2_Ret DCE2_ScAddToRoutingTable(DCE2_Config *config,
                                          DCE2_ServerConfig *sc, DCE2_Queue *ip_queue)
 {
     sfip_t *ip;
-#ifdef SUP_IP6
     sfip_t tmp_ip;
-#endif
 
     if ((config == NULL) || (sc == NULL) || (ip_queue == NULL))
         return DCE2_RET__ERROR;
@@ -2943,9 +2941,6 @@ static DCE2_Ret DCE2_ScAddToRoutingTable(DCE2_Config *config,
     {
         int rt_status;
 
-#ifndef SUP_IP6
-        uint32_t addr = ntohl(ip->ip32[0]);
-#else
         /* For IPv4, need to pass the address in host order */
         if (ip->family == AF_INET)
         {
@@ -2962,15 +2957,10 @@ static DCE2_Ret DCE2_ScAddToRoutingTable(DCE2_Config *config,
             /* Just set ip to tmp_ip since we don't need to modify ip */
             ip = &tmp_ip;
         }
-#endif
 
         if (config->sconfigs == NULL)
         {
-#ifdef SUP_IP6
             config->sconfigs = sfrt_new(DIR_16_4x4_16x5_4x4, IPv6, 100, 20);
-#else
-            config->sconfigs = sfrt_new(DIR_16_4x4, IPv4, 100, 20);
-#endif
             if (config->sconfigs == NULL)
             {
                 DCE2_Log(DCE2_LOG_TYPE__ERROR,
@@ -2983,13 +2973,8 @@ static DCE2_Ret DCE2_ScAddToRoutingTable(DCE2_Config *config,
         {
             DCE2_ServerConfig *conf;
 
-#ifdef SUP_IP6
             conf = (DCE2_ServerConfig *)sfrt_search((void *)ip,
                                                     (unsigned char)ip->bits, config->sconfigs);
-#else
-            conf = (DCE2_ServerConfig *)sfrt_search((void *)&addr,
-                                                    (unsigned char)ip->bits, config->sconfigs);
-#endif
 
             if (conf != NULL)
             {
@@ -2999,13 +2984,8 @@ static DCE2_Ret DCE2_ScAddToRoutingTable(DCE2_Config *config,
             }
         }
 
-#ifdef SUP_IP6
         rt_status = sfrt_insert((void *)ip, (unsigned char)ip->bits,
                                 (void *)sc, RT_FAVOR_SPECIFIC, config->sconfigs);
-#else
-        rt_status = sfrt_insert((void *)&addr, (unsigned char)ip->bits, (void *)sc,
-                                RT_FAVOR_SPECIFIC, config->sconfigs);
-#endif
 
         if (rt_status != RT_SUCCESS)
         {
@@ -3066,9 +3046,7 @@ const DCE2_ServerConfig * DCE2_ScGetConfig(const SFSnortPacket *p)
 {
     const DCE2_ServerConfig *sc = NULL;
     snort_ip_p ip;
-#ifdef SUP_IP6
     sfip_t tmp_ip;
-#endif
 
     if (dce2_eval_config == NULL)
         return NULL;
@@ -3080,7 +3058,6 @@ const DCE2_ServerConfig * DCE2_ScGetConfig(const SFSnortPacket *p)
 
     if (dce2_eval_config->sconfigs != NULL)
     {
-#ifdef SUP_IP6
         if (ip->family == AF_INET)
         {
             if (sfip_set_ip(&tmp_ip, ip) != SFIP_SUCCESS)
@@ -3100,10 +3077,6 @@ const DCE2_ServerConfig * DCE2_ScGetConfig(const SFSnortPacket *p)
         }
 
         sc = sfrt_lookup((void *)ip, dce2_eval_config->sconfigs);
-#else
-        ip = ntohl(ip);
-        sc = sfrt_lookup((void *)&ip, dce2_eval_config->sconfigs);
-#endif
     }
 
     if (sc == NULL)
@@ -4013,16 +3986,6 @@ DCE2_Ret DCE2_ParseIp(char **ptr, char *end, sfip_t *ip)
                         return DCE2_RET__ERROR;
                     }
 
-#ifndef SUP_IP6
-                    if (ip->family != AF_INET)
-                    {
-                        DCE2_ScError("IPv6 addresses are not allowed in a "
-                                     "non-IPv6 build.  Configure Snort with "
-                                     "--enable-ipv6 to use IPv6 addresses in "
-                                     "the configuration");
-                        return DCE2_RET__ERROR;
-                    }
-#endif
                     return DCE2_RET__SUCCESS;
                 }
 

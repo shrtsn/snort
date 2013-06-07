@@ -15,7 +15,7 @@
  *
  * You should have received a copy of the GNU General Public License
  * along with this program; if not, write to the Free Software
- * Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA 02111-1307, USA.
+ * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
  *
  ****************************************************************************/
 
@@ -45,14 +45,10 @@
 #define ARCH_WIDTH 32
 #endif
 
-#ifdef SUP_IP6
 typedef struct {
     IP ip;
     int bits;
 } IPLOOKUP;
-#else
-typedef IP IPLOOKUP;
-#endif
 
 /* Create new "sub" table of 2^width entries */
 static dir_sub_table_t *_sub_table_new(dir_table_t *root, uint32_t dimension,
@@ -415,7 +411,6 @@ static int _dir_sub_insert(IPLOOKUP *ip, int length, int cur_len, GENERIC ptr,
 
     word index;
     uint32_t fill;
-#ifdef SUP_IP6
     {
         uint32_t local_index, i;
         /* need to handle bits usage across multiple 32bit vals within IPv6. */
@@ -449,11 +444,6 @@ static int _dir_sub_insert(IPLOOKUP *ip, int length, int cur_len, GENERIC ptr,
         local_index = ip->ip->ip32[i] << (ip->bits %32);
         index = local_index >> (ARCH_WIDTH - sub_table->width);
     }
-#else
-    IPLOOKUP iplu;
-    /* Index is determined by the highest 'len' bits in 'ip' */
-    index = *ip >> (ARCH_WIDTH - sub_table->width);
-#endif
 
     /* Check if this is the last table to traverse to */
     if(sub_table->width >= cur_len)
@@ -518,17 +508,10 @@ static int _dir_sub_insert(IPLOOKUP *ip, int length, int cur_len, GENERIC ptr,
         }
         /* Recurse to next level.  Rightshift off appropriate number of
          * bits and update the length accordingly. */
-#ifdef SUP_IP6
         ip->bits += sub_table->width;
         return (_dir_sub_insert(ip, length,
                         cur_len - sub_table->width, ptr, current_depth+1,
                         behavior, next_sub, root_table));
-#else
-        iplu = *ip << sub_table->width;
-        return ( _dir_sub_insert(&iplu, length,
-                        cur_len - sub_table->width, ptr, current_depth+1,
-                        behavior, next_sub, root_table));
-#endif
     }
 
     return RT_SUCCESS;
@@ -543,13 +526,9 @@ int sfrt_dir_insert(IP ip, int len, word data_index,
                     int behavior, void *table)
 {
     dir_table_t *root = (dir_table_t*)table;
-#ifdef SUP_IP6
     IPLOOKUP iplu;
     iplu.ip = ip;
     iplu.bits = 0;
-#else
-    IPLOOKUP iplu = ip;
-#endif
 
     /* Validate arguments */
     if(!root || !root->sub_table)
@@ -567,7 +546,6 @@ int sfrt_dir_insert(IP ip, int len, word data_index,
 static tuple_t _dir_sub_lookup(IPLOOKUP *ip, dir_sub_table_t *table)
 {
     word index;
-#ifdef SUP_IP6
     {
         uint32_t local_index, i;
         /* need to handle bits usage across multiple 32bit vals within IPv6. */
@@ -602,10 +580,6 @@ static tuple_t _dir_sub_lookup(IPLOOKUP *ip, dir_sub_table_t *table)
         local_index = ip->ip->ip32[i] << (ip->bits %32);
         index = local_index >> (ARCH_WIDTH - table->width);
     }
-#else
-    IPLOOKUP iplu;
-    index = *ip >> (ARCH_WIDTH - table->width);
-#endif
 
     if( !table->entries[index] || table->lengths[index] )
     {
@@ -616,26 +590,17 @@ static tuple_t _dir_sub_lookup(IPLOOKUP *ip, dir_sub_table_t *table)
         return ret;
     }
 
-#ifdef SUP_IP6
     ip->bits += table->width;
     return _dir_sub_lookup( ip, (dir_sub_table_t *)table->entries[index]);
-#else
-    iplu = *ip << table->width;
-    return _dir_sub_lookup( &iplu, (dir_sub_table_t *)table->entries[index]);
-#endif
 }
 
 /* Lookup information associated with the value "ip" */
 tuple_t sfrt_dir_lookup(IP ip, void *tbl)
 {
     dir_table_t *root = (dir_table_t*)tbl;
-#ifdef SUP_IP6
     IPLOOKUP iplu;
     iplu.ip = ip;
     iplu.bits = 0;
-#else
-    IPLOOKUP iplu = ip;
-#endif
 
     if(!root || !root->sub_table)
     {
@@ -716,7 +681,6 @@ static int _dir_sub_remove(IPLOOKUP *ip, int length, int cur_len,
     uint32_t fill;
     uint32_t valueIndex = 0;
 
-#ifdef SUP_IP6
     {
         uint32_t local_index, i;
         /* need to handle bits usage across multiple 32bit vals within IPv6. */
@@ -750,11 +714,6 @@ static int _dir_sub_remove(IPLOOKUP *ip, int length, int cur_len,
         local_index = ip->ip->ip32[i] << (ip->bits %32);
         index = local_index >> (ARCH_WIDTH - sub_table->width);
     }
-#else
-    IPLOOKUP iplu;
-    /* Index is determined by the highest 'len' bits in 'ip' */
-    index = *ip >> (ARCH_WIDTH - sub_table->width);
-#endif
 
     /* Check if this is the last table to traverse to */
     if(sub_table->width >= cur_len)
@@ -794,17 +753,10 @@ static int _dir_sub_remove(IPLOOKUP *ip, int length, int cur_len,
         }
         /* Recurse to next level.  Rightshift off appropriate number of
          * bits and update the length accordingly. */
-#ifdef SUP_IP6
         ip->bits += sub_table->width;
         valueIndex = _dir_sub_remove(ip, length,
                         cur_len - sub_table->width, current_depth+1,
                         behavior, next_sub, root_table);
-#else
-        iplu = *ip << sub_table->width;
-        valueIndex = _dir_sub_remove(&iplu, length,
-                        cur_len - sub_table->width, current_depth+1,
-                        behavior, next_sub, root_table);
-#endif
         if (!next_sub->filledEntries)
         {
             _sub_table_free(&root_table->allocated, next_sub);
@@ -829,13 +781,9 @@ static int _dir_sub_remove(IPLOOKUP *ip, int length, int cur_len,
 word sfrt_dir_remove(IP ip, int len, int behavior, void *table)
 {
     dir_table_t *root = (dir_table_t*)table;
-#ifdef SUP_IP6
     IPLOOKUP iplu;
     iplu.ip = ip;
     iplu.bits = 0;
-#else
-    IPLOOKUP iplu = ip;
-#endif
 
     /* Validate arguments */
     if(!root || !root->sub_table)

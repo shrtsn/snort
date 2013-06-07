@@ -15,7 +15,7 @@
  *
  * You should have received a copy of the GNU General Public License
  * along with this program; if not, write to the Free Software
- * Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA 02111-1307, USA.
+ * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
  *
  ****************************************************************************/
 
@@ -1856,14 +1856,6 @@ const u_char *extract_http_xff(HI_SESSION *Session, const u_char *p, const u_cha
                 free(ipAddr);
                 return p;
             }
-#ifndef SUP_IP6
-            if (tmp->family == AF_INET6)
-            {
-                sfip_free(tmp);
-                free(ipAddr);
-                return p;
-            }
-#endif
             if(*true_ip)
             {
                 if(!IP_EQUALITY(*true_ip, tmp))
@@ -2845,11 +2837,11 @@ int StatelessInspection(HI_SESSION *Session, const unsigned char *data,
                 if ( ptr < end )
                     Client->request.pipeline_req = ptr;
 
-                if(Client->request.post_raw && (ServerConf->post_depth > -1))
+                if(Client->request.post_raw && (ServerConf->post_extract_size > -1))
                 {
-                    if(ServerConf->post_depth && ((int)Client->request.post_raw_size > ServerConf->post_depth))
+                    if(ServerConf->post_extract_size && ((int)Client->request.post_raw_size > ServerConf->post_extract_size))
                     {
-                        Client->request.post_raw_size = ServerConf->post_depth;
+                        Client->request.post_raw_size = (u_int)ServerConf->post_extract_size;
                     }
                 }
                 else

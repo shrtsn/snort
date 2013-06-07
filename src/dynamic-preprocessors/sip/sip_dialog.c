@@ -14,7 +14,7 @@
  *
  * You should have received a copy of the GNU General Public License
  * along with this program; if not, write to the Free Software
- * Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA 02111-1307, USA.
+ * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
  *
  ****************************************************************************
  * Provides convenience functions for dialog management
@@ -400,9 +400,8 @@ static int SIP_ignoreChannels( SIP_DialogData *dialog, SFSnortPacket *p)
     	DEBUG_WRAP(DebugMessage(DEBUG_SIP, "Ignoring channels Destine IP: %s Port: %u\n",
     			sfip_to_str(&mdataB->maddress), mdataB->mport););
     	/* Call into Streams to mark data channel as something to ignore. */
-#ifdef SUP_IP6
     	if ((ssn = _dpd.streamAPI->get_session_ptr_from_ip_port(&mdataA->maddress,mdataA->mport, &mdataB->maddress,
-    	        mdataB->mport, IPPROTO_UDP, 0, 0)))
+    	        mdataB->mport, IPPROTO_UDP, 0, 0, 0)))
     	{
     	    _dpd.streamAPI->set_ignore_direction(ssn, SSN_DIR_BOTH);
     	}
@@ -414,21 +413,6 @@ static int SIP_ignoreChannels( SIP_DialogData *dialog, SFSnortPacket *p)
     	            PP_SIP, SSN_DIR_BOTH,
     	            0 /* Not permanent */ );
     	}
-#else
-    	if ((ssn = _dpd.streamAPI->get_session_ptr_from_ip_port((snort_ip_p)mdataA->maddress.ip.u6_addr32[0],
-    	        mdataA->mport, (snort_ip_p)mdataB->maddress.ip.u6_addr32[0], mdataB->mport, IPPROTO_UDP,0, 0)))
-    	{
-    	    _dpd.streamAPI->set_ignore_direction(ssn, SSN_DIR_BOTH);
-    	}
-    	else
-    	{
-    	    _dpd.streamAPI->ignore_session( (snort_ip_p)mdataA->maddress.ip.u6_addr32[0],
-    	            mdataA->mport, (snort_ip_p)mdataB->maddress.ip.u6_addr32[0],
-    	            mdataB->mport, IPPROTO_UDP, p->pkt_header->ts.tv_sec,
-    	            PP_SIP, SSN_DIR_BOTH,
-    	            0 /* Not permanent */ );
-    	}
-#endif
     	sip_stats.ignoreChannels++;
     	mdataA = mdataA->nextM;
     	mdataB = mdataB->nextM;

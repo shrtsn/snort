@@ -16,7 +16,7 @@
 **
 ** You should have received a copy of the GNU General Public License
 ** along with this program; if not, write to the Free Software
-** Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA 02111-1307, USA.
+** Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 */
 
 /* Snort ARPspoof Preprocessor Plugin
@@ -531,11 +531,7 @@ static IPMacEntry *LookupIPMacEntryByIP(IPMacEntryList *ip_mac_entry_list,
     IPMacEntryListNode *current;
 #if defined(DEBUG)
     char *cha, *chb;
-# ifndef SUP_IP6
-    struct in_addr ina, inb;
-# else
     snort_ip ina, inb;
-# endif
 #endif
 
     if (ip_mac_entry_list == NULL)
@@ -545,13 +541,8 @@ static IPMacEntry *LookupIPMacEntryByIP(IPMacEntryList *ip_mac_entry_list,
             current = current->next)
     {
 #if defined(DEBUG)
-# ifndef SUP_IP6
-        ina.s_addr = ipv4_addr;
-        inb.s_addr = current->ip_mac_entry->ipv4_addr;
-# else
         sfip_set_raw(&ina, &ipv4_addr, AF_INET);
         sfip_set_raw(&inb, &current->ip_mac_entry->ipv4_addr, AF_INET);
-# endif
         cha = strdup(inet_ntoa(IP_ARG(ina)));
         chb = strdup(inet_ntoa(IP_ARG(inb)));
 
@@ -645,11 +636,7 @@ static void PrintIPMacEntryList(IPMacEntryList *ip_mac_entry_list)
 {
     IPMacEntryListNode *current;
     int i;
-# ifndef SUP_IP6
-    struct in_addr in;
-# else
     snort_ip in;
-# endif
 
     if (ip_mac_entry_list == NULL)
         return;
@@ -659,11 +646,7 @@ static void PrintIPMacEntryList(IPMacEntryList *ip_mac_entry_list)
     printf("  Size: %i\n", ip_mac_entry_list->size);
     while (current != NULL)
     {
-# ifndef SUP_IP6
-        in.s_addr = current->ip_mac_entry->ipv4_addr;
-# else
         sfip_set_raw(&in, &current->ip_mac_entry->ipv4_addr, AF_INET);
-# endif
         printf("%s -> ", inet_ntoa(IP_ARG(in)));
         for (i = 0; i < 6; i++)
         {

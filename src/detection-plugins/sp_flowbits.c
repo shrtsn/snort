@@ -16,7 +16,7 @@
  **
  ** You should have received a copy of the GNU General Public License
  ** along with this program; if not, write to the Free Software
- ** Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA 02111-1307, USA.
+ ** Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
  *
  *
  *  Major rewrite: Hui Cao <hcao@sourcefire.com>
@@ -929,7 +929,7 @@ static inline int issetFlowbits(StreamFlowData *flowdata, uint8_t eval, uint16_t
         flowbits_grp = (FLOWBITS_GRP *)sfghash_find(flowbits_grp_hash, group);
         if( flowbits_grp == NULL )
             return 0;
-        for ( i = 0; i <= (flowbits_grp->max_id >>3) ; i++ )
+        for ( i = 0; i <= (unsigned int)(flowbits_grp->max_id >>3) ; i++ )
         {
             uint8_t val = flowdata->boFlowbits.pucBitBuffer[i] & flowbits_grp->GrpBitOp.pucBitBuffer[i];
             if (val != flowbits_grp->GrpBitOp.pucBitBuffer[i])
@@ -941,7 +941,7 @@ static inline int issetFlowbits(StreamFlowData *flowdata, uint8_t eval, uint16_t
         flowbits_grp = (FLOWBITS_GRP *)sfghash_find(flowbits_grp_hash, group);
         if( flowbits_grp == NULL )
             return 0;
-        for ( i = 0; i <= (flowbits_grp->max_id >>3) ; i++ )
+        for ( i = 0; i <= (unsigned int)(flowbits_grp->max_id >>3) ; i++ )
         {
             uint8_t val = flowdata->boFlowbits.pucBitBuffer[i] & flowbits_grp->GrpBitOp.pucBitBuffer[i];
             if (val)

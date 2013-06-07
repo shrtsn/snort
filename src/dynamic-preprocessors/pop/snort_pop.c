@@ -15,7 +15,7 @@
  *
  * You should have received a copy of the GNU General Public License
  * along with this program; if not, write to the Free Software
- * Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA 02111-1307, USA.
+ * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
  *
  ****************************************************************************/
 
@@ -64,7 +64,7 @@
 #include "ssl.h"
 #include "sfPolicy.h"
 #include "sfPolicyUserData.h"
-
+#include "file_api.h"
 #ifdef DEBUG_MSGS
 #include "sf_types.h"
 #endif
@@ -201,7 +201,8 @@ static void SetPopBuffers(POP *ssn)
                 ssn->decode_bkt = bkt;
                 SetEmailDecodeState(ssn->decode_state, bkt->data, pop_eval_config->max_depth,
                         pop_eval_config->b64_depth, pop_eval_config->qp_depth,
-                        pop_eval_config->uu_depth, pop_eval_config->bitenc_depth);
+                        pop_eval_config->uu_depth, pop_eval_config->bitenc_depth,
+                        pop_eval_config->file_depth);
             }
             else
             {
@@ -922,12 +923,12 @@ static const uint8_t * POP_HandleCommand(SFSnortPacket *p, const uint8_t *ptr, c
     return eol;
 }
 
-
 static const uint8_t * POP_HandleData(SFSnortPacket *p, const uint8_t *ptr, const uint8_t *end)
 {
     const uint8_t *data_end_marker = NULL;
     const uint8_t *data_end = NULL;
     int data_end_found;
+    FilePosition position = SNORT_FILE_START;
 
     /* if we've just entered the data state, check for a dot + end of line
      * if found, no data */
@@ -1011,6 +1012,7 @@ static const uint8_t * POP_HandleData(SFSnortPacket *p, const uint8_t *ptr, cons
 
     /* now we shouldn't have to worry about copying any data to the alt buffer
      * only mime headers if we find them and only if we're ignoring data */
+    initFilePosition(&position, _dpd.fileAPI->get_file_processed_size(p->stream_session_ptr));
 
     while ((ptr != NULL) && (ptr < data_end_marker))
     {
@@ -1018,7 +1020,12 @@ static const uint8_t * POP_HandleData(SFSnortPacket *p, const uint8_t *ptr, cons
          * Pipeline the MIME decoded data.*/
         if ( pop_ssn->state_flags & POP_FLAG_MULTIPLE_EMAIL_ATTACH)
         {
-            _dpd.setFileDataPtr(pop_ssn->decode_state->decodePtr, (uint16_t)pop_ssn->decode_state->decoded_bytes);
+            int detection_size = getDetectionSize(pop_eval_config->b64_depth, pop_eval_config->qp_depth,
+                    pop_eval_config->uu_depth, pop_eval_config->bitenc_depth,pop_ssn->decode_state );
+            _dpd.setFileDataPtr(pop_ssn->decode_state->decodePtr, (uint16_t)detection_size);
+            /*Download*/
+            _dpd.fileAPI->file_process(p,(uint8_t *)pop_ssn->decode_state->decodePtr,
+                    (uint16_t)pop_ssn->decode_state->decoded_bytes, position, 0);
             _dpd.detect(p);
             pop_ssn->state_flags &= ~POP_FLAG_MULTIPLE_EMAIL_ATTACH;
             ResetEmailDecodeState(pop_ssn->decode_state);
@@ -1033,10 +1040,12 @@ static const uint8_t * POP_HandleData(SFSnortPacket *p, const uint8_t *ptr, cons
             case STATE_MIME_HEADER:
                 DEBUG_WRAP(DebugMessage(DEBUG_POP, "MIME HEADER STATE ~~~~~~~~~~~~~~~~~~~~~~\n"););
                 ptr = POP_HandleHeader(p, ptr, data_end_marker);
+                finalFilePosition(&position);
                 break;
             case STATE_DATA_BODY:
                 DEBUG_WRAP(DebugMessage(DEBUG_POP, "DATA BODY STATE ~~~~~~~~~~~~~~~~~~~~~~~~\n"););
                 ptr = POP_HandleDataBody(p, ptr, data_end_marker);
+                updateFilePosition(&position, _dpd.fileAPI->get_file_processed_size(p->stream_session_ptr));
                 break;
         }
     }
@@ -1045,7 +1054,23 @@ static const uint8_t * POP_HandleData(SFSnortPacket *p, const uint8_t *ptr, cons
 
     if(pop_ssn->decode_state != NULL)
     {
-        _dpd.setFileDataPtr(pop_ssn->decode_state->decodePtr, (uint16_t)pop_ssn->decode_state->decoded_bytes);
+        if ((position == SNORT_FILE_START) || (position == SNORT_FILE_FULL))
+        {
+            int detection_size = getDetectionSize(pop_eval_config->b64_depth, pop_eval_config->qp_depth,
+                    pop_eval_config->uu_depth, pop_eval_config->bitenc_depth,pop_ssn->decode_state );
+            _dpd.setFileDataPtr(pop_ssn->decode_state->decodePtr, (uint16_t)detection_size);
+        }
+        else
+        {
+            _dpd.setFileDataPtr(pop_ssn->decode_state->decodePtr, 0);
+        }
+        if (data_end_marker != end)
+        {
+           finalFilePosition(&position);
+        }
+        /*Download*/
+        _dpd.fileAPI->file_process(p,(uint8_t *)pop_ssn->decode_state->decodePtr,
+                (uint16_t)pop_ssn->decode_state->decoded_bytes, position, 0);
         ResetDecodedBytes(pop_ssn->decode_state);
     }
 

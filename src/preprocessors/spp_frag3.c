@@ -24,7 +24,7 @@
  **
  ** You should have received a copy of the GNU General Public License
  ** along with this program; if not, write to the Free Software
- ** Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA 02111-1307, USA.
+ ** Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
  */
 
 /*
@@ -227,16 +227,9 @@ typedef struct _Frag3Frag
 
 typedef struct _fragkey
 {
-#ifdef SUP_IP6
     uint32_t   sip[4];
     uint32_t   dip[4];
     uint32_t   id;
-#else
-    uint32_t   sip;
-    uint32_t   dip;
-    uint16_t   id;           /* IP ID */
-    uint16_t   pad;
-#endif
     uint16_t   vlan_tag;
     uint8_t    proto;         /* IP protocol, unused for IPv6 */
     uint8_t    ipver;         /* Version */
@@ -244,7 +237,18 @@ typedef struct _fragkey
     uint32_t   mlabel;
     /* For 64 bit alignment since this is allocated in front of a FragTracker
      * and the structures are laid on top of that allocated memory */
+#ifdef HAVE_DAQ_ADDRESS_SPACE_ID
+    uint16_t   addressSpaceId;
+    uint16_t   addressSpaceIdPad1;
+#else
     uint32_t   mpad;
+#endif
+#else
+#ifdef HAVE_DAQ_ADDRESS_SPACE_ID
+    uint16_t   addressSpaceId;
+    uint16_t   addressSpaceIdPad1;
+    uint32_t   addressSpaceIdPad2;
+#endif
 #endif
 } FRAGKEY;
 
@@ -271,15 +275,9 @@ typedef struct _Frag3Config
 /* tracker for a fragmented packet set */
 typedef struct _FragTracker
 {
-#ifdef SUP_IP6
     uint32_t sip[4];
     uint32_t dip[4];
     uint32_t id;           /* IP ID */
-#else
-    uint32_t sip;          /* src IP */
-    uint32_t dip;          /* dst IP */
-    uint16_t id;           /* IP ID */
-#endif
     uint8_t protocol;      /* IP protocol */
     uint8_t ipver;         /* Version */
 
@@ -452,7 +450,6 @@ static void Frag3GlobalInit(char *);
 static void Frag3VerifyConfig(void);
 static void Frag3PostConfigInit(void *);
 
-#ifdef SUP_IP6
 char *FragIPToStr(uint32_t ip[4], uint8_t proto)
 {
     char *ret_str;
@@ -462,15 +459,6 @@ char *FragIPToStr(uint32_t ip[4], uint8_t proto)
     ret_str = sfip_to_str(&srcip);
     return ret_str;
 }
-#else
-char *FragIPToStr(uint32_t ip, uint8_t proto)
-{
-    struct in_addr srcip;
-    srcip.s_addr = ip;
-
-    return inet_ntoa(srcip);
-}
-#endif
 
 #ifdef DEBUG_FRAG3
 /**
@@ -523,6 +511,9 @@ static void PrintFragKey(FRAGKEY *fkey)
         LogMessage("  proto: 0x%X\n", fkey->proto);
 #ifdef MPLS
         LogMessage(" mlabel: 0x%08X\n", fkey->mlabel);
+#endif
+#ifdef HAVE_DAQ_ADDRESS_SPACE_ID
+        LogMessage(" addr id: %d\n", fkey->addressSpaceId);
 #endif
     }
 }
@@ -910,8 +901,10 @@ uint32_t Frag3KeyHashFunc(SFHASHFCN *p, unsigned char *d, int n)
 #ifdef MPLS
     uint32_t tmp = 0;
 #endif
+#ifdef HAVE_DAQ_ADDRESS_SPACE_ID
+    uint32_t tmp2 = 0;
+#endif
 
-#ifdef SUP_IP6
     a = *(uint32_t *)d;        /* IPv6 sip[0] */
     b = *(uint32_t *)(d+4);    /* IPv6 sip[1] */
     c = *(uint32_t *)(d+8);    /* IPv6 sip[2] */
@@ -928,14 +921,6 @@ uint32_t Frag3KeyHashFunc(SFHASHFCN *p, unsigned char *d, int n)
     mix(a,b,c);
 
     offset = 36;
-#else
-
-    a = *(uint32_t *)(d);      /* IPv4 sip */
-    b = *(uint32_t *)(d+4);    /* IPv4 dip */
-    c = *(uint32_t *)(d+8);    /* IPv6 id/pad */
-    mix(a,b,c);
-    offset = 12;
-#endif
 
     a += *(uint32_t *)(d+offset);  /* vlan, proto, ipver */
 #ifdef MPLS
@@ -944,7 +929,16 @@ uint32_t Frag3KeyHashFunc(SFHASHFCN *p, unsigned char *d, int n)
     {
         b += tmp;   /* mpls label */
     }
+    offset += 8;    /* skip past vlan/proto/ipver & mpls label */
+#else
+    offset += 4;    /* skip past vlan/proto/ipver */
 #endif
+
+#ifdef HAVE_DAQ_ADDRESS_SPACE_ID
+    tmp2 = *(uint32_t*)(d+offset); /* after offset that has been moved */
+    c += tmp2; /* address space id and 16bits of zero'd pad */
+#endif
+
     final(a,b,c);
 
     return c;
@@ -958,29 +952,81 @@ int Frag3KeyCmpFunc(const void *s1, const void *s2, size_t n)
     a = (uint64_t*)s1;
     b = (uint64_t*)s2;
     if (*a - *b) return 1;      /* Compares IPv4 sip/dip */
-                                /* SUP_IP6 Compares IPv6 sip[0,1] */
-#ifdef SUP_IP6
+                                /* Compares IPv6 sip[0,1] */
     a++;
     b++;
-    if (*a - *b) return 1;      /* SUP_IP6 Compares IPv6 sip[2,3] */
+    if (*a - *b) return 1;      /* Compares IPv6 sip[2,3] */
 
     a++;
     b++;
-    if (*a - *b) return 1;      /* SUP_IP6 Compares IPv6 dip[0,1] */
+    if (*a - *b) return 1;      /* Compares IPv6 dip[0,1] */
 
     a++;
     b++;
-    if (*a - *b) return 1;      /* SUP_IP6 Compares IPv6 dip[2,3] */
-#endif
+    if (*a - *b) return 1;      /* Compares IPv6 dip[2,3] */
 
     a++;
     b++;
     if (*a - *b) return 1;      /* Compares IPv4 id/pad, vlan/proto/ipver */
-                                /* SUP_IP6 Compares IPv6 id, vlan/proto/ipver */
+                                /* Compares IPv6 id, vlan/proto/ipver */
 
 #ifdef MPLS
     a++;
     b++;
+#ifdef HAVE_DAQ_ADDRESS_SPACE_ID
+    if (*a - *b) return 1;      /* Compares MPLS label, AddressSpace ID and 16bit pad */
+#else
+    {
+        uint32_t *x, *y;
+        x = (uint32_t *)a;
+        y = (uint32_t *)b;
+        //x++;
+        //y++;
+        if (*x - *y) return 1;  /* Compares mpls label, no pad */
+    }
+#endif
+#else
+#ifdef HAVE_DAQ_ADDRESS_SPACE_ID
+    a++;
+    b++;
+    {
+        uint16_t *x, *y;
+        x = (uint16_t *)a;
+        y = (uint16_t *)b;
+        //x++;
+        //y++;
+        if (*x - *y) return 1;  /* Compares addressSpaceID, no pad */
+    }
+#endif
+#endif
+
+#else /* SPARCV9 */
+    uint32_t *a,*b;
+
+    a = (uint32_t*)s1;
+    b = (uint32_t*)s2;
+    if ((*a - *b) || (*(a+1) - *(b+1))) return 1;       /* Compares IPv4 sip/dip */
+                                /* Compares IPv6 sip[0,1] */
+    a+=2;
+    b+=2;
+    if ((*a - *b) || (*(a+1) - *(b+1))) return 1;       /* Compares IPv6 sip[2,3] */
+
+    a+=2;
+    b+=2;
+    if ((*a - *b) || (*(a+1) - *(b+1))) return 1;       /* Compares IPv6 dip[0,1] */
+
+    a+=2;
+    b+=2;
+    if ((*a - *b) || (*(a+1) - *(b+1))) return 1;       /* Compares IPv6 dip[2,3] */
+
+    a+=2;
+    b+=2;
+    if ((*a - *b) || (*(a+1) - *(b+1))) return 1;       /* Compares IPv4 id/pad, vlan/proto/ipver */
+                                /* Compares IPv6 id, vlan/proto/ipver */
+
+#ifdef MPLS
+    a+=2;
+    b+=2;
     {
         uint32_t *x, *y;
         x = (uint32_t *)a;
@@ -990,43 +1036,21 @@ int Frag3KeyCmpFunc(const void *s1, const void *s2, size_t n)
         if (*x - *y) return 1;  /* Compares mpls label */
     }
 #endif
-
-#else /* SPARCV9 */
-    uint32_t *a,*b;
-
-    a = (uint32_t*)s1;
-    b = (uint32_t*)s2;
-    if ((*a - *b) || (*(a+1) - *(b+1))) return 1;       /* Compares IPv4 sip/dip */
-                                /* SUP_IP6 Compares IPv6 sip[0,1] */
-#ifdef SUP_IP6
-    a+=2;
-    b+=2;
-    if ((*a - *b) || (*(a+1) - *(b+1))) return 1;       /* SUP_IP6 Compares IPv6 sip[2,3] */
-
-    a+=2;
-    b+=2;
-    if ((*a - *b) || (*(a+1) - *(b+1))) return 1;       /* SUP_IP6 Compares IPv6 dip[0,1] */
-
-    a+=2;
-    b+=2;
-    if ((*a - *b) || (*(a+1) - *(b+1))) return 1;       /* SUP_IP6 Compares IPv6 dip[2,3] */
-#endif
-
-    a+=2;
-    b+=2;
-    if ((*a - *b) || (*(a+1) - *(b+1))) return 1;       /* Compares IPv4 id/pad, vlan/proto/ipver */
-                                /* SUP_IP6 Compares IPv6 id, vlan/proto/ipver */
-
+#ifdef HAVE_DAQ_ADDRESS_SPACE_ID
 #ifdef MPLS
+    a++;
+    b++;
+#else
     a+=2;
     b+=2;
+#endif
     {
-        uint32_t *x, *y;
-        x = (uint32_t *)a;
-        y = (uint32_t *)b;
+        uint16_t *x, *y;
+        x = (uint16_t *)a;
+        y = (uint16_t *)b;
         //x++;
         //y++;
-        if (*x - *y) return 1;  /* Compares mpls label */
+        if (*x - *y) return 1;  /* Compares addressSpaceID, no pad */
     }
 #endif
 #endif /* SPARCV9 */
@@ -1739,11 +1763,7 @@ static void Frag3Defrag(Packet *p, void *context)
                 continue;
 
             /* Does this engine context handle fragments to this IP address? */
-#ifdef SUP_IP6
             if(sfvar_ip_in(f3context->bound_addrs, GET_DST_ADDR(p)))
-#else
-                if(IpAddrSetContains(f3context->bound_addrs, GET_DST_ADDR(p)))
-#endif
                 {
                     DEBUG_WRAP(DebugMessage(DEBUG_FRAG,
                                             "[FRAG3] Found engine context in IpAddrSet\n"););
@@ -2064,7 +2084,6 @@ static int Frag3Expire(
     return FRAG_OK;
 }
 
-#ifdef SUP_IP6
 static inline void FragEvent(Packet *p, int gid, char *str,
                              int event_flag, int drop_flag)
 {
@@ -2083,7 +2102,6 @@ static inline void FragEvent(Packet *p, int gid, char *str,
     f3stats.alerts++;
     f3stats.anomalies++;
 }
-#endif
 
 /**
  * Check to see if we've got the first or last fragment on a FragTracker and
@@ -2099,11 +2117,8 @@ static inline int Frag3CheckFirstLast(Packet *p, FragTracker *ft, char timeout)
     uint16_t fragLength;
     int retVal = FRAG_FIRSTLAST_OK;
     uint16_t endOfThisFrag;
-#ifdef SUP_IP6
     char alerted = 0;
-#endif
 
-#ifdef SUP_IP6
     /* Migrated over from decode.c */
     if (IS_IP6(p))
     {
@@ -2155,7 +2170,6 @@ static inline int Frag3CheckFirstLast(Packet *p, FragTracker *ft, char timeout)
             }
         }
     }
-#endif
 
     /* set the frag flag if this is the first fragment */
     if(p->mf && p->frag_offset == 0)
@@ -2247,12 +2261,10 @@ static inline int Frag3CheckFirstLast(Packet *p, FragTracker *ft, char timeout)
         }
     }
 
-#ifdef SUP_IP6
     if (p->frag_offset != 0)
     {
         ft->frag_flags |= FRAG_NO_BSD_VULN;
     }
-#endif
 
     DEBUG_WRAP(DebugMessage(DEBUG_FRAG, "Frag Status: %s:%s\n",
                 ft->frag_flags&FRAG_GOT_FIRST?"FIRST":"No FIRST",
@@ -2277,7 +2289,6 @@ static FragTracker *Frag3GetTracker(Packet *p, FRAGKEY *fkey)
      * we have to setup the key first, downstream functions depend on
      * it being setup here
      */
-#ifdef SUP_IP6
     if (IS_IP4(p))
     {
         COPY4(fkey->sip, p->ip4h->ip_src.ip32);
@@ -2301,15 +2312,7 @@ static FragTracker *Frag3GetTracker(Packet *p, FRAGKEY *fkey)
         fkey->proto = 0;
         fkey->id = fragHdr->ip6f_ident;
     }
-#else
-    fkey->sip = p->iph->ip_src.s_addr;
-    fkey->dip = p->iph->ip_dst.s_addr;
-    fkey->id = GET_IPH_ID(p);
-    fkey->pad = 0;
-    fkey->ipver = 4;
-    fkey->proto = GET_IPH_PROTO(p);
-#endif
-    if (p->vh)
+    if (p->vh && !ScVlanAgnostic())
         fkey->vlan_tag = (uint16_t)VTH_VLAN(p->vh);
     else
         fkey->vlan_tag = 0;
@@ -2319,6 +2322,13 @@ static FragTracker *Frag3GetTracker(Packet *p, FRAGKEY *fkey)
         fkey->mlabel = p->mplsHdr.label;
     else
         fkey->mlabel = 0;
+#endif
+
+#ifdef HAVE_DAQ_ADDRESS_SPACE_ID
+    if (!ScAddressSpaceAgnostic())
+        fkey->addressSpaceId = DAQ_GetAddressSpaceID(p->pkth);
+    else
+        fkey->addressSpaceId = 0;
 #endif
 
     /*
@@ -2529,13 +2539,8 @@ static int Frag3NewTracker(Packet *p, FRAGKEY *fkey, Frag3Context *f3context)
     /*
      * setup the frag tracker
      */
-#ifdef SUP_IP6
     COPY4(tmp->sip,fkey->sip);
     COPY4(tmp->dip,fkey->dip);
-#else
-    tmp->sip = fkey->sip;
-    tmp->dip = fkey->dip;
-#endif
     tmp->id = fkey->id;
     if (IS_IP4(p))
     {
@@ -3111,7 +3116,6 @@ static int Frag3Insert(Packet *p, FragTracker *ft, FRAGKEY *fkey,
         //return FRAG_INSERT_TIMEOUT;
     }
 
-#ifdef SUP_IP6
     if (IS_IP6(p) && (p->frag_offset == 0))
     {
         IP6Frag *fragHdr = (IP6Frag *)p->ip6_extensions[p->ip6_frag_index].data;
@@ -3120,7 +3124,6 @@ static int Frag3Insert(Packet *p, FragTracker *ft, FRAGKEY *fkey,
             ft->protocol = fragHdr->ip6f_nxt;
         }
     }
-#endif
 
     /*
      * Check to see if this fragment is the first or last one and
@@ -3908,17 +3911,7 @@ static void Frag3Rebuild(FragTracker *ft, Packet *p)
     Packet* dpkt;
     PROFILE_VARS;
 
-#ifdef SUP_IP6
 // XXX NOT YET IMPLEMENTED - debugging
-#else
-    DEBUG_WRAP(DebugMessage(DEBUG_FRAG, "Rebuilding pkt [0x%X:%d  0x%X:%d]\n",
-                p->iph->ip_src.s_addr, p->sp,
-                p->iph->ip_dst.s_addr, p->dp);
-            DebugMessage(DEBUG_FRAG, "Calculated size: %d\n",
-                ft->calculated_size);
-            DebugMessage(DEBUG_FRAG, "Frag Bytes: %d\n", ft->frag_bytes);
-            );
-#endif
 
     PREPROC_PROFILE_START(frag3RebuildPerfStats);
 
@@ -4030,7 +4023,6 @@ static void Frag3Rebuild(FragTracker *ft, Packet *p)
 
         Encode_Update(dpkt);
     }
-#ifdef SUP_IP6
     else /* Inner/only is IP6 */
     {
         IP6RawHdr* rawHdr = (IP6RawHdr*)dpkt->raw_ip6h;
@@ -4060,7 +4052,6 @@ static void Frag3Rebuild(FragTracker *ft, Packet *p)
         dpkt->dsize = (uint16_t)ft->calculated_size;
         Encode_Update(dpkt);
     }
-#endif
 
     pc.rebuilt_frags++;
     sfBase.iFragFlushes++;
@@ -4504,12 +4495,7 @@ static void Frag3FreeConfig(Frag3Config *config)
         f3context = config->frag3ContextList[engineIndex];
         if (f3context->bound_addrs != NULL)
         {
-#ifdef SUP_IP6
             sfvar_free(f3context->bound_addrs);
-#else
-            IpAddrSetDestroy(f3context->bound_addrs);
-            free(f3context->bound_addrs);
-#endif
         }
 
         free(f3context);
@@ -4830,17 +4816,17 @@ int fragGetApplicationProtocolId(Packet *p)
     switch (GET_IPH_PROTO(p))
     {
         case IPPROTO_TCP:
-            ft->ipprotocol = FindProtocolReference("tcp");
+            ft->ipprotocol = protocolReferenceTCP;
             src_port = p->sp;
             dst_port = p->dp;
             break;
         case IPPROTO_UDP:
-            ft->ipprotocol = FindProtocolReference("udp");
+            ft->ipprotocol = protocolReferenceUDP;
             src_port = p->sp;
             dst_port = p->dp;
             break;
         case IPPROTO_ICMP:
-            ft->ipprotocol = FindProtocolReference("icmp");
+            ft->ipprotocol = protocolReferenceICMP;
             break;
     }
 

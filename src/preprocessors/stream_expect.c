@@ -17,7 +17,7 @@
 **
 ** You should have received a copy of the GNU General Public License
 ** along with this program; if not, write to the Free Software
-** Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA 02111-1307, USA.
+** Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 */
 
 /* stream_expect.c
@@ -175,14 +175,12 @@ int StreamExpectAddChannel(snort_ip_p cliIP, uint16_t cliPort,
     ExpectedSessionDataList *data_list;
     ExpectedSessionData *data;
     int reversed_key;
-#ifdef SUP_IP6
     SFIP_RET rval;
-#endif
 
     if (cliPort != UNKNOWN_PORT)
         srvPort = UNKNOWN_PORT;
 
-#if defined(DEBUG_MSGS) && defined(SUP_IP6)
+#if defined(DEBUG_MSGS)
     {
         char src_ip[INET6_ADDRSTRLEN];
         char dst_ip[INET6_ADDRSTRLEN];
@@ -201,7 +199,6 @@ int StreamExpectAddChannel(snort_ip_p cliIP, uint16_t cliPort,
     if ((cliPort == UNKNOWN_PORT) && (srvPort == UNKNOWN_PORT))
         return -1;
 
-#ifdef SUP_IP6
     if (cliIP->family == AF_INET)
     {
         if (!cliIP->ip.u6_addr32[0] || cliIP->ip.u6_addr32[0] == 0xFFFFFFFF ||
@@ -214,20 +211,9 @@ int StreamExpectAddChannel(snort_ip_p cliIP, uint16_t cliPort,
     {
         return -1;
     }
-#else
-    if (!cliIP || cliIP == 0xFFFFFFFF ||
-        !srvIP || srvIP == 0xFFFFFFFF)
-    {
-        return -1;
-    }
-#endif
 
-#ifdef SUP_IP6
     rval = sfip_compare(cliIP, srvIP);
     if (rval == SFIP_LESSER || (rval == SFIP_EQUAL && cliPort < srvPort))
-#else
-    if (cliIP < srvIP || (cliIP == srvIP && cliPort < srvPort))
-#endif
     {
         IP_COPY_VALUE(hashKey.ip1, cliIP);
         hashKey.port1 = cliPort;
@@ -420,9 +406,7 @@ int StreamExpectIsExpected(Packet *p, SFXHASH_NODE **expected_hash_node)
     SFXHASH_NODE *hash_node;
     ExpectHashKey hashKey;
     ExpectNode *node;
-#ifdef SUP_IP6
     SFIP_RET rval;
-#endif
     uint16_t port1;
     uint16_t port2;
     int reversed_key;
@@ -437,7 +421,7 @@ int StreamExpectIsExpected(Packet *p, SFXHASH_NODE **expected_hash_node)
     srcIP = GET_SRC_IP(p);
     dstIP = GET_DST_IP(p);
 
-#if defined(DEBUG_MSGS) && defined(SUP_IP6)
+#if defined(DEBUG_MSGS)
     {
         char src_ip[INET6_ADDRSTRLEN];
         char dst_ip[INET6_ADDRSTRLEN];
@@ -449,12 +433,8 @@ int StreamExpectIsExpected(Packet *p, SFXHASH_NODE **expected_hash_node)
     }
 #endif
 
-#ifdef SUP_IP6
     rval = sfip_compare(dstIP, srcIP);
     if (rval == SFIP_LESSER || (rval == SFIP_EQUAL && p->dp < p->sp))
-#else
-    if (dstIP < srcIP || (dstIP == srcIP && p->dp < p->sp))
-#endif
     {
         IP_COPY_VALUE(hashKey.ip1, dstIP);
         IP_COPY_VALUE(hashKey.ip2, srcIP);
@@ -572,7 +552,7 @@ char SteamExpectProcessNode(Packet *p, Stream5LWSession* lws, SFXHASH_NODE *expe
         lws->application_protocol = node->appId;
 #endif
 
-#if defined(DEBUG_MSGS) && defined(SUP_IP6)
+#if defined(DEBUG_MSGS)
     {
         snort_ip_p srcIP, dstIP;
         char src_ip[INET6_ADDRSTRLEN];

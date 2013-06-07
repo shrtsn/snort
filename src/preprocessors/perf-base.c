@@ -20,7 +20,7 @@
 **
 ** You should have received a copy of the GNU General Public License
 ** along with this program; if not, write to the Free Software
-** Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA 02111-1307, USA.
+** Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 **
 **  DESCRIPTION
 **    The following subroutines are concerned with getting
@@ -1382,11 +1382,9 @@ static const char* iNames[PERF_COUNT_MAX] = {
     "ip4::ttl",
     "ip4::opts",
     "icmp4::echo",
-#ifdef SUP_IP6
     "ip6::ttl",
     "ip6::opts",
     "icmp6::echo",
-#endif
     "tcp::syn_opt",
     "tcp::opt",
     "tcp::pad",

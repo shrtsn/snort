@@ -15,7 +15,7 @@
  *
  * You should have received a copy of the GNU General Public License
  * along with this program; if not, write to the Free Software
- * Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA 02111-1307, USA.
+ * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
  *
  ****************************************************************************/
  
@@ -93,20 +93,13 @@ char * mktcpflag_str(int flags)
  * 
  * @param ip ip in NETWORK BYTE ORDER
  */
-#ifndef SUP_IP6
-char *inet_ntoax(const struct in_addr ip_addr)
-#else
 char *inet_ntoax(sfip_t *ip)
-#endif
 {
     static char ip_buf1[INET6_ADDRSTRLEN];
     static char ip_buf2[INET6_ADDRSTRLEN];
     static int buf_num = 0;
     int buf_size = INET6_ADDRSTRLEN;
     char *ip_buf;
-#ifndef SUP_IP6
-    uint32_t ip = ip_addr.s_addr;
-#endif
 
     if (buf_num)
         ip_buf = ip_buf2;
@@ -116,11 +109,7 @@ char *inet_ntoax(sfip_t *ip)
     buf_num ^= 1;
     ip_buf[0] = 0;
 
-#ifndef SUP_IP6
-    SnortSnprintf(ip_buf, buf_size, "%s", inet_ntoa(*((struct in_addr *)&ip)));
-#else
     SnortSnprintf(ip_buf, buf_size, "%s", inet_ntoa(ip));
-#endif
 
     return ip_buf;    
 }

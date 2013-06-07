@@ -15,7 +15,7 @@
  *
  * You should have received a copy of the GNU General Public License
  * along with this program; if not, write to the Free Software
- * Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA 02111-1307, USA.
+ * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
  *
  ****************************************************************************/
 
@@ -72,11 +72,7 @@ static void serverConfFree(void *pData);
 */
 int hi_ui_server_lookup_init(SERVER_LOOKUP **ServerLookup)
 {
-#ifdef SUP_IP6
     *ServerLookup =  sfrt_new(DIR_16_4x4_16x5_4x4, IPv6, HI_UI_CONFIG_MAX_SERVERS, 20);
-#else
-    *ServerLookup =  sfrt_new(DIR_16x2, IPv4, HI_UI_CONFIG_MAX_SERVERS, 20);
-#endif
     if(*ServerLookup == NULL)
     {
         return HI_MEM_ALLOC_FAIL;
@@ -119,11 +115,7 @@ int hi_ui_server_lookup_add(SERVER_LOOKUP *ServerLookup, sfip_t *Ip,
         return HI_INVALID_ARG;
     }
 
-#ifdef SUP_IP6
     iRet = sfrt_insert((void *)Ip, (unsigned char)Ip->bits, (void *)ServerConf, RT_FAVOR_SPECIFIC, ServerLookup);
-#else
-    iRet = sfrt_insert((void *)&(Ip->ip.u6_addr32[0]), (unsigned char)Ip->bits, (void *)ServerConf, RT_FAVOR_SPECIFIC, ServerLookup);
-#endif
     if (iRet)
     {
         return HI_MEM_ALLOC_FAIL;
@@ -170,11 +162,7 @@ HTTPINSPECT_CONF  *hi_ui_server_lookup_find(SERVER_LOOKUP *ServerLookup,
 
     *iError = HI_SUCCESS;
 
-#ifdef SUP_IP6
     ServerConf = (HTTPINSPECT_CONF *)sfrt_lookup((void *)Ip, ServerLookup);
-#else
-    ServerConf = (HTTPINSPECT_CONF *)sfrt_lookup((void *)&Ip, ServerLookup);
-#endif
     if (!ServerConf)
     {
         *iError = HI_NOT_FOUND;

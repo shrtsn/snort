@@ -15,7 +15,7 @@
  **
  ** You should have received a copy of the GNU General Public License
  ** along with this program; if not, write to the Free Software
- ** Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA 02111-1307, USA.
+ ** Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
  **
  ** 9/7/2011 - Initial implementation ... Hui Cao <hcao@sourcefire.com>
  **
@@ -66,9 +66,7 @@ typedef struct {
     uint32_t allocated;
     INFO data; /* data table. Each IP points to an entry here */
     TABLE_PTR rt; /* Actual "routing" table */
-#ifdef SUP_IP6
     TABLE_PTR rt6; /* Actual "routing" table */
-#endif
     TABLE_PTR list_info; /* List file information table (entry information)*/
 
 } table_flat_t;
@@ -92,16 +90,11 @@ static inline GENERIC sfrt_flat_dir8x_lookup(void *adr, table_flat_t* table) {
     DIR_Entry *entry;
     uint8_t *base = (uint8_t *) table;
     int i;
-#ifdef SUP_IP6
     sfip_t *ip;
-#else
-    uint8_t *ip;
-#endif
     dir_table_flat_t *rt = NULL;
     int index;
     INFO *data = (INFO *) (&base[table->data]);
 
-#ifdef SUP_IP6
     ip = adr;
     if (ip->family == AF_INET)
     {
@@ -175,27 +168,6 @@ static inline GENERIC sfrt_flat_dir8x_lookup(void *adr, table_flat_t* table) {
             subtable = (dir_sub_table_flat_t *)(&base[entry[index].value]);
         }
     }
-#else
-    /* IPv6 not yet supported */
-    if (table->ip_type == IPv6) {
-        return NULL;
-    }
-    ip = (uint8_t*) adr;
-    rt = (dir_table_flat_t *) (&base[table->rt]);
-    subtable = (dir_sub_table_flat_t *) (&base[rt->sub_table]);
-    for (i = 0; i < 4; i++) {
-        index = ip[i];
-        entry = (DIR_Entry *) (&base[subtable->entries]);
-        if (!entry[index].value || entry[index].length)
-        {
-            if (data[entry[index].value])
-                return (GENERIC) &base[data[entry[index].value]];
-            else
-                return NULL;
-        }
-        subtable = (dir_sub_table_flat_t *) (&base[entry[index].value]);
-    }
-#endif
 return NULL;
 
 }

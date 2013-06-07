@@ -28,7 +28,7 @@
 **
 ** You should have received a copy of the GNU General Public License
 ** along with this program; if not, write to the Free Software
-** Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA 02111-1307, USA.
+** Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 **
 **  DESCRIPTION
 **    The following subroutines track eand analyze the traffic flow
@@ -691,12 +691,7 @@ static int DisplayFlowIPStats(SFFLOW *sfFlow)
     SFXHASH_NODE *node;
     sfSFSKey *key;
     sfSFSValue *stats;
-#ifdef SUP_IP6
     char ipA[41], ipB[41];
-#else
-    char ipA[17], ipB[17];
-    struct in_addr tmp_addr;
-#endif
     uint64_t total = 0;
 
     LogMessage("\n");
@@ -709,15 +704,8 @@ static int DisplayFlowIPStats(SFFLOW *sfFlow)
         stats = (sfSFSValue *) node->data;
         if (!stats->total_packets)
             continue;
-#ifdef SUP_IP6
         sfip_raw_ntop(key->ipA.family, key->ipA.ip32, ipA, sizeof(ipA));
         sfip_raw_ntop(key->ipB.family, key->ipB.ip32, ipB, sizeof(ipB));
-#else
-        tmp_addr.s_addr = key->ipA;
-        SnortStrncpy(ipA, inet_ntoa(tmp_addr), sizeof(ipA));
-        tmp_addr.s_addr = key->ipB;
-        SnortStrncpy(ipB, inet_ntoa(tmp_addr), sizeof(ipB));
-#endif
         LogMessage("[%s <-> %s]: " STDu64 " bytes in " STDu64 " packets (%u, %u, %u)\n", ipA, ipB,
                 stats->total_bytes, stats->total_packets, stats->stateChanges[SFS_STATE_TCP_ESTABLISHED],
                 stats->stateChanges[SFS_STATE_TCP_CLOSED], stats->stateChanges[SFS_STATE_UDP_CREATED]);
@@ -733,12 +721,7 @@ static int WriteFlowIPStats(SFFLOW *sfFlow, FILE *fp)
     SFXHASH_NODE *node;
     sfSFSKey *key;
     sfSFSValue *stats;
-#ifdef SUP_IP6
     char ipA[41], ipB[41];
-#else
-    char ipA[17], ipB[17];
-    struct in_addr tmp_addr;
-#endif
 
     if (!fp)
         return 1;
@@ -750,15 +733,8 @@ static int WriteFlowIPStats(SFFLOW *sfFlow, FILE *fp)
         stats = (sfSFSValue *) node->data;
         if (!stats->total_packets)
             continue;
-#ifdef SUP_IP6
         sfip_raw_ntop(key->ipA.family, key->ipA.ip32, ipA, sizeof(ipA));
         sfip_raw_ntop(key->ipB.family, key->ipB.ip32, ipB, sizeof(ipB));
-#else
-        tmp_addr.s_addr = key->ipA;
-        SnortStrncpy(ipA, inet_ntoa(tmp_addr), sizeof(ipA));
-        tmp_addr.s_addr = key->ipB;
-        SnortStrncpy(ipB, inet_ntoa(tmp_addr), sizeof(ipB));
-#endif
         fprintf(fp, "%s,%s," CSVu64 CSVu64 CSVu64 CSVu64 CSVu64 CSVu64 CSVu64
                 CSVu64 CSVu64 CSVu64 CSVu64 CSVu64 "%u,%u,%u\n",
                 ipA, ipB,

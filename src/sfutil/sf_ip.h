@@ -18,7 +18,7 @@
 **
 ** You should have received a copy of the GNU General Public License
 ** along with this program; if not, write to the Free Software
-** Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA 02111-1307, USA.
+** Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 */
 
 /*
@@ -449,7 +449,6 @@ static inline int sfip_fast_equals_raw(sfip_t *ip1, sfip_t *ip2)
  *  0  otherwise
  *
  ********************************************************************/
-#ifdef SUP_IP6
 static inline int sfip_is_private(sfip_t *ip)
 {
     unsigned int *p;
@@ -493,26 +492,6 @@ static inline int sfip_is_private(sfip_t *ip)
     return 0;
 
 }
-#else
-static inline int sfip_is_private(uint32_t ip)
-{
-
-    /* Loopback traffic  - don't use htonl for speed reasons -
-     * s_addr is always in network order */
-#ifdef WORDS_BIGENDIAN
-
-    return( ((ip >> 24) == 10)
-            ||(((ip >> 24) == 172) && (((ip >> 16) & 0xf0 ) == 16))
-            ||((ip >> 16)  == 0xc0a8) );
-#else
-
-    return( ((ip & 0xff) == 10)
-            ||(((ip & 0xff) == 172) && (((ip >> 8) & 0xf0 ) == 16))
-            ||((ip & 0xffff)  == 0xa8c0) );
-
-#endif
-}
-#endif
 
 #define sfip_equals(x,y) (sfip_compare(&x, &y) == SFIP_EQUAL)
 #define sfip_not_equals !sfip_equals

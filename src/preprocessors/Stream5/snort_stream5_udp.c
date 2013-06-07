@@ -15,7 +15,7 @@
  *
  * You should have received a copy of the GNU General Public License
  * along with this program; if not, write to the Free Software
- * Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA 02111-1307, USA.
+ * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
  *
  ****************************************************************************/
 
@@ -441,22 +441,7 @@ int Stream5ProcessUdp(Packet *p, Stream5LWSession *lwssn,
 {
     SFXHASH_NODE *hash_node = NULL;
 
-#ifdef SUP_IP6
 // XXX-IPv6 Stream5ProcessUDP debugging
-#else
-    DEBUG_WRAP(
-            DebugMessage((DEBUG_STREAM|DEBUG_STREAM_STATE),
-                "Got UDP Packet 0x%X:%d ->  0x%X:%d\n  "
-                "dsize: %u\n"
-                "active sessions: %u\n",
-                p->iph->ip_src.s_addr,
-                p->sp,
-                p->iph->ip_dst.s_addr,
-                p->dp,
-                p->dsize,
-                sfxhash_count(udp_lws_cache->hashTable));
-            );
-#endif
 
     if (s5UdpPolicy == NULL)
     {
@@ -473,11 +458,7 @@ int Stream5ProcessUdp(Packet *p, Stream5LWSession *lwssn,
             /*
              * Does this policy handle packets to this IP address?
              */
-#ifdef SUP_IP6
             if(sfvar_ip_in(s5UdpPolicy->bound_addrs, GET_DST_IP(p)))
-#else
-            if(IpAddrSetContains(s5UdpPolicy->bound_addrs, GET_DST_ADDR(p)))
-#endif
             {
                 DEBUG_WRAP(DebugMessage(DEBUG_STREAM,
                                         "[Stream5] Found udp policy in IpAddrSet\n"););
@@ -696,7 +677,6 @@ void UdpUpdateDirection(Stream5LWSession *ssn, char dir,
     snort_ip tmpIp;
     uint16_t tmpPort;
 
-#ifdef SUP_IP6
     if (IP_EQUALITY(&udpssn->udp_sender_ip, ip) && (udpssn->udp_sender_port == port))
     {
         if ((dir == SSN_DIR_SENDER) && (ssn->direction == SSN_DIR_SENDER))
@@ -713,24 +693,6 @@ void UdpUpdateDirection(Stream5LWSession *ssn, char dir,
             return;
         }
     }
-#else
-    if (IP_EQUALITY(udpssn->udp_sender_ip, ip) && (udpssn->udp_sender_port == port))
-    {
-        if ((dir == SSN_DIR_SENDER) && (ssn->direction == SSN_DIR_SENDER))
-        {
-            /* Direction already set as SENDER */
-            return;
-        }
-    }
-    else if (IP_EQUALITY(udpssn->udp_responder_ip, ip) && (udpssn->udp_responder_port == port))
-    {
-        if ((dir == SSN_DIR_RESPONDER) && (ssn->direction == SSN_DIR_RESPONDER))
-        {
-            /* Direction already set as RESPONDER */
-            return;
-        }
-    }
-#endif
 
     /* Swap them -- leave ssn->direction the same */
     tmpIp = udpssn->udp_sender_ip;
@@ -820,14 +782,7 @@ void Stream5UdpConfigFree(Stream5UdpConfig *config)
         Stream5UdpPolicy *policy = config->policy_list[i];
 
         if (policy->bound_addrs != NULL)
-#ifdef SUP_IP6
             sfvar_free(policy->bound_addrs);
-#else
-        {
-            IpAddrSetDestroy(policy->bound_addrs);
-            free(policy->bound_addrs);
-        }
-#endif
         free(policy);
     }
 

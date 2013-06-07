@@ -15,7 +15,7 @@
  *
  * You should have received a copy of the GNU General Public License
  * along with this program; if not, write to the Free Software
- * Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA 02111-1307, USA.
+ * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
  *
  ****************************************************************************/
 
@@ -77,7 +77,7 @@
 #include "snort_stream5_session.h"
 #include "sfPolicy.h"
 #include "mempool.h"
-
+#include "file_api.h"
 /*
 **  Defines for preprocessor initialization
 */
@@ -725,6 +725,37 @@ static void HttpInspectRegisterXtraDataFuncs(HTTPINSPECT_GLOBAL_CONF *pPolicyCon
 #endif
     
 }
+
+static void updateExtractSize (HTTPINSPECT_CONF *ServerConf)
+{
+    /*Either one is unlimited*/
+    int64_t fileDepth = file_api->get_max_file_depth();
+
+    /*Config file policy*/
+    if (fileDepth > -1)
+    {
+        ServerConf->inspect_response = 1;
+        ServerConf->extract_gzip = 1;
+        ServerConf->log_uri = 1;
+        ServerConf->unlimited_decompress = 1;
+    }
+
+    if (!fileDepth || (!ServerConf->server_flow_depth))
+        ServerConf->server_extract_size = 0;
+    else if (ServerConf->server_flow_depth > fileDepth)
+        ServerConf->server_extract_size = ServerConf->server_flow_depth;
+    else
+        ServerConf->server_extract_size = fileDepth;
+
+    if (!fileDepth || (!ServerConf->post_depth))
+        ServerConf->post_extract_size = 0;
+    else if (ServerConf->post_depth > fileDepth)
+        ServerConf->post_extract_size = ServerConf->post_depth;
+    else
+        ServerConf->post_extract_size = fileDepth;
+
+}
+
 static int HttpInspectVerifyPolicy(tSfPolicyUserContextId config,
         tSfPolicyId policyId, void* pData)
 {
@@ -751,8 +782,8 @@ static int HttpInspectVerifyPolicy(tSfPolicyUserContextId config,
 #ifdef TARGET_BASED
     HttpInspectAddServicesOfInterest(policyId);
 #endif
+    updateExtractSize(pPolicyConfig->global_server);
     HttpInspectAddPortsOfInterest(pPolicyConfig, policyId);
-
     return 0;
 }
 
@@ -789,7 +820,8 @@ static void addServerConfPortsToStream5(void *pData)
             if (pConf->ports[i/8] & (1 << (i % 8) ))
             {
                 bool client = (pConf->client_flow_depth > -1);
-                bool server = (pConf->server_flow_depth > -1);
+                bool server = (pConf->server_extract_size > -1);
+                int64_t fileDepth = file_api->get_max_file_depth();
 
                 //Add port the port
                 stream_api->set_port_filter_status
@@ -800,7 +832,10 @@ static void addServerConfPortsToStream5(void *pData)
                 // as is, we enable paf for all http servers if any server
                 // has a flow depth enabled (per direction).  still, if eg
                 // all server_flow_depths are -1, we will only enable client.
-                hi_paf_register((uint16_t)i, client, server, httpCurrentPolicy);
+                if (fileDepth > 0)
+                    hi_paf_register((uint16_t)i, client, server, httpCurrentPolicy, true);
+                else
+                    hi_paf_register((uint16_t)i, client, server, httpCurrentPolicy, false);
             }
         }
     }
@@ -1353,6 +1388,9 @@ static int HttpInspectReloadVerify(void)
     sfPolicyUserDataIterate (hi_swap_config, HttpInspectVerifyPolicy);
     defaultConfig = (HTTPINSPECT_GLOBAL_CONF *)sfPolicyUserDataGetDefault(hi_config);
     defaultSwapConfig = (HTTPINSPECT_GLOBAL_CONF *)sfPolicyUserDataGetDefault(hi_swap_config);
+
+    if (!defaultConfig)
+        return 0;
 
 #ifdef ZLIB
     {

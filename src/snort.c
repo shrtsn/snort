@@ -16,7 +16,7 @@
 **
 ** You should have received a copy of the GNU General Public License
 ** along with this program; if not, write to the Free Software
-** Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA 02111-1307, USA.
+** Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 */
 
 /*
@@ -125,6 +125,7 @@
 #include "detection_util.h"
 #include "sfcontrol_funcs.h"
 #include "idle_processing_funcs.h"
+#include "file_service.h"
 
 #ifdef DYNAMIC_PLUGIN
 # include "dynamic-plugins/sf_dynamic_engine.h"
@@ -137,7 +138,6 @@
 #ifdef TARGET_BASED
 # include "target-based/sftarget_reader.h"
 #endif
-#include "sftarget_reader_live.h"
 
 #ifdef EXIT_CHECK
 # include "cpuclock.h"
@@ -875,19 +875,12 @@ static void PrintAllInterfaces (void)
         if (dev->addresses)
         {
             struct sockaddr_in* saddr = (struct sockaddr_in*)dev->addresses->addr;
-#ifdef SUP_IP6
             sfip_t dev_ip;
             if ((saddr->sin_family == AF_INET) || (saddr->sin_family == AF_INET6))
             {
                 sfip_set_raw(&dev_ip, &saddr->sin_addr, saddr->sin_family);
                 printf("%s\t", inet_ntoa(&dev_ip));
             }
-#else
-            if (saddr->sin_family == AF_INET)
-            {
-                printf("%s\t", inet_ntoa(saddr->sin_addr));
-            }
-#endif
             else
             {
                 printf("disabled\t");
@@ -1396,8 +1389,8 @@ static void ExitCheckEnd (void)
 static int MetaCallback(
     void* user, const DAQ_MetaHdr_t *metahdr, const uint8_t* data)
 {
-    tSfPolicyId policy_id = getRuntimePolicy();
-    SnortPolicy *policy = snort_conf->targeted_policies[policy_id];
+    tSfPolicyId policy_id = getDefaultPolicy();
+    SnortPolicy *policy;
     PreprocMetaEvalFuncNode *idx;
     PROFILE_VARS;
 
@@ -1414,6 +1407,7 @@ static int MetaCallback(
 
     PREPROC_PROFILE_START(metaPerfStats);
 
+    policy = snort_conf->targeted_policies[policy_id];
     idx = policy->preproc_meta_eval_funcs;
     while (idx != NULL)
     {
@@ -1501,10 +1495,6 @@ static DAQ_Verdict PacketCallback(
     }
 #endif
 
-#ifndef SUP_IP6
-    BsdPseudoPacket = NULL;
-#endif
-
     verdict = ProcessPacket(&p, pkthdr, pkt, NULL);
 
 #ifdef ACTIVE_RESPONSE
@@ -1545,7 +1535,13 @@ static DAQ_Verdict PacketCallback(
             if ((p.packet_flags & PKT_IGNORE_PORT) ||
                 (stream_api && (stream_api->get_ignore_direction(p.ssnptr) == SSN_DIR_BOTH)))
             {
-                verdict = DAQ_VERDICT_WHITELIST;
+                if ( !Active_GetTunnelBypass() )
+                    verdict = DAQ_VERDICT_WHITELIST;
+                else
+                {
+                    verdict = DAQ_VERDICT_PASS;
+                    pc.internal_whitelist++;
+                }
             }
             else
             {
@@ -1651,7 +1647,14 @@ DAQ_Verdict ProcessPacket(
 
     if ( Active_SessionWasDropped() )
     {
-        Active_DropAction(p);
+        if ( !Active_PacketForceDropped() )
+            Active_DropAction(p);
+
+        if ( Active_GetTunnelBypass() )
+        {
+            pc.internal_blacklist++;
+            return verdict;
+        }
 
         if ( ScInlineMode() || Active_PacketForceDropped() )
             verdict = DAQ_VERDICT_BLACKLIST;
@@ -3005,9 +3008,6 @@ static void SnortReset(void)
 
     sfthreshold_reset_active();
     RateFilter_ResetActive();
-#ifndef SUP_IP6
-    BsdFragHashReset();
-#endif
     TagCacheReset();
 
 #ifdef PERF_PROFILING
@@ -3343,17 +3343,11 @@ static void SnortCleanup(int exit_val)
     Encode_Term();
 #endif
 
-#ifndef SUP_IP6
-    BsdFragHashCleanup();
-#endif
 
     CleanupProtoNames();
 
 #ifdef TARGET_BASED
     SFAT_Cleanup();
-#ifdef SUP_IP6
-    SFLAT_fini();
-#endif
 #endif
 
     PQ_CleanUp();
@@ -3516,6 +3510,7 @@ static void SnortCleanup(int exit_val)
 
     if (snort_conf_dir != NULL)
         free(snort_conf_dir);
+
 }
 
 void Restart(void)
@@ -3913,11 +3908,13 @@ void SnortConfFree(SnortConfig *sc)
         free(sc->eth_dst);
 #endif
 
-     if (sc->gtp_ports)
+    if (sc->gtp_ports)
         free(sc->gtp_ports);
 
-     if(sc->cs_dir)
+    if(sc->cs_dir)
         free(sc->cs_dir);
+
+    FreeFileConfig(sc->file_config);
     free(sc);
 }
 
@@ -4074,6 +4071,9 @@ static void FreePreprocessors(SnortConfig *sc)
         p->preproc_eval_funcs = NULL;
         p->num_preprocs = 0;
 
+        FreePreprocEvalFuncs(p->unused_preproc_eval_funcs);
+        p->unused_preproc_eval_funcs = NULL;
+
         FreePreprocMetaEvalFuncs(p->preproc_meta_eval_funcs);
         p->preproc_meta_eval_funcs = NULL;
         p->num_meta_preprocs = 0;
@@ -4194,25 +4194,11 @@ static SnortConfig * MergeSnortConfs(SnortConfig *cmd_line, SnortConfig *config_
     if (cmd_line->fast_pattern_config != NULL)
         config_file->fast_pattern_config->search_method = cmd_line->fast_pattern_config->search_method;
 
-#ifdef SUP_IP6
     if (cmd_line->obfuscation_net.family != 0)
         memcpy(&config_file->obfuscation_net, &cmd_line->obfuscation_net, sizeof(sfip_t));
 
     if (cmd_line->homenet.family != 0)
         memcpy(&config_file->homenet, &cmd_line->homenet, sizeof(sfip_t));
-#else
-    if (cmd_line->obfuscation_mask != 0)
-    {
-        config_file->obfuscation_mask = cmd_line->obfuscation_mask;
-        config_file->obfuscation_net = cmd_line->obfuscation_net;
-    }
-
-    if (cmd_line->netmask != 0)
-    {
-        config_file->netmask = cmd_line->netmask;
-        config_file->homenet = cmd_line->homenet;
-    }
-#endif
 
     if (cmd_line->interface != NULL)
     {
@@ -4281,14 +4267,20 @@ static SnortConfig * MergeSnortConfs(SnortConfig *cmd_line, SnortConfig *config_
 
     if ( cmd_line->daq_vars )
     {
-        if ( !config_file->daq_vars )
-            config_file->daq_vars = StringVector_New();
+        /* Command line overwrites daq_vars */
+        if (config_file->daq_vars)
+            StringVector_Delete(config_file->daq_vars);
+
+        config_file->daq_vars = StringVector_New();
         StringVector_AddVector(config_file->daq_vars, cmd_line->daq_vars);
     }
     if ( cmd_line->daq_dirs )
     {
-        if ( !config_file->daq_dirs )
-            config_file->daq_dirs = StringVector_New();
+        /* Command line overwrites daq_dirs */
+        if (config_file->daq_dirs)
+            StringVector_Delete(config_file->daq_dirs);
+
+        config_file->daq_dirs = StringVector_New();
         StringVector_AddVector(config_file->daq_dirs, cmd_line->daq_dirs);
     }
 #ifdef MPLS
@@ -4507,7 +4499,7 @@ static void SnortInit(int argc, char **argv)
         DumpOutputPlugins();
 #endif
     }
-
+    FileAPIInit();
     /* if we're using the rules system, it gets initialized here */
     if (snort_conf_file != NULL)
     {
@@ -4573,12 +4565,6 @@ static void SnortInit(int argc, char **argv)
                 file_name = saved_file_name;
                 file_line = saved_file_line;
             }
-
-            /**Live host updates is initialized even if adaptive policy is turned off.
-             */
-#ifdef SUP_IP6
-            SFLAT_init();
-#endif
         }
 #endif
 
@@ -4625,9 +4611,6 @@ static void SnortInit(int argc, char **argv)
 
         LogMessage("Tagged Packet Limit: %ld\n", snort_conf->tagged_packet_limit);
 
-#ifndef SUP_IP6
-        BsdFragHashInit(ScIpv6MaxFragSessions());
-#endif
 
         /* Handles Fatal Errors itself. */
         SnortEventqNew(snort_conf->event_queue_config, snort_conf->event_queue);
@@ -4639,9 +4622,6 @@ static void SnortInit(int argc, char **argv)
          * configuration */
         SnortConfig* sc = ParseSnortConf();
         snort_conf = MergeSnortConfs(snort_cmd_line_conf, sc);
-#ifndef SUP_IP6
-        BsdFragHashInit(ScIpv6MaxFragSessions());
-#endif
         InitTag();
         SnortEventqNew(snort_conf->event_queue_config, snort_conf->event_queue);
     }
@@ -4742,6 +4722,9 @@ static void SnortInit(int argc, char **argv)
 
         /* Verify the preprocessors are configured properly */
         CheckPreprocessorsConfig(snort_conf);
+
+        /* Remove disabled preprocessors if policies are disabled  */
+        FilterConfigPreprocessors(snort_conf);
 
         /* Need to do this after dynamic detection stuff is initialized, too */
         FlowBitsVerify();
@@ -5239,6 +5222,7 @@ static SnortConfig * ReloadConfig(void)
     }
 
     CheckPreprocessorsConfig(sc);
+    FilterConfigPreprocessors(sc);
     PostConfigPreprocessors(sc);
 
     /* Need to do this after dynamic detection stuff is initialized, too */

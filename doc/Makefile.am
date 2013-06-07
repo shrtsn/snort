@@ -28,6 +28,7 @@ README.decoder_preproc_rules \
 README.dnp3 \
 README.dns \
 README.event_queue \
+README.file \
 README.filters \
 README.flowbits \
 README.frag3 \

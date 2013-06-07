@@ -14,7 +14,7 @@
  *
  * You should have received a copy of the GNU General Public License
  * along with this program; if not, write to the Free Software
- * Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA 02111-1307, USA.
+ * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
  *
  * Copyright (C) 2005-2012 Sourcefire, Inc.
  *
@@ -457,6 +457,11 @@ ENGINE_LINKAGE void setAltDetect(uint8_t *buf, uint16_t altLen);
 
 ENGINE_LINKAGE int pcreExecWrapper(const PCREInfo *pcre_info, const char *buf, int len, int start_offset,
                                     int options, int *ovector, int ovecsize);
+
+static inline int invertMatchResult(int retVal)
+{
+    return (retVal <= RULE_NOMATCH) ? RULE_MATCH : RULE_NOMATCH;
+}
 
 #endif /* SF_SNORT_PLUGIN_API_H_ */
 

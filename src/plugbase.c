@@ -16,7 +16,7 @@
 **
 ** You should have received a copy of the GNU General Public License
 ** along with this program; if not, write to the Free Software
-** Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA 02111-1307, USA.
+** Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 */
 
 #ifdef HAVE_CONFIG_H
@@ -1081,6 +1081,47 @@ void PostConfigPreprocessors(SnortConfig *sc)
     snort_conf_for_parsing = NULL;
 }
 
+void FilterConfigPreprocessors(SnortConfig *sc)
+{
+    tSfPolicyId policy_id;
+    SnortPolicy *p;
+    PreprocEvalFuncNode *node;
+    PreprocEvalFuncNode **list;
+    PreprocEvalFuncNode **free_list;
+
+    if (sc == NULL)
+    {
+        ParseError("%s(%d) Snort config is NULL.\n",
+                   __FILE__, __LINE__);
+    }
+
+    if (!sc->disable_all_policies)
+        return;
+
+    policy_id = getParserPolicy();
+    p = sc->targeted_policies[policy_id];
+    if (p == NULL)
+        return;
+
+    list = &p->preproc_eval_funcs;
+    free_list = &p->unused_preproc_eval_funcs;
+
+    while ((node = *list) != NULL)
+    {
+        if (node->preproc_bit & sc->reenabled_preprocessor_bits)
+        {
+            list = &node->next;
+        }
+        else
+        {
+            *list = node->next;
+            node->next = NULL;
+            *free_list = node;
+            free_list = &node->next;
+        }
+    }
+}
+
 #ifdef SNORT_RELOAD
 void SwapPreprocConfigurations(void)
 {
@@ -1472,6 +1513,26 @@ int VerifyReloadedPreprocessors(SnortConfig *sc)
 }
 #endif
 
+void DisableAllPolicies(void)
+{
+    SnortConfig *sc = snort_conf_for_parsing;
+
+    if (!sc->disable_all_policies)
+    {
+        sc->disable_all_policies = 1;
+        sc->reenabled_preprocessor_bits = (1 << PP_FRAG3);
+        sc->reenabled_preprocessor_bits |= (1 << PP_STREAM5);
+        sc->reenabled_preprocessor_bits |= (1 << PP_PERFMONITOR);
+    }
+}
+
+int ReenablePreprocBit(unsigned int preproc_id)
+{
+    SnortConfig *sc = snort_conf_for_parsing;
+
+    sc->reenabled_preprocessor_bits |= (1 << preproc_id);
+    return 0;
+}
 
 /***************************** Output Plugin API  *****************************/
 extern OutputConfigFuncNode *output_config_funcs;

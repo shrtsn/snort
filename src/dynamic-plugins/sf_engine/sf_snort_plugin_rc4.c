@@ -14,7 +14,7 @@
  *
  * You should have received a copy of the GNU General Public License
  * along with this program; if not, write to the Free Software
- * Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA 02111-1307, USA.
+ * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
  *
  * Copyright (C) 2006-2012 Sourcefire, Inc.
  *
@@ -89,9 +89,10 @@ int MatchDecryptedRC4(
     /* Decrypt data */
     t = 0;
     for (i = 0; i < datalen; i++) {
-        t += s[i+1];
-        BYTESWAP(s[i+1], s[t])
-        decrypted_data[i] = encrypted_data[i] ^ s[((s[i+1] + s[t]) % 256)];
+        int idx = (i+1)%256;
+        t += s[idx];
+        BYTESWAP(s[idx], s[t])
+        decrypted_data[i] = encrypted_data[i] ^ s[((s[idx] + s[t]) % 256)];
     }
 
     /* Check for data match */

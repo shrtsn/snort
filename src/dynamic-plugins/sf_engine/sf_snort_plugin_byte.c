@@ -14,7 +14,7 @@
  *
  * You should have received a copy of the GNU General Public License
  * along with this program; if not, write to the Free Software
- * Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA 02111-1307, USA.
+ * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
  *
  * Copyright (C) 2005-2012 Sourcefire, Inc.
  *
@@ -40,6 +40,8 @@
 
 extern int checkCursorSimple(const uint8_t *cursor, int flags, const uint8_t *start, const uint8_t *end, int offset);
 extern int setCursorInternal(void *p, int flags, int offset, const uint8_t **cursor);
+static int byteTestInternal(void *, ByteData *, const uint8_t *);
+static int byteJumpInternal(void *, ByteData *, const uint8_t **);
 
 #define BYTE_STRING_LEN     11
 
@@ -244,6 +246,8 @@ ENGINE_LINKAGE int extractValue(void *p, ByteExtract *byteExtract, const uint8_t
     byteData.value_location = 0;
 
     ret = extractValueInternal(p, &byteData, &extracted, cursor);
+    if (byteExtract->flags & NOT_FLAG)
+        ret = invertMatchResult(ret);
     if (ret > 0)
     {
         if ((byteExtract->align == 2) || (byteExtract->align == 4))
@@ -312,13 +316,20 @@ ENGINE_LINKAGE int checkValue(void *p, ByteData *byteData, uint32_t value, const
     return 0;
 }
 
+ENGINE_LINKAGE int byteTest(void *p, ByteData *byteData, const uint8_t *cursor)
+{
+    if (byteData->flags & NOT_FLAG)
+        return invertMatchResult(byteTestInternal(p, byteData, cursor));
+    return byteTestInternal(p, byteData, cursor);
+}
+
 /*
  * Check byteData->value against extracted value from data
  *
  * Return 1 if check is true (e.g. value > byteData.value)
  * Return 0 if check is not true.
  */
-ENGINE_LINKAGE int byteTest(void *p, ByteData *byteData, const uint8_t *cursor)
+static int byteTestInternal(void *p, ByteData *byteData, const uint8_t *cursor)
 {
     int       ret;
     uint32_t value;
@@ -334,6 +345,13 @@ ENGINE_LINKAGE int byteTest(void *p, ByteData *byteData, const uint8_t *cursor)
     return ret;
 }
 
+ENGINE_LINKAGE int byteJump(void *p, ByteData *byteData, const uint8_t **cursor)
+{
+    if (byteData->flags & NOT_FLAG)
+        return invertMatchResult(byteJumpInternal(p, byteData, cursor));
+    return byteJumpInternal(p, byteData, cursor);
+}
+
 /*
  * Jump extracted value from data
  *
@@ -341,7 +359,7 @@ ENGINE_LINKAGE int byteTest(void *p, ByteData *byteData, const uint8_t *cursor)
  * Return 0 if cursor out of bounds
  * Return < 0 if error
  */
-ENGINE_LINKAGE int byteJump(void *p, ByteData *byteData, const uint8_t **cursor)
+static int byteJumpInternal(void *p, ByteData *byteData, const uint8_t **cursor)
 {
     int       ret;
     uint32_t readValue;

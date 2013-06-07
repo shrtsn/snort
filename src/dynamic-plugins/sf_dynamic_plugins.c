@@ -15,7 +15,7 @@
  *
  * You should have received a copy of the GNU General Public License
  * along with this program; if not, write to the Free Software
- * Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA 02111-1307, USA.
+ * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
  *
  * Copyright (C) 2005-2012 Sourcefire, Inc.
  *
@@ -92,6 +92,7 @@ typedef HANDLE PluginHandle;
 #include "sfcontrol_funcs.h"
 #include "idle_processing_funcs.h"
 #include "../dynamic-output/plugins/output.h"
+#include "file_api.h"
 
 #ifdef TARGET_BASED
 #include "target-based/sftarget_protocol_reference.h"
@@ -520,12 +521,10 @@ int LoadDynamicEngineLib(char *library_name, int indent)
     PluginHandle handle;
 
 #if 0
-#ifdef SUP_IP6
     LogMessage("%sDynamic engine will not be loaded since dynamic detection "
                  "libraries are not yet supported with IPv6.\n",
                 indent?"  ":"");
     return 0;
-#endif
 #endif
 
     LogMessage("%sLoading dynamic engine %s... ",
@@ -690,11 +689,9 @@ int LoadDynamicDetectionLib(char *library_name, int indent)
     PluginHandle handle;
 
 #if 0
-#ifdef SUP_IP6
     LogMessage("%sDynamic detection library \"%s\" will not be loaded. Not "
                  "supported with IPv6.\n", indent ? "  " : "", library_name);
     return 0;
-#endif
 #endif
 
     LogMessage("%sLoading dynamic detection library %s... ",
@@ -1273,7 +1270,7 @@ void *pcreStudy(const void *code, int options, const char **errptr)
     return extra_extra;
 }
 
-/* pcreOvectorInfo 
+/* pcreOvectorInfo
  *
  * Get the Ovector configuration for PCRE from the snort.conf
  */
@@ -1490,7 +1487,6 @@ void DynamicDisablePreprocessors(void *p)
     DisablePreprocessors((Packet *)p);
 }
 
-#ifdef SUP_IP6
 void DynamicIP6Build(void *p, const void *hdr, int family)
 {
     sfiph_build((Packet *)p, hdr, family);
@@ -1500,7 +1496,6 @@ static inline void DynamicIP6SetCallbacks(void *p, int family, char orig)
 {
     set_callbacks((Packet *)p, family, orig);
 }
-#endif
 
 int DynamicSnortEventqLog(void *p)
 {
@@ -1559,6 +1554,10 @@ void DynamicSendBlockResponseMsg(void *p, const uint8_t* buffer, uint32_t buffer
 {
     Packet *packet = (Packet *)p;
     EncodeFlags df = (packet->packet_flags & PKT_FROM_SERVER) ? ENC_FLAG_FWD:0;
+
+    if ( !packet->data || packet->dsize == 0 )
+        return;
+
     Active_SendData(packet, df, buffer, buffer_len);
 }
 #endif
@@ -1650,6 +1649,16 @@ int DynamicSnortIsStrEmpty(const char *s)
     return IsEmptyStr((char*)s);
 }
 
+static void DynamicDisableAllPolicies(void)
+{
+    DisableAllPolicies();
+}
+
+static int DynamicReenablePreprocBitFunc(unsigned int preproc_id)
+{
+    return ReenablePreprocBit(preproc_id);
+}
+
 int InitDynamicPreprocessors(void)
 {
     int i;
@@ -1725,10 +1734,8 @@ int InitDynamicPreprocessors(void)
     preprocData.addPreprocResetStats = &AddFuncToPreprocResetStatsList;
     preprocData.disablePreprocessors = &DynamicDisablePreprocessors;
 
-#ifdef SUP_IP6
     preprocData.ip6Build = &DynamicIP6Build;
     preprocData.ip6SetCallbacks = &DynamicIP6SetCallbacks;
-#endif
 
     preprocData.logAlerts = &DynamicSnortEventqLog;
     preprocData.resetAlerts = &SnortEventqReset;
@@ -1807,7 +1814,9 @@ int InitDynamicPreprocessors(void)
     preprocData.snort_conf_dir = &snort_conf_dir;
     preprocData.addOutputModule = &output_load_module;
     preprocData.canWhitelist = DynamicCanWhitelist;
-
+    preprocData.fileAPI = file_api;
+    preprocData.disableAllPolicies = &DynamicDisableAllPolicies;
+    preprocData.reenablePreprocBit = &DynamicReenablePreprocBitFunc;
     return InitDynamicPreprocessorPlugins(&preprocData);
 }
 

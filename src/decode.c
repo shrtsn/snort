@@ -17,7 +17,7 @@
 **
 ** You should have received a copy of the GNU General Public License
 ** along with this program; if not, write to the Free Software
-** Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA 02111-1307, USA.
+** Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 */
 
 #ifdef HAVE_CONFIG_H
@@ -69,7 +69,6 @@ PreprocStats decodePerfStats;
 // Array to check if the decoder rules are enabled in at least one policy
 static uint8_t decodeRulesArray[DECODE_INDEX_MAX];
 
-#ifdef SUP_IP6
 IPH_API ip4 =
     {
        ip4_ret_src,
@@ -121,7 +120,6 @@ IPH_API ip6 =
        orig_ip6_ret_hlen,
        IPH_API_V6
     };
-#endif
 
 //--------------------------------------------------------------------
 // decode.c::event support
@@ -180,7 +178,6 @@ static inline void execTtlDrop (void *data)
     }
 }
 
-#ifdef SUP_IP6
 static inline void execHopDrop (void *data)
 {
     if ( ScNormalDrop(NORM_IP6_TTL) )
@@ -192,7 +189,6 @@ static inline void execHopDrop (void *data)
         Active_DropPacket();
     }
 }
-#endif
 
 static inline void execTcpOptDrop (void *data)
 {
@@ -443,19 +439,15 @@ uint32_t EXTRACT_32BITS (u_char *p)
 
 void InitSynToMulticastDstIp( void )
 {
-#ifdef SUP_IP6
     extern SnortConfig *snort_conf_for_parsing;
     snort_conf_for_parsing = snort_conf;
-#endif
     SynToMulticastDstIp = IpAddrSetParse("[232.0.0.0/8,233.0.0.0/8,239.0.0.0/8]");
 
     if( SynToMulticastDstIp == NULL )
     {
         FatalError("Could not initialize SynToMulticastDstIp\n");
     }
-#ifdef SUP_IP6
     snort_conf_for_parsing = NULL;
-#endif
 }
 
 void SynToMulticastDstIpDestroy( void )
@@ -464,10 +456,6 @@ void SynToMulticastDstIpDestroy( void )
     if( SynToMulticastDstIp )
     {
         IpAddrSetDestroy(SynToMulticastDstIp);
-#ifndef SUP_IP6
-        free(SynToMulticastDstIp);
-        SynToMulticastDstIp = NULL;
-#endif
     }
 }
 
@@ -491,7 +479,6 @@ static inline void CheckIPv4_MinTTL(Packet *p, uint8_t ttl)
     }
 }
 
-#ifdef SUP_IP6
 static inline void CheckIPv6_MinTTL(Packet *p, uint8_t hop_limit)
 {
     // this sequence of tests is best for the "normal" case where
@@ -510,24 +497,10 @@ static inline void CheckIPv6_MinTTL(Packet *p, uint8_t hop_limit)
         }
     }
 }
-#endif
 
 /* Decoding of ttl/hop_limit is based on the policy min_ttl */
 static inline void DecodeIP_MinTTL(Packet *p)
 {
-# ifndef SUP_IP6
-    if(p->outer_iph)
-    {
-        CheckIPv4_MinTTL( p, p->outer_iph->ip_ttl );
-        return;
-
-    }
-    else if(p->iph)
-    {
-        CheckIPv4_MinTTL( p, GET_IPH_TTL(p) );
-        return;
-    }
-#else
     switch(p->outer_family)
     {
         case AF_INET:
@@ -555,7 +528,6 @@ static inline void DecodeIP_MinTTL(Packet *p)
         default:
             break;
     }
-#endif
 
     return;
 }
@@ -981,9 +953,7 @@ static int checkMplsHdr(uint32_t label, uint8_t exp, uint8_t bos, uint8_t ttl, P
 
                pc.discards++;
                p->iph = NULL;
-#ifdef SUP_IP6
                p->family = NO_IP;
-#endif
                return(-1);
 #endif
                break;
@@ -995,9 +965,7 @@ static int checkMplsHdr(uint32_t label, uint8_t exp, uint8_t bos, uint8_t ttl, P
 
                pc.discards++;
                p->iph = NULL;
-#ifdef SUP_IP6
                p->family = NO_IP;
-#endif
                iRet = MPLS_PAYLOADTYPE_ERROR;
                break;
 
@@ -1007,9 +975,7 @@ static int checkMplsHdr(uint32_t label, uint8_t exp, uint8_t bos, uint8_t ttl, P
 
                pc.discards++;
                p->iph = NULL;
-#ifdef SUP_IP6
                p->family = NO_IP;
-#endif
                iRet = MPLS_PAYLOADTYPE_ERROR;
                break;
         case 4:
@@ -1064,9 +1030,7 @@ void DecodeMPLS(const uint8_t* pkt, const uint32_t len, Packet* p)
 
             pc.discards++;
             p->iph = NULL;
-#ifdef SUP_IP6
             p->family = NO_IP;
-#endif
             return;
         }
 
@@ -1104,9 +1068,7 @@ void DecodeMPLS(const uint8_t* pkt, const uint32_t len, Packet* p)
 
             pc.discards++;
             p->iph = NULL;
-#ifdef SUP_IP6
             p->family = NO_IP;
-#endif
             return;
         }
     }   /* while bos not 1, peel off more labels */
@@ -1262,9 +1224,7 @@ void DecodeVlan(const uint8_t * pkt, const uint32_t len, Packet * p)
         // TBD add decoder drop event for VLAN hdr len issue
         pc.discards++;
         p->iph = NULL;
-#ifdef SUP_IP6
         p->family = NO_IP;
-#endif
         return;
     }
 
@@ -1292,9 +1252,7 @@ void DecodeVlan(const uint8_t * pkt, const uint32_t len, Packet * p)
 
             pc.discards++;
             p->iph = NULL;
-#ifdef SUP_IP6
             p->family = NO_IP;
-#endif
             return;
         }
 
@@ -1315,9 +1273,7 @@ void DecodeVlan(const uint8_t * pkt, const uint32_t len, Packet * p)
 
                 pc.discards++;
                 p->iph = NULL;
-#ifdef SUP_IP6
                 p->family = NO_IP;
-#endif
 
                 return;
             }
@@ -1840,6 +1796,11 @@ void DecodePppPktEncapsulated(const uint8_t* pkt, const uint32_t len, Packet* p)
             DecodeIP(pkt + hlen, len - hlen, p);
             break;
 
+        case PPP_IPV6:
+            PushLayer(PROTO_PPP_ENCAP, p, pkt, hlen);
+            DecodeIPV6(pkt + hlen, len - hlen, p);
+            break;
+
 #ifndef NO_NON_ETHER_DECODER
         case PPP_IPX:
             PushLayer(PROTO_PPP_ENCAP, p, pkt, hlen);
@@ -1990,11 +1951,7 @@ static inline void ICMP4AddrTests (Packet* p)
 {
     uint8_t msb_dst;
 
-#ifdef SUP_IP6
     uint32_t dst = GET_DST_IP(p)->ip32[0];
-#else
-    uint32_t dst = GET_DST_IP(p);
-#endif
 
     // check all 32 bits; all set so byte order is irrelevant ...
     if ( Event_Enabled(DECODE_ICMP4_DST_BROADCAST ) )
@@ -2303,17 +2260,11 @@ void DecodeIP(const uint8_t * pkt, const uint32_t len, Packet * p)
         pc.discards++;
         pc.ipdisc++;
 
-#ifdef SUP_IP6
         p->family = NO_IP;
-#endif
         return;
     }
 
-#ifndef SUP_IP6
-    if (p->iph != NULL)
-#else
     if (p->family != NO_IP)
-#endif  /* SUP_IP6 */
     {
         if (p->encapsulated)
         {
@@ -2352,15 +2303,11 @@ void DecodeIP(const uint8_t * pkt, const uint32_t len, Packet * p)
         pc.discards++;
         pc.ipdisc++;
 
-#ifdef SUP_IP6
         p->family = NO_IP;
-#endif
         return;
     }
 
-#ifdef SUP_IP6
     sfiph_build(p, p->iph, AF_INET);
-#endif
 
 //    p->ip_payload_len = p->iph->ip_len;
 //    p->ip_payload_off = p->ip_payload_len + (int)pkt;
@@ -2383,9 +2330,7 @@ void DecodeIP(const uint8_t * pkt, const uint32_t len, Packet * p)
         p->iph = NULL;
         pc.discards++;
         pc.ipdisc++;
-#ifdef SUP_IP6
         p->family = NO_IP;
-#endif
         return;
     }
 
@@ -2404,9 +2349,7 @@ void DecodeIP(const uint8_t * pkt, const uint32_t len, Packet * p)
         p->iph = NULL;
         pc.discards++;
         pc.ipdisc++;
-#ifdef SUP_IP6
         p->family = NO_IP;
-#endif
         return;
     }
 #if 0
@@ -2436,9 +2379,7 @@ void DecodeIP(const uint8_t * pkt, const uint32_t len, Packet * p)
         p->iph = NULL;
         pc.discards++;
         pc.ipdisc++;
-#ifdef SUP_IP6
         p->family = NO_IP;
-#endif
         return;
     }
 
@@ -2897,17 +2838,13 @@ void DecodeICMPEmbeddedIP(const uint8_t *pkt, const uint32_t len, Packet *p)
         DecoderEvent(p, DECODE_ICMP_ORIG_IP_TRUNCATED,
                         DECODE_ICMP_ORIG_IP_TRUNCATED_STR, 1, 1);
 
-#ifdef SUP_IP6
         p->orig_family = NO_IP;
-#endif
         p->orig_iph = NULL;
         return;
     }
 
     /* lay the IP struct over the raw data */
-#ifdef SUP_IP6
     sfiph_orig_build(p, pkt, AF_INET);
-#endif
     p->orig_iph = (IPHdr *) pkt;
 
     DEBUG_WRAP(DebugMessage(DEBUG_DECODE, "DecodeICMPEmbeddedIP: ip header"
@@ -2926,9 +2863,7 @@ void DecodeICMPEmbeddedIP(const uint8_t *pkt, const uint32_t len, Packet *p)
         DecoderEvent(p, DECODE_ICMP_ORIG_IP_VER_MISMATCH,
                         DECODE_ICMP_ORIG_IP_VER_MISMATCH_STR, 1, 1);
 
-#ifdef SUP_IP6
         p->orig_family = NO_IP;
-#endif
         p->orig_iph = NULL;
         return;
     }
@@ -2937,11 +2872,7 @@ void DecodeICMPEmbeddedIP(const uint8_t *pkt, const uint32_t len, Packet *p)
     ip_len = ntohs(GET_ORIG_IPH_LEN(p));
 
     /* set the IP header length */
-#ifdef SUP_IP6
     hlen = (p->orig_ip4h->ip_verhl & 0x0f) << 2;
-#else
-    hlen = IP_HLEN(p->orig_iph) << 2;
-#endif
 
     if(len < hlen)
     {
@@ -2952,9 +2883,7 @@ void DecodeICMPEmbeddedIP(const uint8_t *pkt, const uint32_t len, Packet *p)
         DecoderEvent(p, DECODE_ICMP_ORIG_DGRAM_LT_ORIG_IP,
                         DECODE_ICMP_ORIG_DGRAM_LT_ORIG_IP_STR, 1, 1);
 
-#ifdef SUP_IP6
         p->orig_family = NO_IP;
-#endif
         p->orig_iph = NULL;
         return;
     }
@@ -3023,74 +2952,6 @@ void DecodeICMPEmbeddedIP(const uint8_t *pkt, const uint32_t len, Packet *p)
     return;
 }
 
-//--------------------------------------------------------------------
-// decode.c::NON SUP_IP6 IP6 vulnerabilities
-//--------------------------------------------------------------------
-
-#ifndef SUP_IP6
-/* For the BSD fragmentation vulnerability */
-SFXHASH *ipv6_frag_hash;
-
-static inline void FragEvent (
-    Packet *p, int gid, char *str, int event_flag, int drop_flag)
-{
-    if(ScIdsMode() && event_flag)
-    {
-        queueDecoderEvent(GENERATOR_SPP_FRAG3, gid, 1,
-                       DECODE_CLASS, 3, str, 0);
-
-        if ( drop_flag )
-        {
-            DEBUG_WRAP(DebugMessage(DEBUG_DECODE, "Dropping bad packet\n"););
-            Active_DropSession();
-        }
-    }
-}
-
-void BsdFragHashCleanup(void)
-{
-    if (ipv6_frag_hash)
-    {
-        sfxhash_delete(ipv6_frag_hash);
-        ipv6_frag_hash = NULL;
-    }
-}
-
-void BsdFragHashReset(void)
-{
-    if (ipv6_frag_hash != NULL)
-        sfxhash_make_empty(ipv6_frag_hash);
-}
-
-void BsdFragHashInit(int max)
-{
-    int rows = sfxhash_calcrows((int) (max * 1.4));
-
-    ipv6_frag_hash = sfxhash_new(
-            /* one row per element in table, when possible */
-            rows,
-            40,                /* key size padded for 64 bit alignment */
-            sizeof(time_t),    /* data size */
-            /* Set max to the sizeof a hash node, plus the size of
-             * the stored data, plus the size of the key (32), plus
-             * this size of a node pointer plus max rows plus 1. */
-            max * (40 + sizeof(SFXHASH_NODE) + sizeof(time_t) + sizeof(SFXHASH_NODE*))
-                + (rows+1) * sizeof(SFXHASH_NODE*),
-            1,       /* enable AutoNodeRecovery */
-            NULL, /* provide a function to let user know we want to kill a node */
-            NULL, /* provide a function to release user memory */
-            1);      /* Recycle nodes */
-
-    if (!ipv6_frag_hash) {
-        FatalError("could not allocate ipv6_frag_hash");
-    }
-}
-#endif // !SUP_IP6
-
-//--------------------------------------------------------------------
-// decode.c::NON SUP_IP6 IP6 decoder
-//--------------------------------------------------------------------
-
 /*
  * Function: DecodeIPV6(uint8_t *, uint32_t)
  *
@@ -3101,288 +2962,10 @@ void BsdFragHashInit(int max)
  *
  * Returns: void function
  */
-#ifndef SUP_IP6
-Packet *BsdPseudoPacket;
-
-/* This is the Snort-IPv4 version of the IPv6 BSD frag checking code */
-enum {
-    IPV6_FRAG_NO_ALERT = 0,
-    IPV6_FRAG_ALERT,
-    IPV6_FRAG_BAD_PKT,
-    IPV6_IS_NOT,
-    IPV6_TRUNCATED_EXT,
-    IPV6_TRUNCATED,
-
-    IPV6_NEXT
-};
-
-int CheckIPV6Frag (char *data, uint32_t size, Packet *p)
-{
-    typedef struct _IP6HdrChain
-    {
-        uint8_t        next_header;
-        uint8_t        length;
-    } IP6HdrChain;
-
-    IP6RawHdr *hdr;
-    IP6Frag  *frag;
-    IP6HdrChain *chain;
-    uint8_t next_header;
-    uint32_t offset;
-    unsigned int header_length;
-    unsigned short frag_data;
-    char key[40];  /* Two 16 bit IP addresses and one fragmentation ID plus pad */
-    SFXHASH_NODE *hash_node;
-
-    if (sizeof(IP6RawHdr) > size)
-        return IPV6_TRUNCATED;
-
-    hdr = (IP6RawHdr *) data;
-
-    if ((hdr->ip6vfc >> 4) != 6)
-        return IPV6_IS_NOT;
-
-    if (sizeof(IP6RawHdr) + ntohs(hdr->ip6plen) > size)
-        return IPV6_TRUNCATED;
-
-    next_header = hdr->ip6nxt;
-    offset = sizeof(IP6RawHdr);
-
-    while (offset < size)
-    {
-        switch (next_header) {
-            case IP_PROTO_IPV6:
-                return CheckIPV6Frag(data + offset, size - offset, p);
-
-            case IP_PROTO_HOPOPTS:
-            case IP_PROTO_DSTOPTS:
-            case IP_PROTO_ROUTING:
-            case IP_PROTO_AH:
-                if (sizeof(IP6HdrChain) + offset > size)
-                    return IPV6_TRUNCATED_EXT;
-
-                chain = (IP6HdrChain* ) (data + offset);
-
-                next_header     = chain->next_header;
-                header_length   = 8 + (8 * chain->length);
-
-                if (offset + header_length > size)
-                    return IPV6_TRUNCATED_EXT;
-
-                offset += header_length;
-                break;
-
-            case IP_PROTO_FRAGMENT:
-                if (offset + sizeof(IP6Frag) > size)
-                    return IPV6_TRUNCATED_EXT;
-
-                frag = (IP6Frag *) (data + offset);
-                frag_data = frag->ip6f_offlg;
-
-                /* srcip / dstip */
-                memcpy(key, (data + 8), 32);
-                *(uint32_t*)(key+32) = frag->ip6f_ident;
-                *(uint32_t*)(key+36) = 0;   /* zero out pad */
-
-                hash_node = sfxhash_find_node(ipv6_frag_hash, key);
-
-                /* Check if the frag offset mask is set.
-                 * If it is, we're not looking at the exploit in question */
-                if(IP6F_OFFSET(frag) != 0)
-                {
-                    /* If this arrives before the two 0 offset frags, we will
-                     * still add them as though they were the first, and false
-                     * positive */
-                    if(hash_node) sfxhash_free_node(ipv6_frag_hash, hash_node);
-                    return IPV6_FRAG_NO_ALERT;
-                }
-
-                /* Check if there are no more frags */
-                if(!IP6F_MF(frag))
-                {
-                    /* At this point, we've seen a frag header with no offset
-                     * that doesn't have the more flags set.  Need to see if
-                     * this follows a packet that did have the more flag set. */
-                    if(hash_node)
-                    {
-                        /* Check if the first packet timed out */
-                        if((p->pkth->ts.tv_sec - *(time_t *)hash_node->data) > (time_t)ScIpv6FragTimeout())
-                        {
-                            sfxhash_free_node(ipv6_frag_hash, hash_node);
-                            return IPV6_FRAG_BAD_PKT;
-                        }
-
-                        if(size - offset > 100)
-                        {
-                            return IPV6_FRAG_ALERT;
-                        }
-
-                        sfxhash_free_node(ipv6_frag_hash, hash_node);
-
-                        return IPV6_FRAG_BAD_PKT;
-                    }
-
-                    /* We never saw the first packet, but this one is still bogus */
-                    return IPV6_FRAG_BAD_PKT;
-                }
-
-                /* At this point, we've seen a header with no offset and a
-                 * more flag */
-                if(!hash_node)
-                {
-                    /* There are more frags remaining, add current to hash */
-                    if(sfxhash_add(ipv6_frag_hash, key, (void *)&p->pkth->ts.tv_sec)
-                        == SFXHASH_NOMEM)
-                    {
-                        return -1;
-                    }
-                }
-                else
-                {
-                    /* Update this node's timestamp */
-                    *(time_t *)hash_node->data = p->pkth->ts.tv_sec;
-                }
-
-            default:
-                return IPV6_FRAG_NO_ALERT;
-        }
-    }
-
-    return IPV6_FRAG_NO_ALERT;
-}
-
-void DecodeIPV6(const uint8_t *pkt, uint32_t len, Packet *p)
-{
-    static uint8_t pseudopacket_buf[SPARC_TWIDDLE + ETHERNET_HEADER_LEN + IP_MAXPACKET];
-    static Packet pseudopacket;
-    static DAQ_PktHdr_t pseudopkt_header;
-    IP6RawHdr *ip6h;
-    int alert_status;
-
-    pc.ipv6++;
-
-#ifdef GRE
-    if (p->greh != NULL)
-        pc.gre_ipv6++;
-#endif
-
-    alert_status = CheckIPV6Frag((char *) pkt, len, p);
-
-    if(alert_status == IPV6_FRAG_NO_ALERT)
-    {
-        return;
-    }
-
-    p->packet_flags |= PKT_NO_DETECT;
-
-    /* Need to set up a fake IP header for logging purposes.  First make sure
-     * there is room */
-    if(sizeof(IP6RawHdr) <= len)
-    {
-        pseudopkt_header.ts.tv_sec = p->pkth->ts.tv_sec;
-        pseudopkt_header.ts.tv_usec = p->pkth->ts.tv_usec;
-
-        BsdPseudoPacket = &pseudopacket;
-        pseudopacket.pkt = pseudopacket_buf + SPARC_TWIDDLE;
-        pseudopacket.pkth = &pseudopkt_header;
-
-        if(p->eh)
-        {
-            SafeMemcpy(pseudopacket_buf + SPARC_TWIDDLE, p->eh,
-                       ETHERNET_HEADER_LEN,
-                       pseudopacket_buf,
-                       pseudopacket_buf + SPARC_TWIDDLE + ETHERNET_HEADER_LEN + IP_MAXPACKET);
-
-            pseudopkt_header.pktlen = IP_HEADER_LEN + ETHERNET_HEADER_LEN;
-
-            pseudopacket.eh = (EtherHdr*)(pseudopacket_buf + SPARC_TWIDDLE);
-            pseudopacket.iph = (IPHdr*)(pseudopacket_buf + SPARC_TWIDDLE + ETHERNET_HEADER_LEN);
-            ((EtherHdr*)pseudopacket.eh)->ether_type = htons(ETHERNET_TYPE_IP);
-        }
-        else
-        {
-            SafeMemcpy(pseudopacket_buf, p->pkt,
-                       (pkt - p->pkt),
-                       pseudopacket_buf,
-                       pseudopacket_buf + SPARC_TWIDDLE + ETHERNET_HEADER_LEN + IP_MAXPACKET);
-
-            pseudopkt_header.pktlen = IP_HEADER_LEN + (pkt - p->pkt);
-
-            pseudopacket.iph = (IPHdr*)(pseudopacket_buf + (pkt - p->pkt));
-            pseudopacket.eh = NULL;
-        }
-
-        pseudopkt_header.caplen = pseudopkt_header.pktlen;
-
-        /* Need IP addresses for packet logging -- for now, just using the
-         * lowest 4 bytes of the IPv6 addresses */
-        memset((IPHdr *)pseudopacket.iph, 0, sizeof(IPHdr));
-
-        ((IPHdr *)pseudopacket.iph)->ip_len = htons(IP_HEADER_LEN);
-        SET_IP_VER((IPHdr *)pseudopacket.iph, 0x4);
-        SET_IP_HLEN((IPHdr *)pseudopacket.iph, 0x5);
-
-        ip6h = (IP6RawHdr*)pkt;
-
-#ifdef WORDS_BIGENDIAN
-        ((IPHdr *)pseudopacket.iph)->ip_src.s_addr =
-            ip6h->ip6_src.s6_addr[13] << 16 | ip6h->ip6_src.s6_addr[14] << 8 | ip6h->ip6_src.s6_addr[15];
-        ((IPHdr *)pseudopacket.iph)->ip_dst.s_addr =
-            ip6h->ip6_dst.s6_addr[13] << 16 | ip6h->ip6_dst.s6_addr[14] << 8 | ip6h->ip6_dst.s6_addr[15];
-#else
-        ((IPHdr *)pseudopacket.iph)->ip_src.s_addr =
-            ip6h->ip6_src.s6_addr[15] << 24 | ip6h->ip6_src.s6_addr[14] << 16 | ip6h->ip6_src.s6_addr[13] << 8;
-        ((IPHdr *)pseudopacket.iph)->ip_dst.s_addr =
-            ip6h->ip6_dst.s6_addr[15] << 24 | ip6h->ip6_dst.s6_addr[14] << 16 | ip6h->ip6_dst.s6_addr[13] << 8;
-#endif
-    }
-    else
-    {
-        p->iph = NULL;
-    }
-
-    switch(alert_status) {
-     case IPV6_FRAG_ALERT:
-          FragEvent(p, FRAG3_IPV6_BSD_ICMP_FRAG,
-                       FRAG3_IPV6_BSD_ICMP_FRAG_STR,
-                       ScDecoderIpv6BsdIcmpFragAlerts(),
-                       ScDecoderIpv6BsdIcmpFragDrops());
-          break;
-
-      case IPV6_FRAG_BAD_PKT:
-          FragEvent(p, FRAG3_IPV6_BAD_FRAG_PKT,
-                       FRAG3_IPV6_BAD_FRAG_PKT_STR,
-                       ScDecoderIpv6BadFragAlerts(),
-                       ScDecoderIpv6BadFragDrops());
-          break;
-
-      case IPV6_IS_NOT:
-          if ((p->packet_flags & PKT_UNSURE_ENCAP) == 0)
-              DecoderEvent(p, DECODE_IPV6_IS_NOT,
-                              DECODE_IPV6_IS_NOT_STR, 1, 1);
-          break;
-
-      case IPV6_TRUNCATED_EXT:
-          DecoderEvent(p, DECODE_IPV6_TRUNCATED_EXT,
-                          DECODE_IPV6_TRUNCATED_EXT_STR, 1, 1);
-          break;
-
-      case IPV6_TRUNCATED:
-          if ((p->packet_flags & PKT_UNSURE_ENCAP) == 0)
-              DecoderEvent(p, DECODE_IPV6_TRUNCATED,
-                              DECODE_IPV6_TRUNCATED_STR, 1, 1);
-    };
-
-    BsdPseudoPacket = NULL;
-    pc.discards++;
-    return;
-}
-#endif // !SUP_IP6
 
 //--------------------------------------------------------------------
 // decode.c::IP6 misc
 //--------------------------------------------------------------------
-#ifdef SUP_IP6
 
 #define IP6_MULTICAST  0xFF  // first/most significant octet
 #define IP6_MULTICAST_SCOPE_RESERVED    0x00
@@ -3719,13 +3302,11 @@ static inline void IPV6MiscTests(Packet *p)
         }
     }
 }
-#endif // SUP_IP6
 
 //--------------------------------------------------------------------
 // decode.c::IP6 extensions
 //--------------------------------------------------------------------
 
-#ifdef SUP_IP6
 static inline int IPV6ExtensionOrder(uint8_t type)
 {
     switch (type)
@@ -4097,13 +3678,11 @@ void DecodeIPV6Extensions(uint8_t next, const uint8_t *pkt, uint32_t len, Packet
             break;
     };
 }
-#endif /* SUP_IP6 */
 
 //--------------------------------------------------------------------
 // decode.c::IP6 decoder
 //--------------------------------------------------------------------
 
-#ifdef SUP_IP6
 void DecodeIPV6(const uint8_t *pkt, uint32_t len, Packet *p)
 {
     IP6RawHdr *hdr;
@@ -4228,19 +3807,19 @@ decodeipv6_fail:
         if (p->greh != NULL)
             pc.gre_ipv6--;
 #endif
+        if ( ScTunnelBypassEnabled(TUNNEL_TEREDO) )
+            Active_ClearTunnelBypass();
         return;
     }
 
     pc.discards++;
     pc.ipv6disc++;
 }
-#endif /* SUP_IP6 */
 
 //--------------------------------------------------------------------
 // decode.c::ICMP6
 //--------------------------------------------------------------------
 
-#ifdef SUP_IP6
 void DecodeICMP6(const uint8_t *pkt, uint32_t len, Packet *p)
 {
     if(len < ICMP6_MIN_HEADER_LEN)
@@ -4261,12 +3840,9 @@ void DecodeICMP6(const uint8_t *pkt, uint32_t len, Packet *p)
     {
         uint16_t csum;
 
-#ifdef SUP_IP6
         if(IS_IP4(p))
         {
-#endif
             csum = in_chksum_icmp((uint16_t *)(p->icmph), len);
-#ifdef SUP_IP6
         }
         /* IPv6 traffic */
         else
@@ -4280,7 +3856,6 @@ void DecodeICMP6(const uint8_t *pkt, uint32_t len, Packet *p)
 
             csum = in_chksum_icmp6(&ph6, (uint16_t *)(p->icmph), len);
         }
-#endif
         if(csum)
         {
             p->error_flags |= PKT_ERR_CKSUM_ICMP;
@@ -4550,9 +4125,7 @@ void DecodeICMPEmbeddedIP6(const uint8_t *pkt, const uint32_t len, Packet *p)
         pc.discards++;
         return;
     }
-#ifdef SUP_IP6
     sfiph_orig_build(p, pkt, AF_INET6);
-#endif
 
     orig_frag_offset = ntohs(GET_ORIG_IPH_OFF(p));
     orig_frag_offset &= 0x1FFF;
@@ -4589,7 +4162,6 @@ void DecodeICMPEmbeddedIP6(const uint8_t *pkt, const uint32_t len, Packet *p)
 
     return;
 }
-#endif
 
 //--------------------------------------------------------------------
 // decode.c::Teredo
@@ -4602,7 +4174,6 @@ void DecodeICMPEmbeddedIP6(const uint8_t *pkt, const uint32_t len, Packet *p)
  *
  */
 
-#ifdef SUP_IP6
 void DecodeTeredo(const uint8_t *pkt, uint32_t len, Packet *p)
 {
     if (len < TEREDO_MIN_LEN)
@@ -4641,6 +4212,9 @@ void DecodeTeredo(const uint8_t *pkt, uint32_t len, Packet *p)
         p->proto_bits |= PROTO_BIT__TEREDO;
         pc.teredo++;
 
+        if ( ScTunnelBypassEnabled(TUNNEL_TEREDO) )
+            Active_SetTunnelBypass();
+
         if (ScDeepTeredoInspection() && (p->sp != TEREDO_PORT) && (p->dp != TEREDO_PORT))
             p->packet_flags |= PKT_UNSURE_ENCAP;
 
@@ -4652,7 +4226,6 @@ void DecodeTeredo(const uint8_t *pkt, uint32_t len, Packet *p)
     /* Otherwise, we treat this as normal UDP traffic. */
     return;
 }
-#endif
 
 //--------------------------------------------------------------------
 // decode.c::ESP
@@ -4952,9 +4525,7 @@ void DecodeGRE(const uint8_t *pkt, const uint32_t len, Packet *p)
         case ETHERNET_TYPE_REVARP:
             /* clear outer IP headers */
             p->iph = NULL;
-#ifdef SUP_IP6
             p->family = NO_IP;
-#endif
             DecodeARP(pkt + hlen, payload_len, p);
             return;
 
@@ -5132,6 +4703,9 @@ void DecodeGTP(const uint8_t *pkt, uint32_t len, Packet *p)
 
     PushLayer(PROTO_GTP, p, pkt, header_len);
 
+    if ( ScTunnelBypassEnabled(TUNNEL_GTP) )
+        Active_SetTunnelBypass();
+
     len -=  header_len;
     if (len > 0)
     {
@@ -5267,17 +4841,11 @@ void DecodeUDP(const uint8_t * pkt, const uint32_t len, Packet * p)
     {
         /* look at the UDP checksum to make sure we've got a good packet */
         uint16_t csum;
-#ifdef SUP_IP6
         if(IS_IP4(p))
         {
             pseudoheader ph;
             ph.sip = *p->ip4h->ip_src.ip32;
             ph.dip = *p->ip4h->ip_dst.ip32;
-#else
-            pseudoheader ph;
-            ph.sip = (uint32_t)(p->iph->ip_src.s_addr);
-            ph.dip = (uint32_t)(p->iph->ip_dst.s_addr);
-#endif
             ph.zero = 0;
             ph.protocol = GET_IPH_PROTO(p);
             ph.len = p->udph->uh_len;
@@ -5294,7 +4862,6 @@ void DecodeUDP(const uint8_t * pkt, const uint32_t len, Packet * p)
             {
                 csum = 0;
             }
-#ifdef SUP_IP6
         }
         else
         {
@@ -5326,7 +4893,6 @@ void DecodeUDP(const uint8_t * pkt, const uint32_t len, Packet * p)
                 csum = 0;
             }
         }
-#endif
         if(csum)
         {
             /* Don't drop the packet if this was ESP or Teredo.
@@ -5374,7 +4940,6 @@ void DecodeUDP(const uint8_t * pkt, const uint32_t len, Packet * p)
 
     UDPMiscTests(p);
 
-#ifdef SUP_IP6
     if (p->sp == TEREDO_PORT ||
         p->dp == TEREDO_PORT ||
         ScDeepTeredoInspection())
@@ -5382,7 +4947,6 @@ void DecodeUDP(const uint8_t * pkt, const uint32_t len, Packet * p)
         if ( !p->frag_flag )
             DecodeTeredo(pkt + sizeof(UDPHdr), len - sizeof(UDPHdr), p);
     }
-#endif
     if (ScGTPDecoding() &&
          (ScIsGTPPort(p->sp)||ScIsGTPPort(p->dp)))
     {
@@ -5492,17 +5056,11 @@ void DecodeTCP(const uint8_t * pkt, const uint32_t len, Packet * p)
     if (ScTcpChecksums())
     {
         uint16_t csum;
-#ifdef SUP_IP6
         if(IS_IP4(p))
         {
             pseudoheader ph;
             ph.sip = *p->ip4h->ip_src.ip32;
             ph.dip = *p->ip4h->ip_dst.ip32;
-#else
-            pseudoheader ph;
-            ph.sip = (uint32_t)(p->iph->ip_src.s_addr);
-            ph.dip = (uint32_t)(p->iph->ip_dst.s_addr);
-#endif
             /* setup the pseudo header for checksum calculation */
             ph.zero = 0;
             ph.protocol = GET_IPH_PROTO(p);
@@ -5512,7 +5070,6 @@ void DecodeTCP(const uint8_t * pkt, const uint32_t len, Packet * p)
              * checksum, but it's not bad to keep around for shits and giggles */
             /* calculate the checksum */
             csum = in_chksum_tcp(&ph, (uint16_t *)(p->tcph), len);
-#ifdef SUP_IP6
         }
         /* IPv6 traffic */
         else
@@ -5526,7 +5083,6 @@ void DecodeTCP(const uint8_t * pkt, const uint32_t len, Packet * p)
 
             csum = in_chksum_tcp6(&ph6, (uint16_t *)(p->tcph), len);
         }
-#endif
 
         if(csum)
         {
@@ -6803,7 +6359,7 @@ void DecodeOldPflog(Packet * p, const DAQ_PktHdr_t * pkthdr, const uint8_t * pkt
             PREPROC_PROFILE_END(decodePerfStats);
             return;
 
-#if defined(AF_INET6) || defined(SUP_IP6)
+#if defined(AF_INET6)
         case AF_INET6:  /* IPv6 */
             DecodeIPV6(p->pkt + PFLOG1_HDRLEN, cap_len - PFLOG1_HDRLEN, p);
             PREPROC_PROFILE_END(decodePerfStats);
@@ -6936,7 +6492,7 @@ void DecodePflog(Packet * p, const DAQ_PktHdr_t * pkthdr, const uint8_t * pkt)
             PREPROC_PROFILE_END(decodePerfStats);
             return;
 
-#if defined(AF_INET6) || defined(SUP_IP6)
+#if defined(AF_INET6)
         case AF_INET6:  /* IPv6 */
             DecodeIPV6(p->pkt + hlen, cap_len - hlen, p);
             PREPROC_PROFILE_END(decodePerfStats);

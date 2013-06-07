@@ -15,7 +15,7 @@
  **
  ** You should have received a copy of the GNU General Public License
  ** along with this program; if not, write to the Free Software
- ** Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA 02111-1307, USA.
+ ** Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
  */
 
 #ifdef NORMALIZER
@@ -56,35 +56,27 @@ static void Preproc_Install(void);
 
 static void Init_IP4(char*);
 static void Init_ICMP4(char*);
-#ifdef SUP_IP6
 static void Init_IP6(char*);
 static void Init_ICMP6(char*);
-#endif
 static void Init_TCP(char*);
 
 static void Parse_IP4(NormalizerContext*, char*);
 static void Parse_ICMP4(NormalizerContext*, char*);
-#ifdef SUP_IP6
 static void Parse_IP6(NormalizerContext*, char*);
 static void Parse_ICMP6(NormalizerContext*, char*);
-#endif
 static void Parse_TCP(NormalizerContext*, char*);
 
 static void Print_IP4(const NormalizerContext*);
 static void Print_ICMP4(const NormalizerContext*);
-#ifdef SUP_IP6
 static void Print_IP6(const NormalizerContext*);
 static void Print_ICMP6(const NormalizerContext*);
-#endif
 static void Print_TCP(const NormalizerContext*);
 
 #ifdef SNORT_RELOAD
 static void Reload_IP4(char*);
 static void Reload_ICMP4(char*);
-#ifdef SUP_IP6
 static void Reload_IP6(char*);
 static void Reload_ICMP6(char*);
-#endif
 static void Reload_TCP(char*);
 
 static int Reload_Verify(void);
@@ -102,10 +94,8 @@ void SetupNormalizer (void)
 {
     RegisterPreprocessor("normalize_ip4", NORM_FUNCS(IP4));
     RegisterPreprocessor("normalize_icmp4", NORM_FUNCS(ICMP4));
-#ifdef SUP_IP6
     RegisterPreprocessor("normalize_ip6", NORM_FUNCS(IP6));
     RegisterPreprocessor("normalize_icmp6", NORM_FUNCS(ICMP6));
-#endif
     RegisterPreprocessor("normalize_tcp", NORM_FUNCS(TCP));
 }
 
@@ -164,7 +154,6 @@ static void Init_ICMP4 (char* args)
         LogMessage(NOT_INLINE, "icmp4");
 }
 
-#ifdef SUP_IP6
 static void Init_IP6 (char* args)
 {
     NormalizerContext* pc = Init_GetContext();
@@ -184,7 +173,6 @@ static void Init_ICMP6 (char* args)
     else
         LogMessage(NOT_INLINE, "icmp6");
 }
-#endif
 
 static void Init_TCP (char* args)
 {
@@ -265,7 +253,6 @@ static void Parse_ICMP4 (NormalizerContext* pc, char* args)
     Print_ICMP4(pc);
 }
 
-#ifdef SUP_IP6
 // preprocessor normalize_ip6
 static void Parse_IP6 (NormalizerContext* pc, char* args)
 {
@@ -288,7 +275,6 @@ static void Parse_ICMP6 (NormalizerContext* pc, char* args)
     Norm_Enable(pc, NORM_ICMP6);
     Print_ICMP6(pc);
 }
-#endif
 
 // options may appear in any order separated by ',':
 // preprocessor normalize_tcp: [ecn packet|stream] [urp] [opts] [allow <opt>+]
@@ -483,7 +469,6 @@ static void Print_ICMP4 (const NormalizerContext* nc)
     LogFlag("icmp4", nc, NORM_ICMP4);
 }
 
-#ifdef SUP_IP6
 static void Print_IP6 (const NormalizerContext* nc)
 {
     LogMessage("Normalizer config:\n");
@@ -508,7 +493,6 @@ static void Print_ICMP6 (const NormalizerContext* nc)
     LogMessage("Normalizer config:\n");
     LogFlag("icmp6", nc, NORM_ICMP6);
 }
-#endif
 
 static void Print_TCP (const NormalizerContext* nc)
 {
@@ -757,7 +741,6 @@ static void Reload_ICMP4 (char* args)
         LogMessage(NOT_INLINE, "tcp");
 }
 
-#ifdef SUP_IP6
 static void Reload_IP6 (char* args)
 {
     NormalizerContext* pc = Reload_GetContext();
@@ -777,7 +760,6 @@ static void Reload_ICMP6 (char* args)
     else
         LogMessage(NOT_INLINE, "tcp");
 }
-#endif
 
 static void Reload_TCP (char* args)
 {

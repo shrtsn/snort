@@ -18,7 +18,7 @@
  *
  * You should have received a copy of the GNU General Public License
  * along with this program; if not, write to the Free Software
- * Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA 02111-1307, USA.
+ * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
  *
  * Description:
  *
@@ -65,11 +65,7 @@ static void serverConfFree(void *pData);
 #define FTPP_UI_CONFIG_MAX_SERVERS 20
 int ftpp_ui_server_lookup_init(SERVER_LOOKUP **ServerLookup)
 {
-#ifdef SUP_IP6
     *ServerLookup =  sfrt_new(DIR_16_4x4_16x5_4x4, IPv6, FTPP_UI_CONFIG_MAX_SERVERS, 20);
-#else
-    *ServerLookup =  sfrt_new(DIR_16x2, IPv4, FTPP_UI_CONFIG_MAX_SERVERS, 20);
-#endif
 
     if(*ServerLookup == NULL)
     {
@@ -133,11 +129,7 @@ int ftpp_ui_server_lookup_add(
         return FTPP_INVALID_ARG;
     }
 
-#ifdef SUP_IP6
     iRet = sfrt_insert((void *)Ip, (unsigned char)Ip->bits, (void *)ServerConf, RT_FAVOR_SPECIFIC, ServerLookup);
-#else
-    iRet = sfrt_insert((void *)&(Ip->ip.u6_addr32[0]), (unsigned char)Ip->bits, (void *)ServerConf, RT_FAVOR_SPECIFIC, ServerLookup);
-#endif
 
     if (iRet)
     {
@@ -184,11 +176,7 @@ FTP_SERVER_PROTO_CONF *ftpp_ui_server_lookup_find(
 
     *iError = FTPP_SUCCESS;
 
-#ifdef SUP_IP6
     ServerConf = (FTP_SERVER_PROTO_CONF *)sfrt_lookup((void *)Ip, ServerLookup);
-#else
-    ServerConf = (FTP_SERVER_PROTO_CONF *)sfrt_lookup((void *)&Ip, ServerLookup);
-#endif
     if (!ServerConf)
     {
         *iError = FTPP_NOT_FOUND;

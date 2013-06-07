@@ -15,7 +15,7 @@
  *
  * You should have received a copy of the GNU General Public License
  * along with this program; if not, write to the Free Software
- * Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA 02111-1307, USA.
+ * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
  *
  ****************************************************************************/
 
@@ -148,19 +148,11 @@ void Stream5ActiveResponse(Packet* p, Stream5LWSession *lwssn)
 void SetTTL (Stream5LWSession* ssn, Packet* p, int client)
 {
     uint8_t inner_ttl = 0, outer_ttl = 0;
-#ifdef SUP_IP6
     if ( p->outer_iph_api )
         outer_ttl = p->outer_iph_api->iph_ret_ttl(p);
 
     if ( p->iph_api )
         inner_ttl = p->iph_api->iph_ret_ttl(p);
-#else
-    if ( p->outer_iph )
-        outer_ttl = p->outer_iph->ip_ttl;
-
-    if ( p->iph )
-        inner_ttl = p->iph->ip_ttl;
-#endif
     if ( client )
     {
         ssn->outer_client_ttl = outer_ttl;

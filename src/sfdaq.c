@@ -16,7 +16,7 @@
  *
  * You should have received a copy of the GNU General Public License
  * along with this program; if not, write to the Free Software
- * Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA 02111-1307, USA.
+ * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
  *
  ****************************************************************************/
 
@@ -230,7 +230,7 @@ static int DAQ_Control(uint16_t type, void *new_config, void **old_config)
     return -1;
 }
 
-static void DAQ_PostControl(uint16_t type, void *old_config)
+static void DAQ_PostControl(uint16_t type, void *old_config, struct _THREAD_ELEMENT *te, ControlDataSendFunc f)
 {
     if (daq_mod && daq_hand)
         daq_hup_post(daq_mod, daq_hand, old_config);

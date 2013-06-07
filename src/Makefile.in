@@ -87,7 +87,8 @@ snort_DEPENDENCIES = output-plugins/libspo.a \
 	parser/libparser.a target-based/libtarget_based.a \
 	preprocessors/HttpInspect/libhttp_inspect.a \
 	preprocessors/Stream5/libstream5.a sfutil/libsfutil.a \
-	control/libsfcontrol.a
+	control/libsfcontrol.a file-process/libfileAPI.a \
+	file-process/libs/libfile.a
 DEFAULT_INCLUDES = -I.@am__isrc@ -I$(top_builddir)
 depcomp =
 am__depfiles_maybe =
@@ -118,7 +119,8 @@ ETAGS = etags
 CTAGS = ctags
 DIST_SUBDIRS = sfutil win32 output-plugins detection-plugins \
 	dynamic-plugins preprocessors parser dynamic-preprocessors \
-	dynamic-output target-based control dynamic-examples
+	dynamic-output target-based control file-process \
+	dynamic-examples
 DISTFILES = $(DIST_COMMON) $(DIST_SOURCES) $(TEXINFOS) $(EXTRA_DIST)
 am__relativize = \
   dir0=`pwd`; \
@@ -162,7 +164,6 @@ CPPFLAGS = @CPPFLAGS@
 CYGPATH_W = @CYGPATH_W@
 DEFS = @DEFS@
 DEPDIR = @DEPDIR@
-DLLTOOL = @DLLTOOL@
 DSYMUTIL = @DSYMUTIL@
 DUMPBIN = @DUMPBIN@
 ECHO_C = @ECHO_C@
@@ -190,7 +191,6 @@ LN_S = @LN_S@
 LTLIBOBJS = @LTLIBOBJS@
 MAINT = @MAINT@
 MAKEINFO = @MAKEINFO@
-MANIFEST_TOOL = @MANIFEST_TOOL@
 MKDIR_P = @MKDIR_P@
 NM = @NM@
 NMEDIT = @NMEDIT@
@@ -203,12 +203,9 @@ PACKAGE_BUGREPORT = @PACKAGE_BUGREPORT@
 PACKAGE_NAME = @PACKAGE_NAME@
 PACKAGE_STRING = @PACKAGE_STRING@
 PACKAGE_TARNAME = @PACKAGE_TARNAME@
-PACKAGE_URL = @PACKAGE_URL@
 PACKAGE_VERSION = @PACKAGE_VERSION@
 PATH_SEPARATOR = @PATH_SEPARATOR@
 PKG_CONFIG = @PKG_CONFIG@
-PKG_CONFIG_LIBDIR = @PKG_CONFIG_LIBDIR@
-PKG_CONFIG_PATH = @PKG_CONFIG_PATH@
 RANLIB = @RANLIB@
 RAZORBACK_CFLAGS = @RAZORBACK_CFLAGS@
 RAZORBACK_LIBS = @RAZORBACK_LIBS@
@@ -227,7 +224,6 @@ abs_builddir = @abs_builddir@
 abs_srcdir = @abs_srcdir@
 abs_top_builddir = @abs_top_builddir@
 abs_top_srcdir = @abs_top_srcdir@
-ac_ct_AR = @ac_ct_AR@
 ac_ct_CC = @ac_ct_CC@
 ac_ct_DUMPBIN = @ac_ct_DUMPBIN@
 am__include = @am__include@
@@ -261,6 +257,7 @@ libdir = @libdir@
 libexecdir = @libexecdir@
 localedir = @localedir@
 localstatedir = @localstatedir@
+lt_ECHO = @lt_ECHO@
 mandir = @mandir@
 mkdir_p = @mkdir_p@
 oldincludedir = @oldincludedir@
@@ -343,10 +340,12 @@ target-based/libtarget_based.a \
 preprocessors/HttpInspect/libhttp_inspect.a \
 preprocessors/Stream5/libstream5.a \
 sfutil/libsfutil.a \
-control/libsfcontrol.a
+control/libsfcontrol.a \
+file-process/libfileAPI.a \
+file-process/libs/libfile.a
 
 @BUILD_DYNAMIC_EXAMPLES_TRUE@EXAMPLES_DIR = dynamic-examples
-SUBDIRS = sfutil win32 output-plugins detection-plugins dynamic-plugins preprocessors parser dynamic-preprocessors dynamic-output target-based control $(EXAMPLES_DIR)
+SUBDIRS = sfutil win32 output-plugins detection-plugins dynamic-plugins preprocessors parser dynamic-preprocessors dynamic-output target-based control file-process $(EXAMPLES_DIR)
 all: all-recursive
 
 .SUFFIXES:

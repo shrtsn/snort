@@ -15,7 +15,7 @@
  *
  * You should have received a copy of the GNU General Public License
  * along with this program; if not, write to the Free Software
- * Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA 02111-1307, USA.
+ * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
  *
  ****************************************************************************/
 
@@ -64,7 +64,7 @@
 #include "ssl.h"
 #include "sfPolicy.h"
 #include "sfPolicyUserData.h"
-
+#include "file_api.h"
 #ifdef DEBUG_MSGS
 #include "sf_types.h"
 #endif
@@ -246,7 +246,8 @@ static void SetImapBuffers(IMAP *ssn)
                 ssn->decode_bkt = bkt;
                 SetEmailDecodeState(ssn->decode_state, bkt->data, imap_eval_config->max_depth,
                         imap_eval_config->b64_depth, imap_eval_config->qp_depth,
-                        imap_eval_config->uu_depth, imap_eval_config->bitenc_depth);
+                        imap_eval_config->uu_depth, imap_eval_config->bitenc_depth,
+                        imap_eval_config->file_depth);
             }
             else
             {
@@ -928,12 +929,12 @@ static const uint8_t * IMAP_HandleCommand(SFSnortPacket *p, const uint8_t *ptr, 
     return eol;
 }
 
-
 static const uint8_t * IMAP_HandleData(SFSnortPacket *p, const uint8_t *ptr, const uint8_t *end)
 {
     const uint8_t *data_end_marker = NULL;
     const uint8_t *data_end = NULL;
     int data_end_found;
+    FilePosition position = SNORT_FILE_START;
 
     /* if we've just entered the data state, check for a dot + end of line
      * if found, no data */
@@ -1017,6 +1018,7 @@ static const uint8_t * IMAP_HandleData(SFSnortPacket *p, const uint8_t *ptr, con
 
     /* now we shouldn't have to worry about copying any data to the alt buffer
      * only mime headers if we find them and only if we're ignoring data */
+    initFilePosition(&position, _dpd.fileAPI->get_file_processed_size(p->stream_session_ptr));
 
     while ((ptr != NULL) && (ptr < data_end_marker))
     {
@@ -1024,7 +1026,12 @@ static const uint8_t * IMAP_HandleData(SFSnortPacket *p, const uint8_t *ptr, con
          * Pipeline the MIME decoded data.*/
         if ( imap_ssn->state_flags & IMAP_FLAG_MULTIPLE_EMAIL_ATTACH)
         {
-            _dpd.setFileDataPtr(imap_ssn->decode_state->decodePtr, (uint16_t)imap_ssn->decode_state->decoded_bytes);
+            int detection_size = getDetectionSize(imap_eval_config->b64_depth, imap_eval_config->qp_depth,
+                    imap_eval_config->uu_depth, imap_eval_config->bitenc_depth,imap_ssn->decode_state );
+            _dpd.setFileDataPtr(imap_ssn->decode_state->decodePtr, (uint16_t)detection_size);
+            /*Download*/
+            _dpd.fileAPI->file_process(p,(uint8_t *)imap_ssn->decode_state->decodePtr,
+                    (uint16_t)imap_ssn->decode_state->decoded_bytes, position, 0);
             _dpd.detect(p);
             imap_ssn->state_flags &= ~IMAP_FLAG_MULTIPLE_EMAIL_ATTACH;
             ResetEmailDecodeState(imap_ssn->decode_state);
@@ -1039,10 +1046,12 @@ static const uint8_t * IMAP_HandleData(SFSnortPacket *p, const uint8_t *ptr, con
             case STATE_MIME_HEADER:
                 DEBUG_WRAP(DebugMessage(DEBUG_IMAP, "MIME HEADER STATE ~~~~~~~~~~~~~~~~~~~~~~\n"););
                 ptr = IMAP_HandleHeader(p, ptr, data_end_marker);
+                finalFilePosition(&position);
                 break;
             case STATE_DATA_BODY:
                 DEBUG_WRAP(DebugMessage(DEBUG_IMAP, "DATA BODY STATE ~~~~~~~~~~~~~~~~~~~~~~~~\n"););
                 ptr = IMAP_HandleDataBody(p, ptr, data_end_marker);
+                updateFilePosition(&position, _dpd.fileAPI->get_file_processed_size(p->stream_session_ptr));
                 break;
         }
     }
@@ -1051,7 +1060,23 @@ static const uint8_t * IMAP_HandleData(SFSnortPacket *p, const uint8_t *ptr, con
 
     if(imap_ssn->decode_state != NULL)
     {
-        _dpd.setFileDataPtr(imap_ssn->decode_state->decodePtr, (uint16_t)imap_ssn->decode_state->decoded_bytes);
+        if ((position == SNORT_FILE_START) || (position == SNORT_FILE_FULL))
+        {
+            int detection_size = getDetectionSize(imap_eval_config->b64_depth, imap_eval_config->qp_depth,
+                    imap_eval_config->uu_depth, imap_eval_config->bitenc_depth,imap_ssn->decode_state );
+            _dpd.setFileDataPtr(imap_ssn->decode_state->decodePtr, (uint16_t)detection_size);
+        }
+        else
+        {
+            _dpd.setFileDataPtr(imap_ssn->decode_state->decodePtr, 0);
+        }
+        if ((data_end_marker != end)||(imap_ssn->state_flags & IMAP_FLAG_MIME_END))
+        {
+            finalFilePosition(&position);
+        }
+        /*Download*/
+        _dpd.fileAPI->file_process(p,(uint8_t *)imap_ssn->decode_state->decodePtr,
+                (uint16_t)imap_ssn->decode_state->decoded_bytes, position, 0);
         ResetDecodedBytes(imap_ssn->decode_state);
     }
 
@@ -1363,6 +1388,7 @@ static const uint8_t * IMAP_HandleDataBody(SFSnortPacket *p, const uint8_t *ptr,
 
                     /* no more MIME */
                     imap_ssn->state_flags &= ~IMAP_FLAG_GOT_BOUNDARY;
+                    imap_ssn->state_flags |= IMAP_FLAG_MIME_END;
 
                     /* free boundary search */
                     _dpd.searchAPI->search_instance_free(imap_ssn->mime_boundary.boundary_search);

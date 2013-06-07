@@ -15,7 +15,7 @@
 **
 ** You should have received a copy of the GNU General Public License
 ** along with this program; if not, write to the Free Software
-** Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA 02111-1307, USA.
+** Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 */
 
 /* $Id$ */
@@ -257,6 +257,13 @@ void UnifiedInit(char *args)
     UnifiedConfig *unifiedConfig;
 
     //DEBUG_WRAP(DebugMessage(DEBUG_INIT, "Output: Unified Initialized\n"););
+
+    WarningMessage("!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!\n");
+    WarningMessage("!! WARNING: The unified output plugin is considered deprecated as\n");
+    WarningMessage("!!          of Snort 2.9.4 and will be removed in the next Snort release.\n");
+    WarningMessage("!!          The recommended approach to logging is to use unified2 with\n");
+    WarningMessage("!!          barnyard2 or similar.\n");
+    WarningMessage("!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!\n");
 
     /* parse the argument list from the rules file */
     unifiedConfig = UnifiedParseArgs(args, "snort-unified");
@@ -973,6 +980,13 @@ void UnifiedAlertInit(char *args)
 
     DEBUG_WRAP(DebugMessage(DEBUG_INIT, "Output: Unified Alert Initialized\n"););
 
+    WarningMessage("!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!\n");
+    WarningMessage("!! WARNING: The unified output plugin is considered deprecated as\n");
+    WarningMessage("!!          of Snort 2.9.4 and will be removed in the next Snort release.\n");
+    WarningMessage("!!          The recommended approach to logging is to use unified2 with\n");
+    WarningMessage("!!          barnyard2 or similar.\n");
+    WarningMessage("!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!\n");
+
     /* parse the argument list from the rules file */
     data = UnifiedParseArgs(args, "snort-unified.alert");
 
@@ -1070,6 +1084,13 @@ static void UnifiedLogInit(char *args)
     UnifiedConfig *UnifiedInfo;
 
     DEBUG_WRAP(DebugMessage(DEBUG_INIT, "Output: Unified Log Initialized\n"););
+
+    WarningMessage("!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!\n");
+    WarningMessage("!! WARNING: The unified output plugin is considered deprecated as\n");
+    WarningMessage("!!          of Snort 2.9.4 and will be removed in the next Snort release.\n");
+    WarningMessage("!!          The recommended approach to logging is to use unified2 with\n");
+    WarningMessage("!!          barnyard2 or similar.\n");
+    WarningMessage("!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!\n");
 
     /* parse the argument list from the rules file */
     UnifiedInfo = UnifiedParseArgs(args, "snort-unified.log");

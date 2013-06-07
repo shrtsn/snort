@@ -16,7 +16,7 @@
  *
  * You should have received a copy of the GNU General Public License
  * along with this program; if not, write to the Free Software
- * Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA 02111-1307, USA.
+ * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
  *
  ****************************************************************************/
 
@@ -74,6 +74,13 @@ void DAQ_Set_MetaCallback(DAQ_Meta_Func_t meta_callback);
 DAQ_Mode DAQ_GetInterfaceMode(const DAQ_PktHdr_t *h);
 
 int DAQ_ModifyFlow(const void* h, uint32_t id);
+
+#ifdef HAVE_DAQ_ADDRESS_SPACE_ID
+static inline uint16_t DAQ_GetAddressSpaceID(const DAQ_PktHdr_t *h)
+{
+    return h->address_space_id;
+}
+#endif
 
 // returns total stats if no daq else current stats
 // returns statically allocated stats - don't free

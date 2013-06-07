@@ -15,7 +15,7 @@
  *
  * You should have received a copy of the GNU General Public License
  * along with this program; if not, write to the Free Software
- * Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA 02111-1307, USA.
+ * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
  *
  ****************************************************************************/
 
@@ -88,6 +88,8 @@
 #include "hi_cmd_lookup.h"
 #include "Unified2_common.h"
 #include "mempool.h"
+#include "file_api.h"
+
 #ifdef PERF_PROFILING
 extern PreprocStats hiDetectPerfStats;
 extern int hiDetectCalled;
@@ -2949,15 +2951,6 @@ int ProcessUniqueServerConf(HTTPINSPECT_GLOBAL_CONF *GlobalConf,
                 goto _return;
             }
 
-#ifndef SUP_IP6
-            if (Ip.family == AF_INET6)
-            {
-                SnortSnprintf(ErrorString, ErrStrLen,
-                        "Invalid IP to '%s' token.", SERVER);
-
-                goto _return;
-            }
-#endif
             if (Ip.family == AF_INET)
             {
                 Ip.ip.u6_addr32[0] = ntohl(Ip.ip.u6_addr32[0]);
@@ -3325,6 +3318,29 @@ static inline void ApplyClientFlowDepth (Packet* p, int flow_depth)
     }
 }
 
+static inline FilePosition getFilePoistion(Packet *p)
+{
+    FilePosition position = SNORT_FILE_START;
+#ifdef ENABLE_PAF
+    if (PacketHasFullPDU(p))
+        position = SNORT_FILE_FULL;
+    else if (PacketHasStartOfPDU(p))
+        position = SNORT_FILE_START;
+    else if (p->packet_flags & PKT_PDU_TAIL)
+        position = SNORT_FILE_END;
+    else if (file_api->get_file_processed_size(p->ssnptr))
+        position = SNORT_FILE_MIDDLE;
+#endif
+    return position;
+}
+static inline void setFileName(Packet *p)
+{
+    uint8_t *buf = NULL;
+    uint32_t len = 0;
+    uint32_t type = 0;
+    GetHttpUriData(p->ssnptr, &buf, &len, &type);
+    file_api->set_file_name (p->ssnptr, buf, len);
+}
 /*
 **  NAME
 **    SnortHttpInspect::
@@ -3590,15 +3606,30 @@ int SnortHttpInspect(HTTPINSPECT_GLOBAL_CONF *GlobalConf, Packet *p)
             {
                 if(Session->client.request.post_raw)
                 {
-                    UriBufs[HTTP_BUFFER_CLIENT_BODY].uri =
+                    if (file_api->file_process(p,(uint8_t *)Session->client.request.post_raw, (uint16_t)Session->client.request.post_raw_size,
+                            getFilePoistion(p), 1))
+                    {
+                        setFileName(p);
+                    }
+
+                    if(Session->server_conf->post_depth > -1)
+                    {
+                        if(Session->server_conf->post_depth &&
+                                ((int)Session->client.request.post_raw_size > Session->server_conf->post_depth))
+                        {
+                            Session->client.request.post_raw_size = Session->server_conf->post_depth;
+                        }
+                        UriBufs[HTTP_BUFFER_CLIENT_BODY].uri =
                                 Session->client.request.post_raw;
-                    UriBufs[HTTP_BUFFER_CLIENT_BODY].length =
+                        UriBufs[HTTP_BUFFER_CLIENT_BODY].length =
                                 Session->client.request.post_raw_size;
-                    UriBufs[HTTP_BUFFER_CLIENT_BODY].encode_type =
+                        UriBufs[HTTP_BUFFER_CLIENT_BODY].encode_type =
                                 Session->client.request.post_encode_type;
 
-                    p->packet_flags |= PKT_HTTP_DECODE;
-                    p->uri_count = HTTP_BUFFER_CLIENT_BODY + 1;
+                        p->packet_flags |= PKT_HTTP_DECODE;
+                        p->uri_count = HTTP_BUFFER_CLIENT_BODY + 1;
+                    }
+
                 }
             }
 
@@ -3772,7 +3803,30 @@ int SnortHttpInspect(HTTPINSPECT_GLOBAL_CONF *GlobalConf, Packet *p)
 
              if(Session->server.response.body_size > 0)
              {
-                 setFileDataPtr((uint8_t *)Session->server.response.body, (uint16_t)Session->server.response.body_size);
+                 int detect_data_size = (int)Session->server.response.body_size;
+
+                 /*body_size is included in the data_extracted*/
+                 if((Session->server_conf->server_flow_depth > 0) &&
+                         (hsd->resp_state.data_extracted  < (Session->server_conf->server_flow_depth + (int)Session->server.response.body_size)))
+                 {
+                     /*flow_depth is smaller than data_extracted, need to subtract*/
+                     if(Session->server_conf->server_flow_depth < hsd->resp_state.data_extracted)
+                         detect_data_size -= hsd->resp_state.data_extracted - Session->server_conf->server_flow_depth;
+                 }
+                 else if (Session->server_conf->server_flow_depth)
+                 {
+                     detect_data_size = 0;
+                 }
+
+                 setFileDataPtr((uint8_t *)Session->server.response.body, (uint16_t)detect_data_size);
+#ifdef ENABLE_PAF
+                 if (ScPafEnabled() && PacketHasPAFPayload(p)
+                         && file_api->file_process(p,(uint8_t *)Session->server.response.body, (uint16_t)Session->server.response.body_size,
+                         getFilePoistion(p), 0))
+                 {
+                     setFileName(p);
+                 }
+#endif
              }
 
              if( IsLimitedDetect(p) &&
@@ -3926,7 +3980,6 @@ int GetHttpTrueIP(void *data, uint8_t **buf, uint32_t *len, uint32_t *type)
     if(!true_ip)
         return 0;
 
-#ifdef SUP_IP6
     if(true_ip->family == AF_INET6)
     {
         *type = EVENT_INFO_XFF_IPV6;
@@ -3934,7 +3987,6 @@ int GetHttpTrueIP(void *data, uint8_t **buf, uint32_t *len, uint32_t *type)
 
     }
     else
-#endif
     {
         *type = EVENT_INFO_XFF_IPV4;
         *len = sizeof(struct in_addr); /*ipv4 address size in bytes*/

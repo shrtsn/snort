@@ -14,7 +14,7 @@
  *
  * You should have received a copy of the GNU General Public License
  * along with this program; if not, write to the Free Software
- * Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA 02111-1307, USA.
+ * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
  *
  * Copyright (C) 2005-2012 Sourcefire, Inc.
  *
@@ -466,7 +466,6 @@ typedef enum {
     PSEUDO_PKT_MAX
 } PseudoPacketType;
 
-#ifdef SUP_IP6
 
 #include "ipv6_port.h"
 
@@ -483,7 +482,6 @@ extern IPH_API ip6;
 #define NO_IP 0
 
 #define IP6_HDR_LEN     40
-#endif
 
 typedef struct _MplsHdr
 {
@@ -737,7 +735,8 @@ typedef struct _SFSnortPacket
 
 #define FLAG_IPREP_SOURCE_TRIGGERED  0x08000000
 #define FLAG_IPREP_DATA_SET          0x10000000
-// 0x20000000 are available
+#define FLAG_FILE_EVENT_SET          0x20000000
+// 0x40000000 are available
 
 #define FLAG_PDU_FULL (FLAG_PDU_HEAD | FLAG_PDU_TAIL)
 

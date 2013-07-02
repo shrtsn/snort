@@ -114,6 +114,7 @@
 #include "output-plugins/spo_log_null.h"
 #include "output-plugins/spo_log_ascii.h"
 #include "output-plugins/spo_unified2.h"
+#include "output-plugins/spo_unified.h"
 
 #ifdef LINUX
 #include "output-plugins/spo_alert_sf_socket.h"
@@ -1540,6 +1541,7 @@ void RegisterOutputPlugins(void)
     LogNullSetup();
     Unified2Setup();
     LogAsciiSetup();
+    UnifiedSetup();
 
 #ifdef LINUX
     /* This uses linux only capabilities */

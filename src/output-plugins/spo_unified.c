@@ -181,11 +181,11 @@ typedef struct _DataHeader
 /* -------------------- Local Functions -----------------------*/
 static UnifiedConfig *UnifiedParseArgs(char *, char *);
 static void UnifiedCleanExit(int, void *);
-static void UnifiedLogInitFinalize(int, void *);
+static void UnifiedLogInitFinalize(struct _SnortConfig *sc, int, void *);
 
 /* Unified Output functions */
-static void UnifiedInit(char *);
-static void UnifiedInitFile(UnifiedConfig *);
+static void UnifiedInit(struct _SnortConfig *sc, char *);
+static void UnifiedInitFile(struct _SnortConfig *sc, UnifiedConfig *);
 static void UnifiedRotateFile(UnifiedConfig *);
 static void UnifiedLogAlert(Packet *, char *, void *, Event *);
 static void UnifiedLogPacketAlert(Packet *, char *, void *, Event *);
@@ -199,14 +199,14 @@ static void RealUnifiedLogStreamAlert(Packet *,char *,void *,Event *,DataHeader 
 static void UnifiedRotateFile(UnifiedConfig *data);
 
 /* Unified Alert functions (deprecated) */
-static void UnifiedAlertInit(char *);
+static void UnifiedAlertInit(struct _SnortConfig *sc, char *);
 static void UnifiedInitAlertFile(UnifiedConfig *);
 static void UnifiedAlertRotateFile(UnifiedConfig *data);
 static void OldUnifiedLogAlert(Packet *, char *, void *, Event *);
 
 
 /* Unified Packet Log functions (deprecated) */
-static void UnifiedLogInit(char *);
+static void UnifiedLogInit(struct _SnortConfig *sc, char *);
 static void UnifiedInitLogFile(UnifiedConfig *);
 static void OldUnifiedLogPacketAlert(Packet *, char *, void *, Event *);
 static void UnifiedLogRotateFile(UnifiedConfig *data);
@@ -252,7 +252,7 @@ void UnifiedSetup(void)
  * Returns: void function
  *
  */
-void UnifiedInit(char *args)
+void UnifiedInit(struct _SnortConfig *sc, char *args)
 {
     UnifiedConfig *unifiedConfig;
 
@@ -268,12 +268,12 @@ void UnifiedInit(char *args)
     /* parse the argument list from the rules file */
     unifiedConfig = UnifiedParseArgs(args, "snort-unified");
 
-    UnifiedInitFile(unifiedConfig);
+    UnifiedInitFile(sc, unifiedConfig);
 
     //LogMessage("UnifiedFilename = %s\n", unifiedConfig->filename);
     /* Set the preprocessor function into the function list */
-    AddFuncToOutputList(UnifiedLogAlert, OUTPUT_TYPE__ALERT, unifiedConfig);
-    AddFuncToOutputList(UnifiedLogPacketAlert, OUTPUT_TYPE__LOG, unifiedConfig);
+    AddFuncToOutputList(sc, UnifiedLogAlert, OUTPUT_TYPE__ALERT, unifiedConfig);
+    AddFuncToOutputList(sc, UnifiedLogPacketAlert, OUTPUT_TYPE__LOG, unifiedConfig);
 
     AddFuncToCleanExitList(UnifiedCleanExit, unifiedConfig);
 }
@@ -287,7 +287,7 @@ void UnifiedInit(char *args)
  *
  * Returns: void function
  */
-static void UnifiedInitFile(UnifiedConfig *data)
+static void UnifiedInitFile(struct _SnortConfig *sc, UnifiedConfig *data)
 {
     time_t curr_time;      /* place to stick the clock data */
     char logdir[STD_BUF];
@@ -344,7 +344,7 @@ void UnifiedRotateFile(UnifiedConfig *data)
 {
     fclose(data->stream);
     data->current = 0;
-    UnifiedInitFile(data);
+    UnifiedInitFile(NULL, data);
 }
 
 void UnifiedLogAlert(Packet *p, char *msg, void *arg, Event *event)
@@ -974,7 +974,7 @@ static void UnifiedCleanExit(int signal, void *arg)
 
 
 /* Unified Alert functions (deprecated) */
-void UnifiedAlertInit(char *args)
+void UnifiedAlertInit(struct _SnortConfig *sc, char *args)
 {
     UnifiedConfig *data;
 
@@ -995,7 +995,7 @@ void UnifiedAlertInit(char *args)
 
     //LogMessage("UnifiedAlertFilename = %s\n", data->filename);
     /* Set the preprocessor function into the function list */
-    AddFuncToOutputList(OldUnifiedLogAlert, OUTPUT_TYPE__ALERT, data);
+    AddFuncToOutputList(sc, OldUnifiedLogAlert, OUTPUT_TYPE__ALERT, data);
     AddFuncToCleanExitList(UnifiedCleanExit, data);
 }
 /*
@@ -1079,7 +1079,7 @@ static void UnifiedAlertRotateFile(UnifiedConfig *data)
 
 /* Unified Packet Log functions (deprecated) */
 
-static void UnifiedLogInit(char *args)
+static void UnifiedLogInit(struct _SnortConfig *sc, char *args)
 {
     UnifiedConfig *UnifiedInfo;
 
@@ -1098,14 +1098,14 @@ static void UnifiedLogInit(char *args)
     //LogMessage("UnifiedLogFilename = %s\n", UnifiedInfo->filename);
 
     UnifiedInitLogFile(UnifiedInfo);
-    AddFuncToPostConfigList(UnifiedLogInitFinalize, UnifiedInfo);
+    AddFuncToPostConfigList(sc, UnifiedLogInitFinalize, UnifiedInfo);
 
     /* Set the preprocessor function into the function list */
-    AddFuncToOutputList(OldUnifiedLogPacketAlert, OUTPUT_TYPE__LOG, UnifiedInfo);
+    AddFuncToOutputList(sc, OldUnifiedLogPacketAlert, OUTPUT_TYPE__LOG, UnifiedInfo);
     AddFuncToCleanExitList(UnifiedCleanExit, UnifiedInfo);
 }
 
-static void UnifiedLogInitFinalize(int unused, void *arg)
+static void UnifiedLogInitFinalize(struct _SnortConfig *sc, int unused, void *arg)
 {
     UnifiedConfig *data = (UnifiedConfig *)arg;
     UnifiedLogFileHeader hdr;
@@ -1434,6 +1434,6 @@ static void UnifiedLogRotateFile(UnifiedConfig *data)
     fclose(data->stream);
     data->current = 0;
     UnifiedInitLogFile(data);
-    UnifiedLogInitFinalize(0, (void *)data);
+    UnifiedLogInitFinalize(NULL, 0, (void *)data);
 }
 

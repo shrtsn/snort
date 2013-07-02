@@ -13,6 +13,7 @@ spo_log_tcpdump.c spo_log_tcpdump.h \
 spo_unified2.c spo_unified2.h \
 spo_log_ascii.c spo_log_ascii.h \
 spo_alert_sf_socket.h spo_alert_sf_socket.c \
-spo_alert_test.c spo_alert_test.h
+spo_alert_test.c spo_alert_test.h \
+spo_unified.c spo_unified.h
 
 INCLUDES = @INCLUDES@

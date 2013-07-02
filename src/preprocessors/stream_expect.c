@@ -60,6 +60,7 @@
 #include "ipv6_port.h"
 #include "sfPolicy.h"
 #include "sfPolicyUserData.h"
+#include "stream5_ha.h"
 
 /* Reasonably small, and prime */
 #define EXPECT_HASH_SIZE 1021
@@ -517,7 +518,7 @@ int StreamExpectIsExpected(Packet *p, SFXHASH_NODE **expected_hash_node)
     return 0;
 }
 
-char SteamExpectProcessNode(Packet *p, Stream5LWSession* lws, SFXHASH_NODE *expected_hash_node)
+char StreamExpectProcessNode(Packet *p, Stream5LWSession* lws, SFXHASH_NODE *expected_hash_node)
 {
     SFXHASH_NODE *hash_node;
     ExpectNode *node;
@@ -548,8 +549,13 @@ char SteamExpectProcessNode(Packet *p, Stream5LWSession* lws, SFXHASH_NODE *expe
     if (!node->appId)
         retVal = node->direction;
 #ifdef TARGET_BASED
-    else
-        lws->application_protocol = node->appId;
+    else if (lws->ha_state.application_protocol != node->appId)
+    {
+        lws->ha_state.application_protocol = node->appId;
+#ifdef ENABLE_HA
+        lws->ha_flags |= HA_FLAG_MODIFIED;
+#endif
+    }
 #endif
 
 #if defined(DEBUG_MSGS)
@@ -597,14 +603,14 @@ char SteamExpectProcessNode(Packet *p, Stream5LWSession* lws, SFXHASH_NODE *expe
     return retVal;
 }
 
-char SteamExpectCheck(Packet *p, Stream5LWSession* lws)
+char StreamExpectCheck(Packet *p, Stream5LWSession* lws)
 {
     SFXHASH_NODE *hash_node;
 
     if (!StreamExpectIsExpected(p, &hash_node))
         return SSN_DIR_NONE;
 
-    return SteamExpectProcessNode(p, lws, hash_node);
+    return StreamExpectProcessNode(p, lws, hash_node);
 }
 
 void StreamExpectInit(void)

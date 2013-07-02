@@ -350,11 +350,6 @@ static int CheckTagging(Packet *p)
     return 0;
 }
 
-/*
- *  11/2/05 marc norton
- *  removed thresholding from this function. This function should only
- *  be called by fpLogEvent, which already does the thresholding test.
- */
 void CallLogFuncs(Packet *p, char *message, ListHead *head, Event *event)
 {
     OutputFuncNode *idx = NULL;
@@ -369,34 +364,27 @@ void CallLogFuncs(Packet *p, char *message, ListHead *head, Event *event)
 
     check_tags_flag = 0;
 
-    if(head == NULL)
+    pc.log_pkts++;
+
+    if ( head == NULL || head->LogList == NULL )
     {
-        CallLogPlugins(p, message, NULL, event);
+        CallLogPlugins(p, message, event);
         return;
     }
 
-    pc.log_pkts++;
-
     idx = head->LogList;
-    if(idx == NULL)
-        idx = LogList;
-
-    while(idx != NULL)
+    while ( idx != NULL )
     {
         idx->func(p, message, idx->arg, event);
         idx = idx->next;
     }
 }
 
-void CallLogPlugins(Packet * p, char *message, void *args, Event *event)
+void CallLogPlugins(Packet * p, char *message, Event *event)
 {
-    OutputFuncNode *idx;
+    OutputFuncNode *idx = LogList;
 
-    idx = LogList;
-
-    pc.log_pkts++;
-
-    while(idx != NULL)
+    while ( idx != NULL )
     {
         idx->func(p, message, idx->arg, event);
         idx = idx->next;
@@ -417,11 +405,6 @@ void CallSigOutputFuncs(Packet *p, OptTreeNode *otn, Event *event)
     }
 }
 
-/*
- *  11/2/05 marc norton
- *  removed thresholding from this function. This function should only
- *  be called by fpLogEvent, which already does the thresholding test.
- */
 void CallAlertFuncs(Packet * p, char *message, ListHead * head, Event *event)
 {
     OutputFuncNode *idx = NULL;
@@ -434,27 +417,22 @@ void CallAlertFuncs(Packet * p, char *message, ListHead * head, Event *event)
     /* set the event reference info */
     event->event_reference = event->event_id;
 
-#ifdef SOURCEFIRE
-    if (event->sig_generator != 136)
+    pc.total_alert_pkts++;
+
+    if ( event->sig_generator != GENERATOR_SPP_REPUTATION )
     {
-        /* Do not count IP Reputation events as IPS events */
+        /* Don't include IP Reputation events in count */
         pc.alert_pkts++;
     }
-#else
-    pc.alert_pkts++;
-#endif
 
-    if(head == NULL)
+    if ( head == NULL || head->AlertList == NULL )
     {
-        CallAlertPlugins(p, message, NULL, event);
+        CallAlertPlugins(p, message, event);
         return;
     }
 
     idx = head->AlertList;
-    if(idx == NULL)
-        idx = AlertList;
-
-    while(idx != NULL)
+    while ( idx != NULL )
     {
         idx->func(p, message, idx->arg, event);
         idx = idx->next;
@@ -462,14 +440,11 @@ void CallAlertFuncs(Packet * p, char *message, ListHead * head, Event *event)
 }
 
 
-void CallAlertPlugins(Packet * p, char *message, void *args, Event *event)
+void CallAlertPlugins(Packet * p, char *message, Event *event)
 {
-    OutputFuncNode *idx;
+    OutputFuncNode *idx = AlertList;
 
-    DEBUG_WRAP(DebugMessage(DEBUG_DETECT, "Call Alert Plugins\n"););
-    idx = AlertList;
-
-    while(idx != NULL)
+    while ( idx != NULL )
     {
         idx->func(p, message, idx->arg, event);
         idx = idx->next;

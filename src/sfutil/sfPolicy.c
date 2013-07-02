@@ -34,7 +34,7 @@ static inline int IsBound (
     tSfPolicyId id
     )
 {
-    return ( id != SF_VLAN_UNBOUND );
+    return ( id != SF_POLICY_UNBOUND );
 }
 
 static inline int NotBound (
@@ -60,7 +60,12 @@ tSfPolicyConfig * sfPolicyInit(void)
     //initialize vlan bindings
     for (i = 0; i < SF_VLAN_BINDING_MAX; i++)
     {
-        new->vlanBindings[i] = SF_VLAN_UNBOUND;
+        new->vlanBindings[i] = SF_POLICY_UNBOUND;
+    }
+
+    for (i = 0; i < SF_POLICY_ID_BINDING_MAX; i++)
+    {
+        new->policyIdBindings[i] = SF_POLICY_UNBOUND;
     }
 
     //initialize net bindings
@@ -79,6 +84,11 @@ void sfPolicyFini(tSfPolicyConfig *config)
     for (i = 0; i < SF_VLAN_BINDING_MAX; i++)
     {
         sfVlanDeleteBinding(config, i);
+    }
+
+    for (i = 0; i < SF_POLICY_ID_BINDING_MAX; i++)
+    {
+        sfPolicyIdDeleteBinding(config, i);
     }
 
     sfrt_cleanup2(config->netBindTable, netBindFree, config);
@@ -118,7 +128,7 @@ int sfPolicyAdd(tSfPolicyConfig *config, char *fileName)
     tSfPolicy **ppTmp;
 
     if (config == NULL)
-        return SF_VLAN_UNBOUND;
+        return SF_POLICY_UNBOUND;
 
     for (i = 0; i < config->numAllocatedPolicies; i++)
     {
@@ -142,7 +152,7 @@ int sfPolicyAdd(tSfPolicyConfig *config, char *fileName)
         ppTmp = (tSfPolicy **)calloc(config->numAllocatedPolicies + POLICY_ALLOCATION_CHUNK,
                                      sizeof(tSfPolicy *));
         if (!ppTmp)
-            return SF_VLAN_UNBOUND;
+            return SF_POLICY_UNBOUND;
 
         if (config->numAllocatedPolicies)
         {
@@ -159,14 +169,14 @@ int sfPolicyAdd(tSfPolicyConfig *config, char *fileName)
     //allocate and initialize
     pObject = (tSfPolicy *)calloc(1, sizeof(tSfPolicy));
     if (!pObject)
-        return SF_VLAN_UNBOUND;
+        return SF_POLICY_UNBOUND;
 
     pObject->refCount++;
     pObject->filename = strdup(fileName);
     if (!pObject->filename)
     {
         free(pObject);
-        return SF_VLAN_UNBOUND;
+        return SF_POLICY_UNBOUND;
     }
 
     config->ppPolicies[emptyIndex] = pObject;
@@ -274,7 +284,7 @@ void sfVlanDeleteBinding(tSfPolicyConfig *config, int vlanId)
     if ( IsBound(policyId) )
     {
         sfPolicyDelete(config, policyId);
-        config->vlanBindings[vlanId] = SF_VLAN_UNBOUND;
+        config->vlanBindings[vlanId] = SF_POLICY_UNBOUND;
     }
 }
 
@@ -325,7 +335,7 @@ void sfPolicyIdDeleteBinding(tSfPolicyConfig *config, int parsedPolicyId)
     if ( IsBound(policyId) )
     {
         sfPolicyDelete(config, policyId);
-        config->vlanBindings[parsedPolicyId] = SF_VLAN_UNBOUND;
+        config->policyIdBindings[parsedPolicyId] = SF_POLICY_UNBOUND;
     }
 }
 
@@ -352,7 +362,7 @@ tSfPolicyId sfGetApplicablePolicyId(
     tSfPolicyId dst_id;
 
     if (config == NULL)
-        return SF_VLAN_UNBOUND;
+        return SF_POLICY_UNBOUND;
 
     if (vlanId > 0)
     {
@@ -431,14 +441,14 @@ unsigned int sfNetworkGetBinding(
     sfip_t tmp_ip;
 
     if ((void *)ip == NULL)
-        return 0;
+        return config->defaultPolicyId;
 
     if (ip->family == AF_INET)
     {
         if (sfip_set_ip(&tmp_ip, ip) != SFIP_SUCCESS)
         {
             /* Just return default configuration */
-            return 0;
+            return config->defaultPolicyId;
         }
 
         tmp_ip.ip32[0] = ntohl(tmp_ip.ip32[0]);
@@ -451,7 +461,7 @@ unsigned int sfNetworkGetBinding(
 
     if (!policyId)
     {
-        return 0;
+        return config->defaultPolicyId;
     }
 
     return *policyId;

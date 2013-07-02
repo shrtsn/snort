@@ -92,6 +92,32 @@ static Output_ListNode_t *module_list = NULL;
 static int num_modules = 0;
 static int loaded = 0;
 
+void * GetNextOutputModule(void *p_node)
+{
+    Output_ListNode_t *node = (Output_ListNode_t *)p_node;
+    if (node)
+        return node->next;
+
+    return module_list;
+}
+
+const char * GetOutputModuleName(void *p_node)
+{
+    Output_ListNode_t *node = (Output_ListNode_t *)p_node;
+    if (node)
+        return node->module->name;
+
+    return NULL;
+}
+
+uint32_t GetOutputModuleVersion(void *p_node)
+{
+    Output_ListNode_t *node = (Output_ListNode_t *)p_node;
+    if (node)
+        return node->module->module_version;
+
+    return 0;
+}
 
 const Output_Module_t *output_find_module(const char *name)
 {
@@ -140,6 +166,13 @@ static int register_module(const Output_Module_t *dm, void *dl_handle)
     {
         fprintf(stderr, "%s: Module API minor version (0x%x) differs from expected version (0x%x)\n",
                 dm->name, dm->api_minor_version, OUTPUT_API_MINOR_VERSION);
+        return OUTPUT_ERROR;
+    }
+
+    /* Output modules should have a non-NULL name. */
+    if (dm->name == NULL)
+    {
+        fprintf(stderr, "Module name is NULL\n");
         return OUTPUT_ERROR;
     }
 
@@ -297,8 +330,6 @@ int output_load(const char *directory)
 
     while((de = readdir(dirp)) != NULL)
     {
-        if (de->d_name == NULL)
-            continue;
         p = strrchr(de->d_name, '.');
         if (!p || strcmp(p, MODULE_EXT))
             continue;

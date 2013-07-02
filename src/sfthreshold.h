@@ -18,7 +18,7 @@
  * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
  *
  ****************************************************************************/
- 
+
 #ifndef SF_THRESHOLD
 #define SF_THRESHOLD
 
@@ -36,7 +36,7 @@ typedef struct _ThresholdConfig
 ThresholdConfig * ThresholdConfigNew(void);
 void ThresholdConfigFree(ThresholdConfig *);
 void sfthreshold_reset(void);
-int sfthreshold_create(ThresholdConfig *, THDX_STRUCT *);
+int sfthreshold_create(struct _SnortConfig *, ThresholdConfig *, THDX_STRUCT *);
 int sfthreshold_test(unsigned int, unsigned int, snort_ip_p, snort_ip_p, long curtime);
 void print_thresholding(ThresholdConfig*, unsigned shutdown);
 void sfthreshold_reset_active(void);

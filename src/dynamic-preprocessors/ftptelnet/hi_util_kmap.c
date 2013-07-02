@@ -171,9 +171,13 @@ void KMapDelete( KMAP * km )
 */
 static KEYNODE *  KMapAddKeyNode(KMAP * km,void * key, int n, void * userdata )
 {
-    KEYNODE * knode = (KEYNODE*) s_malloc( sizeof(KEYNODE) );
+    KEYNODE * knode;
 
-    if( !knode || n < 0 )
+    if (n <= 0)
+        return 0;
+
+    knode = (KEYNODE*) s_malloc( sizeof(KEYNODE) );
+    if (!knode)
         return 0;
 
     memset(knode, 0, sizeof(KEYNODE) );

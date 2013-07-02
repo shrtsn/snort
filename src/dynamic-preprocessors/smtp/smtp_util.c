@@ -291,141 +291,6 @@ void SMTP_DecodeType(const char *start, int length, bool cnt_xf)
     return;
 }
 
-
-
-/* Extract the filename from the header */
-static inline int SMTP_ExtractFileName(const char **start, int length)
-{
-    const char *tmp = NULL;
-    const char *end = *start+length;
-
-    if ((smtp_ssn->log_state == NULL) || (length <= 0))
-        return -1;
-
-
-    if (!(smtp_ssn->state_flags & SMTP_FLAG_IN_CONT_DISP_CONT))
-    {
-        tmp = _dpd.SnortStrcasestr(*start, length, "filename");
-                        
-        if( tmp == NULL )
-            return -1;
-
-        tmp = tmp + 8;
-        while( (tmp < end) && ((isspace(*tmp)) || (*tmp == '=') ))
-        {
-            tmp++;
-        }
-    }
-    else
-        tmp = *start;
-
-    if(tmp < end)
-    {
-        if(*tmp == '"' || (smtp_ssn->state_flags & SMTP_FLAG_IN_CONT_DISP_CONT))
-        {
-            if(*tmp == '"')
-            {
-                if(smtp_ssn->state_flags & SMTP_FLAG_IN_CONT_DISP_CONT)
-                {
-                    smtp_ssn->state_flags &= ~SMTP_FLAG_IN_CONT_DISP_CONT;
-                    return (tmp - *start);
-                }
-                    tmp++;
-
-            }
-            *start = tmp;
-            tmp = _dpd.SnortStrnPbrk(*start ,(end - tmp),"\"");
-            if(tmp == NULL )
-            {
-                if ((end - tmp) > 0 )
-                {
-                    tmp = end;
-                    smtp_ssn->state_flags |= SMTP_FLAG_IN_CONT_DISP_CONT;
-                }
-                else
-                    return -1;
-            }
-            else
-                smtp_ssn->state_flags &= ~SMTP_FLAG_IN_CONT_DISP_CONT;
-            end = tmp;
-        }
-        else
-        {
-            *start = tmp;
-        }
-        return (end - *start);
-    }
-    else
-    {
-        return -1;
-    }
-
-    return 0;
-}
-
-
-/* accumulate MIME attachment filenames. The filenames are appended by commas */
-int SMTP_CopyFileName(const uint8_t *start, int length)
-{
-    uint8_t *alt_buf;
-    int alt_size;
-    uint16_t *alt_len;
-    int ret=0;
-    int cont =0;
-    int log_avail = 0;
-
-
-    if(!start || (length <= 0))
-    {
-        smtp_ssn->state_flags &= ~SMTP_FLAG_IN_CONT_DISP_CONT;
-        return -1;
-    }
-
-    if(smtp_ssn->state_flags & SMTP_FLAG_IN_CONT_DISP_CONT)
-        cont = 1;
-
-    ret = SMTP_ExtractFileName((const char **)(&start), length );
-
-    if (ret == -1)
-        return ret;
-
-    length = ret;
-
-    alt_buf = smtp_ssn->log_state->filenames;
-    alt_size =  MAX_FILE;
-    alt_len = &(smtp_ssn->log_state->file_logged);
-    log_avail = alt_size - *alt_len;
-
-    if(!alt_buf || (log_avail <= 0))
-        return -1;
-
-
-    if ( *alt_len > 0 && ((*alt_len + 1) < alt_size))
-    {
-        if(!cont)
-        {
-            alt_buf[*alt_len] = ',';
-            *alt_len = *alt_len + 1;
-        }
-    }
-
-    ret = SafeMemcpy(alt_buf + *alt_len, start, length, alt_buf, alt_buf + alt_size);
-
-    if (ret != SAFEMEM_SUCCESS)
-    {
-        if(*alt_len != 0)
-            *alt_len = *alt_len - 1;
-        return -1;
-    }
-
-    smtp_ssn->log_state->file_current = *alt_len;
-    *alt_len += length;
-    smtp_ssn->log_flags |= SMTP_FLAG_FILENAME_PRESENT;
-
-    return 0;
-}
-
-
 void SMTP_LogFuncs(SMTPConfig *config, SFSnortPacket *p)
 {
     if((smtp_ssn->log_flags == 0) || !config)
@@ -433,22 +298,22 @@ void SMTP_LogFuncs(SMTPConfig *config, SFSnortPacket *p)
 
     if(smtp_ssn->log_flags & SMTP_FLAG_FILENAME_PRESENT)
     {
-        SetLogFuncs(p, config->xtra_filename_id, 0);
+        _dpd.streamAPI->set_extra_data(p->stream_session_ptr, p, config->xtra_filename_id);
     }
 
     if(smtp_ssn->log_flags & SMTP_FLAG_MAIL_FROM_PRESENT)
     {
-        SetLogFuncs(p, config->xtra_mfrom_id, 0);
+        _dpd.streamAPI->set_extra_data(p->stream_session_ptr, p, config->xtra_mfrom_id);
     }
 
     if(smtp_ssn->log_flags & SMTP_FLAG_RCPT_TO_PRESENT)
     {
-        SetLogFuncs(p, config->xtra_rcptto_id, 0);
+        _dpd.streamAPI->set_extra_data(p->stream_session_ptr, p, config->xtra_rcptto_id);
     }
 
     if(smtp_ssn->log_flags & SMTP_FLAG_EMAIL_HDRS_PRESENT)
     {
-        SetLogFuncs(p, config->xtra_ehdrs_id, 0);
+        _dpd.streamAPI->set_extra_data(p->stream_session_ptr, p, config->xtra_ehdrs_id);
     }
 
 }

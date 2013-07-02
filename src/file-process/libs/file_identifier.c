@@ -163,12 +163,15 @@ static void verify_magic_offset(MagicData *parent, MagicData *current)
 
     }
 }
+
+/* Add a new node to the sorted magic list
+ */
 static void add_to_sorted_magic(MagicData **head, MagicData *new )
 {
-
     MagicData *current = *head;
 
-    if (!new)
+    /*Avoid adding the same magic*/
+    if (!new || (current == new))
         return;
 
     if (new->offset < current->offset)
@@ -180,7 +183,7 @@ static void add_to_sorted_magic(MagicData **head, MagicData *new )
         return;
     }
 
-    /*Find the parent*/
+    /*Find the parent for the new magic*/
     while (current)
     {
         MagicData *next = current->next;
@@ -197,16 +200,19 @@ static void add_to_sorted_magic(MagicData **head, MagicData *new )
 
 }
 
+/* Content magics are sorted based on offset, this
+ * will help compile the file magic trio
+ */
 static void sort_magics(MagicData **head)
 {
     MagicData *current = *head;
 
-    /*Find number of magics*/
+    /*Add one magic at a time to sorted magics*/
     while (current)
     {
         MagicData *next = current->next;
         current->next = NULL;
-        add_to_sorted_magic(head, next);
+        add_to_sorted_magic(head, current);
         current = next;
     }
 }
@@ -288,8 +294,7 @@ static inline bool updateNext(IdentifierNode *start,IdentifierNode **next_ptr, I
             sharedIdentifier.shared_node = next;
             sharedIdentifier.append_node = append;
             new->offset = append->offset;
-            if (start->type_id)
-                new->type_id = start->type_id;
+
             for(index = 0; index < MAX_BRANCH; index++)
             {
                 new->next[index] = next;
@@ -543,6 +548,8 @@ char *test_find_file_type(void *conf)
     }
     else if (SNORT_FILE_TYPE_CONTINUE != type_id)
         printf("File type is: %s (%d)\n",file_info_from_ID(conf, type_id), type_id);
+
+    free(context);
     return ((char *)file_type);
 }
 #endif

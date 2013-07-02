@@ -35,7 +35,7 @@ memcap        = 1 - 4095 Mbytes
 
 preprocessor reputation:\ 
             < memcap  number >,\
-            < scanLocal >, \
+            < scan_local >, \
             < blacklist  < list filename >>,\
             < whitelist < list filename >>,\
             < priority  [blacklist whitelist] >,\
@@ -225,7 +225,7 @@ Configuration
       to ./configure.
       For example:
       ./configure --enable-gre --enable-sourcefire --enable-flexresp3 
-      --enable-dynamicplugin --enable-pthread --enable-linux-smp-stats --enable-mpls 
+      --enable-pthread --enable-linux-smp-stats --enable-mpls 
       --enable-targetbased --enable-shared-rep --enable-control-socket
       
    2) Put your IP list file into a directory, where snort has full access

@@ -62,8 +62,8 @@ typedef struct _TCPFlagCheckData
 
 } TCPFlagCheckData;
 
-void TCPFlagCheckInit(char *, OptTreeNode *, int);
-void ParseTCPFlags(char *, OptTreeNode *);
+void TCPFlagCheckInit(struct _SnortConfig *, char *, OptTreeNode *, int);
+void ParseTCPFlags(struct _SnortConfig *, char *, OptTreeNode *);
 int CheckTcpFlags(void *option_data, Packet *p);
 
 uint32_t TcpFlagCheckHash(void *d)
@@ -110,7 +110,7 @@ void SetupTCPFlagCheck(void)
 
 
 
-void TCPFlagCheckInit(char *data, OptTreeNode *otn, int protocol)
+void TCPFlagCheckInit(struct _SnortConfig *sc, char *data, OptTreeNode *otn, int protocol)
 {
     OptFpList *fpl;
 
@@ -130,7 +130,7 @@ void TCPFlagCheckInit(char *data, OptTreeNode *otn, int protocol)
             SnortAlloc(sizeof(TCPFlagCheckData));
 
     /* set up the pattern buffer */
-    ParseTCPFlags(data, otn);
+    ParseTCPFlags(sc, data, otn);
 
     DEBUG_WRAP(DebugMessage(DEBUG_PLUGIN, "Adding TCP flag check function (%p) to list\n",
 			    CheckTcpFlags););
@@ -147,7 +147,7 @@ void TCPFlagCheckInit(char *data, OptTreeNode *otn, int protocol)
 
 /****************************************************************************
  *
- * Function: ParseTCPflags(char *)
+ * Function: ParseTCPflags(struct _SnortConfig *, char *, OptTreeNode *)
  *
  * Purpose: Figure out which TCP flags the current rule is interested in
  *
@@ -156,7 +156,7 @@ void TCPFlagCheckInit(char *data, OptTreeNode *otn, int protocol)
  * Returns: void function
  *
  ***************************************************************************/
-void ParseTCPFlags(char *rule, OptTreeNode *otn)
+void ParseTCPFlags(struct _SnortConfig *sc, char *rule, OptTreeNode *otn)
 {
     char *fptr;
     char *fend;
@@ -320,7 +320,7 @@ void ParseTCPFlags(char *rule, OptTreeNode *otn)
         fptr++;
     }
 
-    if (add_detection_option(RULE_OPTION_TYPE_TCP_FLAG, (void *)idx, &ds_ptr_dup) == DETECTION_OPTION_EQUAL)
+    if (add_detection_option(sc, RULE_OPTION_TYPE_TCP_FLAG, (void *)idx, &ds_ptr_dup) == DETECTION_OPTION_EQUAL)
     {
         otn->ds_list[PLUGIN_TCP_FLAG_CHECK] = ds_ptr_dup;
         free(idx);

@@ -58,7 +58,7 @@ typedef struct _PcreData
     uint32_t search_offset;
 } PcreData;
 
-void PcreCapture(const void *code, const void *extra);
+void PcreCapture(struct _SnortConfig *sc, const void *code, const void *extra);
 void PcreFree(void *d);
 uint32_t PcreHash(void *d);
 int PcreCompare(void *l, void *r);

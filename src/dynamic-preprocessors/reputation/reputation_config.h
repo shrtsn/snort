@@ -127,7 +127,7 @@ typedef struct _IPrepInfo{
  ********************************************************************/
 void  Reputation_FreeConfig(ReputationConfig *);
 void  ParseReputationArgs(ReputationConfig *, u_char*);
-void initShareMemory(void *config);
+void initShareMemory(struct _SnortConfig *sc, void *config);
 void ReputationRepInfo(IPrepInfo *, uint8_t *, char *, int);
 DEBUG_WRAP(void ReputationPrintRepInfo(IPrepInfo * repInfo, uint8_t *base);)
 #endif

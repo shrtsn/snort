@@ -54,7 +54,7 @@ typedef struct _IpSameData
 
 } IpSameData;
 
-void IpSameCheckInit(char *, OptTreeNode *, int);
+void IpSameCheckInit(struct _SnortConfig *, char *, OptTreeNode *, int);
 void ParseIpSame(char *, OptTreeNode *);
 int IpSameCheck(void *option_data, Packet *p);
 
@@ -104,7 +104,7 @@ void SetupIpSameCheck(void)
 
 /****************************************************************************
  *
- * Function: IpSameCheckInit(char *, OptTreeNode *)
+ * Function: IpSameCheckInit(struct _SnortConfig *, char *, OptTreeNode *)
  *
  * Purpose: Setup the same data struct and link the function into option
  *          function pointer list
@@ -115,7 +115,7 @@ void SetupIpSameCheck(void)
  * Returns: void function
  *
  ****************************************************************************/
-void IpSameCheckInit(char *data, OptTreeNode *otn, int protocol)
+void IpSameCheckInit(struct _SnortConfig *sc, char *data, OptTreeNode *otn, int protocol)
 {
     OptFpList *fpl;
     void *ds_ptr_dup;
@@ -137,7 +137,7 @@ void IpSameCheckInit(char *data, OptTreeNode *otn, int protocol)
        rule option's data structure */
     ParseIpSame(data, otn);
 
-    if (add_detection_option(RULE_OPTION_TYPE_IP_SAME, (void *)NULL, &ds_ptr_dup) == DETECTION_OPTION_EQUAL)
+    if (add_detection_option(sc, RULE_OPTION_TYPE_IP_SAME, (void *)NULL, &ds_ptr_dup) == DETECTION_OPTION_EQUAL)
     {
         //otn->ds_list[PLUGIN_IP_SAME_CHECK] = ds_ptr_dup;
     }

@@ -57,9 +57,6 @@ const char *PREPROC_NAME = "SF_DNP3";
 
 /* Preprocessor config objects */
 static tSfPolicyUserContextId dnp3_context_id = NULL;
-#ifdef SNORT_RELOAD
-static tSfPolicyUserContextId dnp3_swap_context_id = NULL;
-#endif
 static dnp3_config_t *dnp3_eval_config = NULL;
 
 static MemPool *dnp3_mempool = NULL;
@@ -71,31 +68,31 @@ int16_t dnp3_app_id = SFTARGET_UNKNOWN_PROTOCOL;
 #endif
 
 /* Prototypes */
-static void DNP3Init(char *argp);
-static inline void DNP3OneTimeInit(void);
-static inline dnp3_config_t * DNP3PerPolicyInit(tSfPolicyUserContextId);
-static void DNP3RegisterPerPolicyCallbacks(dnp3_config_t *);
+static void DNP3Init(struct _SnortConfig *, char *);
+static inline void DNP3OneTimeInit(struct _SnortConfig *);
+static inline dnp3_config_t * DNP3PerPolicyInit(struct _SnortConfig *, tSfPolicyUserContextId);
+static void DNP3RegisterPerPolicyCallbacks(struct _SnortConfig *, dnp3_config_t *);
 
 static void ProcessDNP3(void *, void *);
 
 #ifdef SNORT_RELOAD
-static void DNP3Reload(char *);
-static int DNP3ReloadVerify(void);
-static void * DNP3ReloadSwap(void);
+static void DNP3Reload(struct _SnortConfig *, char *, void **);
+static int DNP3ReloadVerify(struct _SnortConfig *, void *);
+static void * DNP3ReloadSwap(struct _SnortConfig *, void *);
 static void DNP3ReloadSwapFree(void *);
 #endif
 
-static void _addPortsToStream5Filter(dnp3_config_t *, tSfPolicyId);
+static void _addPortsToStream5Filter(struct _SnortConfig *, dnp3_config_t *, tSfPolicyId);
 #ifdef TARGET_BASED
-static void _addServicesToStream5Filter(tSfPolicyId);
+static void _addServicesToStream5Filter(struct _SnortConfig *, tSfPolicyId);
 #endif
 
 static void DNP3FreeConfig(tSfPolicyUserContextId context_id);
 static void FreeDNP3Data(void *);
-static void DNP3CheckConfig(void);
+static int DNP3CheckConfig(struct _SnortConfig *);
 static void DNP3CleanExit(int, void *);
 
-static void ParseDNP3Args(dnp3_config_t *config, char *args);
+static void ParseDNP3Args(struct _SnortConfig *, dnp3_config_t *, char *);
 static void PrintDNP3Config(dnp3_config_t *config);
 
 static int DNP3PortCheck(dnp3_config_t *config, SFSnortPacket *packet);
@@ -111,12 +108,12 @@ void SetupDNP3(void)
     _dpd.registerPreproc("dnp3", DNP3Init);
 #else
     _dpd.registerPreproc("dnp3", DNP3Init, DNP3Reload,
-                         DNP3ReloadSwap, DNP3ReloadSwapFree);
+                         DNP3ReloadVerify, DNP3ReloadSwap, DNP3ReloadSwapFree);
 #endif
 }
 
 /* Allocate memory for preprocessor config, parse the args, set up callbacks */
-static void DNP3Init(char *argp)
+static void DNP3Init(struct _SnortConfig *sc, char *argp)
 {
     int first_init = 0;
     dnp3_config_t *dnp3_policy = NULL;
@@ -124,19 +121,19 @@ static void DNP3Init(char *argp)
     if (dnp3_context_id == NULL)
     {
         first_init = 1;
-        DNP3OneTimeInit();
+        DNP3OneTimeInit(sc);
     }
 
-    dnp3_policy = DNP3PerPolicyInit(dnp3_context_id);
+    dnp3_policy = DNP3PerPolicyInit(sc, dnp3_context_id);
 
-    ParseDNP3Args(dnp3_policy, argp);
+    ParseDNP3Args(sc, dnp3_policy, argp);
 
     PrintDNP3Config(dnp3_policy);
 
-    DNP3RegisterPerPolicyCallbacks(dnp3_policy);
+    DNP3RegisterPerPolicyCallbacks(sc, dnp3_policy);
 }
 
-static inline void DNP3OneTimeInit()
+static inline void DNP3OneTimeInit(struct _SnortConfig *sc)
 {
     /* context creation & error checking */
     dnp3_context_id = sfPolicyConfigCreate();
@@ -153,7 +150,7 @@ static inline void DNP3OneTimeInit()
     }
 
     /* callback registration */
-    _dpd.addPreprocConfCheck(DNP3CheckConfig);
+    _dpd.addPreprocConfCheck(sc, DNP3CheckConfig);
     _dpd.addPreprocExit(DNP3CleanExit, NULL, PRIORITY_LAST, PP_DNP3);
 
 #ifdef PERF_PROFILING
@@ -169,9 +166,9 @@ static inline void DNP3OneTimeInit()
 }
 
 /* Responsible for allocating a DNP3 policy. Never returns NULL. */
-static inline dnp3_config_t * DNP3PerPolicyInit(tSfPolicyUserContextId context_id)
+static inline dnp3_config_t * DNP3PerPolicyInit(struct _SnortConfig *sc, tSfPolicyUserContextId context_id)
 {
-    tSfPolicyId policy_id = _dpd.getParserPolicy();
+    tSfPolicyId policy_id = _dpd.getParserPolicy(sc);
     dnp3_config_t *dnp3_policy = NULL;
 
     /* Check for existing policy & bail if found */
@@ -196,25 +193,26 @@ static inline dnp3_config_t * DNP3PerPolicyInit(tSfPolicyUserContextId context_i
     return dnp3_policy;
 }
 
-static void DNP3RegisterPerPolicyCallbacks(dnp3_config_t *dnp3_policy)
+static void DNP3RegisterPerPolicyCallbacks(struct _SnortConfig *sc, dnp3_config_t *dnp3_policy)
 {
-    tSfPolicyId policy_id = _dpd.getParserPolicy();
+    tSfPolicyId policy_id = _dpd.getParserPolicy(sc);
 
     /* Callbacks should be avoided if the preproc is disabled. */
     if (dnp3_policy->disabled)
         return;
 
-    _dpd.addPreproc(ProcessDNP3, PRIORITY_APPLICATION, PP_DNP3, PROTO_BIT__TCP|PROTO_BIT__UDP);
-    _addPortsToStream5Filter(dnp3_policy, policy_id);
+    _dpd.addPreproc(sc, ProcessDNP3, PRIORITY_APPLICATION, PP_DNP3, PROTO_BIT__TCP|PROTO_BIT__UDP);
+    _addPortsToStream5Filter(sc, dnp3_policy, policy_id);
 #ifdef TARGET_BASED
-    _addServicesToStream5Filter(policy_id);
+    _addServicesToStream5Filter(sc, policy_id);
+    DNP3AddServiceToPaf(sc, dnp3_app_id, policy_id);
 #endif
-    DNP3AddPortsToPaf(dnp3_policy, policy_id);
+    DNP3AddPortsToPaf(sc, dnp3_policy, policy_id);
 
-    _dpd.preprocOptRegister(DNP3_FUNC_NAME, DNP3FuncInit, DNP3FuncEval, free, NULL, NULL, NULL, NULL);
-    _dpd.preprocOptRegister(DNP3_OBJ_NAME, DNP3ObjInit, DNP3ObjEval, free, NULL, NULL, NULL, NULL);
-    _dpd.preprocOptRegister(DNP3_IND_NAME, DNP3IndInit, DNP3IndEval, free, NULL, NULL, NULL, NULL);
-    _dpd.preprocOptRegister(DNP3_DATA_NAME, DNP3DataInit, DNP3DataEval, free, NULL, NULL, NULL, NULL);
+    _dpd.preprocOptRegister(sc, DNP3_FUNC_NAME, DNP3FuncInit, DNP3FuncEval, free, NULL, NULL, NULL, NULL);
+    _dpd.preprocOptRegister(sc, DNP3_OBJ_NAME, DNP3ObjInit, DNP3ObjEval, free, NULL, NULL, NULL, NULL);
+    _dpd.preprocOptRegister(sc, DNP3_IND_NAME, DNP3IndInit, DNP3IndEval, free, NULL, NULL, NULL, NULL);
+    _dpd.preprocOptRegister(sc, DNP3_DATA_NAME, DNP3DataInit, DNP3DataEval, free, NULL, NULL, NULL, NULL);
 }
 
 static void ParseSinglePort(dnp3_config_t *config, char *token)
@@ -234,7 +232,7 @@ static void ParseSinglePort(dnp3_config_t *config, char *token)
     config->ports[PORT_INDEX(portnum)] |= CONV_PORT(portnum);
 }
 
-static void ParseDNP3Args(dnp3_config_t *config, char *args)
+static void ParseDNP3Args(struct _SnortConfig *sc, dnp3_config_t *config, char *args)
 {
     char *saveptr;
     char *token;
@@ -247,7 +245,7 @@ static void ParseDNP3Args(dnp3_config_t *config, char *args)
     /* No arguments? Stick with defaults. */
     if (args == NULL)
         return;
-    
+
     token = strtok_r(args, " ,", &saveptr);
     while (token != NULL)
     {
@@ -307,16 +305,16 @@ static void ParseDNP3Args(dnp3_config_t *config, char *args)
 
             /* In a multiple policy scenario, the memcap from the default policy
                overrides the memcap in any targeted policies. */
-            if (_dpd.getParserPolicy() != _dpd.getDefaultPolicy())
+            if (_dpd.getParserPolicy(sc) != _dpd.getDefaultPolicy())
             {
-                dnp3_config_t *default_config = 
+                dnp3_config_t *default_config =
                     (dnp3_config_t *)sfPolicyUserDataGet(dnp3_context_id,
                                                          _dpd.getDefaultPolicy());
 
                 if (!default_config || default_config->memcap == 0)
                 {
                     DynamicPreprocessorFatalMessage("%s(%d): DNP3 'memcap' must be "
-                        "configured in the default config.\n", 
+                        "configured in the default config.\n",
                         *_dpd.config_file, *_dpd.config_line);
                 }
 
@@ -492,7 +490,7 @@ static void ProcessDNP3(void *ipacketp, void *contextp)
 
     /* Look for a previously-allocated session data. */
     tmp_bucket = _dpd.streamAPI->get_application_data(packetp->stream_session_ptr, PP_DNP3);
-    
+
     if (tmp_bucket == NULL)
     {
         /* No existing session. Check those ports. */
@@ -613,8 +611,9 @@ static MemBucket * DNP3CreateSessionData(SFSnortPacket *packet)
 /* Reload functions */
 #ifdef SNORT_RELOAD
 /* Almost like DNP3Init, but not quite. */
-static void DNP3Reload(char *args)
+static void DNP3Reload(struct _SnortConfig *sc, char *args, void **new_config)
 {
+    tSfPolicyUserContextId dnp3_swap_context_id = (tSfPolicyUserContextId)*new_config;
     dnp3_config_t *dnp3_policy = NULL;
 
     if (dnp3_swap_context_id == NULL)
@@ -631,22 +630,22 @@ static void DNP3Reload(char *args)
             DynamicPreprocessorFatalMessage("SetupDNP3(): The Stream preprocessor "
                                             "must be enabled.\n");
         }
+        *new_config = (void *)dnp3_swap_context_id;
     }
 
-    dnp3_policy = DNP3PerPolicyInit(dnp3_swap_context_id);
+    dnp3_policy = DNP3PerPolicyInit(sc, dnp3_swap_context_id);
 
-    ParseDNP3Args(dnp3_policy, args);
+    ParseDNP3Args(sc, dnp3_policy, args);
 
     PrintDNP3Config(dnp3_policy);
 
-    DNP3RegisterPerPolicyCallbacks(dnp3_policy);
-
-    _dpd.addPreprocReloadVerify(DNP3ReloadVerify);
+    DNP3RegisterPerPolicyCallbacks(sc, dnp3_policy);
 }
 
 /* Check that Stream5 is still running, and that the memcap didn't change. */
-static int DNP3ReloadVerify(void)
+static int DNP3ReloadVerify(struct _SnortConfig *sc, void *swap_config)
 {
+    tSfPolicyUserContextId dnp3_swap_context_id = (tSfPolicyUserContextId)swap_config;
     dnp3_config_t *current_default_config, *new_default_config;
 
     if ((dnp3_context_id == NULL) || (dnp3_swap_context_id == NULL))
@@ -664,21 +663,24 @@ static int DNP3ReloadVerify(void)
 
     if (new_default_config == NULL)
     {
-        DynamicPreprocessorFatalMessage("DNP3 reload: Changing the DNP3 configuration "
+        _dpd.errMsg("DNP3 reload: Changing the DNP3 configuration "
             "requires a restart.\n");
+        return -1;
     }
 
     /* Did memcap change? */
     if (current_default_config->memcap != new_default_config->memcap)
     {
-        DynamicPreprocessorFatalMessage("DNP3 reload: Changing the DNP3 memcap "
+        _dpd.errMsg("DNP3 reload: Changing the DNP3 memcap "
             "requires a restart.\n");
+        return -1;
     }
 
     /* Did stream5 get turned off? */
-    if (!_dpd.isPreprocEnabled(PP_STREAM5))
+    if (!_dpd.isPreprocEnabled(sc, PP_STREAM5))
     {
-        DynamicPreprocessorFatalMessage("SetupDNP3(): The Stream preprocessor must be enabled.\n");
+        _dpd.errMsg("SetupDNP3(): The Stream preprocessor must be enabled.\n");
+        return -1;
     }
 
     return 0;
@@ -702,17 +704,17 @@ static int DNP3FreeUnusedConfigPolicy(
     return 0;
 }
 
-static void * DNP3ReloadSwap(void)
+static void * DNP3ReloadSwap(struct _SnortConfig *sc, void *swap_config)
 {
+    tSfPolicyUserContextId dnp3_swap_context_id = (tSfPolicyUserContextId)swap_config;
     tSfPolicyUserContextId old_context_id = dnp3_context_id;
 
     if (dnp3_swap_context_id == NULL)
         return NULL;
 
     dnp3_context_id = dnp3_swap_context_id;
-    dnp3_swap_context_id = NULL;
 
-    sfPolicyUserDataIterate(old_context_id, DNP3FreeUnusedConfigPolicy);
+    sfPolicyUserDataFreeIterate(old_context_id, DNP3FreeUnusedConfigPolicy);
 
     if (sfPolicyUserPolicyGetActive(old_context_id) == 0)
     {
@@ -733,7 +735,7 @@ static void DNP3ReloadSwapFree(void *data)
 #endif
 
 /* Stream5 filter functions */
-static void _addPortsToStream5Filter(dnp3_config_t *config, tSfPolicyId policy_id)
+static void _addPortsToStream5Filter(struct _SnortConfig *sc, dnp3_config_t *config, tSfPolicyId policy_id)
 {
     if (config == NULL)
         return;
@@ -748,9 +750,9 @@ static void _addPortsToStream5Filter(dnp3_config_t *config, tSfPolicyId policy_i
             {
                 //Add port the port
                 _dpd.streamAPI->set_port_filter_status(
-                    IPPROTO_TCP, (uint16_t)portNum, PORT_MONITOR_SESSION, policy_id, 1);
+                    sc, IPPROTO_TCP, (uint16_t)portNum, PORT_MONITOR_SESSION, policy_id, 1);
                 _dpd.streamAPI->set_port_filter_status(
-                    IPPROTO_UDP, (uint16_t)portNum, PORT_MONITOR_SESSION, policy_id, 1);
+                    sc, IPPROTO_UDP, (uint16_t)portNum, PORT_MONITOR_SESSION, policy_id, 1);
             }
         }
     }
@@ -758,9 +760,9 @@ static void _addPortsToStream5Filter(dnp3_config_t *config, tSfPolicyId policy_i
 }
 
 #ifdef TARGET_BASED
-static void _addServicesToStream5Filter(tSfPolicyId policy_id)
+static void _addServicesToStream5Filter(struct _SnortConfig *sc, tSfPolicyId policy_id)
 {
-    _dpd.streamAPI->set_service_filter_status(dnp3_app_id, PORT_MONITOR_SESSION, policy_id, 1);
+    _dpd.streamAPI->set_service_filter_status(sc, dnp3_app_id, PORT_MONITOR_SESSION, policy_id, 1);
 }
 #endif
 
@@ -784,11 +786,11 @@ static void DNP3FreeConfig(tSfPolicyUserContextId context_id)
     if (context_id == NULL)
         return;
 
-    sfPolicyUserDataIterate(context_id, DNP3FreeConfigPolicy);
+    sfPolicyUserDataFreeIterate(context_id, DNP3FreeConfigPolicy);
     sfPolicyConfigDelete(context_id);
 }
 
-static int DNP3IsEnabled(tSfPolicyUserContextId context_id,
+static int DNP3IsEnabled(struct _SnortConfig *sc, tSfPolicyUserContextId context_id,
             tSfPolicyId policy_id, void *data)
 {
     dnp3_config_t *config = (dnp3_config_t *)data;
@@ -801,6 +803,7 @@ static int DNP3IsEnabled(tSfPolicyUserContextId context_id,
 
 /* Check an individual policy */
 static int DNP3CheckPolicyConfig(
+    struct _SnortConfig *sc,
     tSfPolicyUserContextId context_id,
     tSfPolicyId policy_id,
     void *data
@@ -808,7 +811,7 @@ static int DNP3CheckPolicyConfig(
 {
     dnp3_config_t *config = (dnp3_config_t *)data;
 
-    _dpd.setParserPolicy(policy_id);
+    _dpd.setParserPolicy(sc, policy_id);
 
     /* In a multiple-policy setting, the preprocessor can be turned on in
        a "disabled" state. In this case, we don't require Stream5. */
@@ -816,10 +819,11 @@ static int DNP3CheckPolicyConfig(
         return 0;
 
     /* Otherwise, require Stream5. */
-    if (!_dpd.isPreprocEnabled(PP_STREAM5))
+    if (!_dpd.isPreprocEnabled(sc, PP_STREAM5))
     {
-        DynamicPreprocessorFatalMessage("DNP3CheckPolicyConfig(): "
+        _dpd.errMsg("ERROR: DNP3CheckPolicyConfig(): "
             "The Stream preprocessor must be enabled.\n");
+        return -1;
     }
     return 0;
 }
@@ -827,21 +831,30 @@ static int DNP3CheckPolicyConfig(
 /* Check configs & set up mempool.
    Mempool stuff is in this function because we want to parse & check *ALL*
    of the configs before allocating a mempool. */
-static void DNP3CheckConfig(void)
+static int DNP3CheckConfig(struct _SnortConfig *sc)
 {
+    int rval;
     unsigned int max_sessions;
 
     /* Get default configuration */
     dnp3_config_t *default_config =
         (dnp3_config_t *)sfPolicyUserDataGetDefault(dnp3_context_id);
 
+    if ( !default_config )
+    {
+        _dpd.errMsg(
+            "ERROR: preprocessor dnp3 must be configured in the default policy.\n");
+        return -1;
+    }
     /* Check all individual configurations */
-    sfPolicyUserDataIterate(dnp3_context_id, DNP3CheckPolicyConfig);
+    if ((rval = sfPolicyUserDataIterate(sc, dnp3_context_id, DNP3CheckPolicyConfig)))
+        return rval;
 
     /* Set up MemPool, but only if a config exists that's not "disabled". */
-    if (sfPolicyUserDataIterate(dnp3_context_id, DNP3IsEnabled) == 0)
-        return;
+    if (sfPolicyUserDataIterate(sc, dnp3_context_id, DNP3IsEnabled) == 0)
+        return 0;
 
+    // FIXTHIS default_config is null when configured in target policy only
     max_sessions = default_config->memcap / sizeof(dnp3_session_data_t);
 
     dnp3_mempool = (MemPool *)calloc(1, sizeof(MemPool));
@@ -849,6 +862,7 @@ static void DNP3CheckConfig(void)
     {
         DynamicPreprocessorFatalMessage("Unable to allocate DNP3 mempool.\n");
     }
+    return 0;
 }
 
 static void DNP3CleanExit(int signal, void *data)

@@ -966,4 +966,5 @@ SID   Description
 9     Javascript obfuscation levels exceeds 1
 10    Javascript consecutive whitespaces exceeds max allowed
 11    Multiple encodings within Javascript obfuscated data
+12    Too many pipelined requests
 

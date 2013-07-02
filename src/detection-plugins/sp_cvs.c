@@ -69,7 +69,7 @@ extern PreprocStats ruleOTNEvalPerfStats;
 #include "detection_options.h"
 
 /* function prototypes */
-static void CvsInit(char *, OptTreeNode *, int);
+static void CvsInit(struct _SnortConfig *, char *, OptTreeNode *, int);
 static void CvsRuleParse(char *, CvsRuleOption *);
 static int CvsDetect(void *option_data, Packet *p);
 static int CvsDecode(const uint8_t *, uint16_t, CvsRuleOption *);
@@ -146,7 +146,7 @@ void SetupCvs(void)
 **
 */
 
-static void CvsInit(char *data, OptTreeNode *otn, int protocol)
+static void CvsInit(struct _SnortConfig *sc, char *data, OptTreeNode *otn, int protocol)
 {
     CvsRuleOption *cvs_rule_option;
     void *ds_ptr_dup;
@@ -156,7 +156,7 @@ static void CvsInit(char *data, OptTreeNode *otn, int protocol)
 
     CvsRuleParse(data, cvs_rule_option);
 
-    if (add_detection_option(RULE_OPTION_TYPE_CVS, (void *)cvs_rule_option, &ds_ptr_dup) == DETECTION_OPTION_EQUAL)
+    if (add_detection_option(sc, RULE_OPTION_TYPE_CVS, (void *)cvs_rule_option, &ds_ptr_dup) == DETECTION_OPTION_EQUAL)
     {
         free(cvs_rule_option);
         cvs_rule_option = ds_ptr_dup;

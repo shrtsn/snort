@@ -74,8 +74,8 @@ const char *PREPROC_NAME = "SF_REPUTATION";
 /*
  * Function prototype(s)
  */
-static void ReputationInit( char* );
-static void ReputationCheckConfig(void);
+static void ReputationInit( struct _SnortConfig *, char* );
+static int ReputationCheckConfig(struct _SnortConfig *);
 static inline void ReputationProcess(SFSnortPacket *);
 static void ReputationMain( void*, void* );
 static void ReputationFreeConfig(tSfPolicyUserContextId);
@@ -99,11 +99,10 @@ tSfPolicyUserContextId reputation_config;
 ReputationConfig *pDefaultPolicyConfig = NULL;
 
 #ifdef SNORT_RELOAD
-static tSfPolicyUserContextId reputation_swap_config = NULL;
-static void ReputationReload(char *);
-static void * ReputationReloadSwap(void);
+static void ReputationReload(struct _SnortConfig *, char *, void **);
+static void * ReputationReloadSwap(struct _SnortConfig *, void *);
 static void ReputationReloadSwapFree(void *);
-static int ReputationReloadVerify(void);
+static int ReputationReloadVerify(struct _SnortConfig *, void *);
 #endif
 
 
@@ -123,7 +122,8 @@ void SetupReputation(void)
     _dpd.registerPreproc( "reputation", ReputationInit );
 #else
     _dpd.registerPreproc("reputation", ReputationInit, ReputationReload,
-            ReputationReloadSwap, ReputationReloadSwapFree);
+            ReputationReloadVerify, ReputationReloadSwap,
+            ReputationReloadSwapFree);
 #endif
 }
 #ifdef SHARED_REP
@@ -428,9 +428,9 @@ void SetupReputationUpdate(uint32_t updateInterval)
  *
  * RETURNS:  Nothing.
  */
-static void ReputationInit(char *argp)
+static void ReputationInit(struct _SnortConfig *sc, char *argp)
 {
-    tSfPolicyId policy_id = _dpd.getParserPolicy();
+    tSfPolicyId policy_id = _dpd.getParserPolicy(sc);
     ReputationConfig *pDefaultPolicyConfig = NULL;
     ReputationConfig *pPolicyConfig = NULL;
 
@@ -445,7 +445,7 @@ static void ReputationInit(char *argp)
                     "for Reputation config.\n");
         }
 
-        _dpd.addPreprocConfCheck(ReputationCheckConfig);
+        _dpd.addPreprocConfCheck(sc, ReputationCheckConfig);
         _dpd.registerPreprocStats(REPUTATION_NAME, ReputationPrintStats);
         _dpd.addPreprocExit(ReputationCleanExit, NULL, PRIORITY_LAST, PP_REPUTATION);
 
@@ -494,10 +494,10 @@ static void ReputationInit(char *argp)
     if (!pPolicyConfig->sharedMem.path && pPolicyConfig->localSegment)
         IPtables = &pPolicyConfig->localSegment;
 
-    _dpd.addPreproc( ReputationMain, PRIORITY_FIRST, PP_REPUTATION, PROTO_BIT__IP );
+    _dpd.addPreproc( sc, ReputationMain, PRIORITY_FIRST, PP_REPUTATION, PROTO_BIT__IP );
 #ifdef SHARED_REP
     if (pPolicyConfig->sharedMem.path)
-        _dpd.addPostConfigFunc(initShareMemory, pPolicyConfig);
+        _dpd.addPostConfigFunc(sc, initShareMemory, pPolicyConfig);
 #endif
 
 }
@@ -527,7 +527,7 @@ static inline void createZones(uint32_t *ingressZone, uint32_t *egressZone, SFSn
 static inline IPdecision GetReputation(  IPrepInfo * repInfo,
         SFSnortPacket *p, uint32_t *listid)
 {
-    char decision = DECISION_NULL;
+    IPdecision decision = DECISION_NULL;
     uint8_t *base ;
     ListInfo *listInfo;
 #ifdef SHARED_REP
@@ -743,6 +743,9 @@ static inline void ReputationProcess(SFSnortPacket *p)
     else if (BLACKLISTED == decision)
     {
         ALERT(REPUTATION_EVENT_BLACKLIST,REPUTATION_EVENT_BLACKLIST_STR);
+#ifdef POLICY_BY_ID_ONLY
+        _dpd.inlineForceDropPacket(p);
+#endif
         _dpd.disableAllDetect(p);
         _dpd.setPreprocBit(p, PP_PERFMONITOR);
         reputation_stats.blacklisted++;
@@ -805,15 +808,20 @@ static void ReputationMain( void* ipacketp, void* contextp )
 
 }
 
-static int ReputationCheckPolicyConfig(tSfPolicyUserContextId config, tSfPolicyId policyId, void* pData)
+static int ReputationCheckPolicyConfig(struct _SnortConfig *sc, tSfPolicyUserContextId config, tSfPolicyId policyId, void* pData)
 {
-    _dpd.setParserPolicy(policyId);
+    _dpd.setParserPolicy(sc, policyId);
 
     return 0;
 }
-void ReputationCheckConfig(void)
+int ReputationCheckConfig(struct _SnortConfig *sc)
 {
-    sfPolicyUserDataIterate (reputation_config, ReputationCheckPolicyConfig);
+    int rval;
+
+    if ((rval = sfPolicyUserDataIterate (sc, reputation_config, ReputationCheckPolicyConfig)))
+        return rval;
+
+    return 0;
 }
 
 
@@ -854,7 +862,7 @@ void ReputationFreeConfig(tSfPolicyUserContextId config)
     if (config == NULL)
         return;
 
-    sfPolicyUserDataIterate (config, ReputationFreeConfigPolicy);
+    sfPolicyUserDataFreeIterate (config, ReputationFreeConfigPolicy);
     sfPolicyConfigDelete(config);
 }
 /******************************************************************
@@ -883,9 +891,10 @@ static void ReputationPrintStats(int exiting)
 }
 
 #ifdef SNORT_RELOAD
-static void ReputationReload(char *args)
+static void ReputationReload(struct _SnortConfig *sc, char *args, void **new_config)
 {
-    tSfPolicyId policy_id = _dpd.getParserPolicy();
+    tSfPolicyUserContextId reputation_swap_config = (tSfPolicyUserContextId)*new_config;
+    tSfPolicyId policy_id = _dpd.getParserPolicy(sc);
     ReputationConfig * pPolicyConfig = NULL;
     ReputationConfig *pDefaultPolicyConfig = NULL;
 
@@ -898,7 +907,7 @@ static void ReputationReload(char *args)
             DynamicPreprocessorFatalMessage("Failed to allocate memory "
                     "for Reputation config.\n");
         }
-
+        *new_config = (void *)reputation_swap_config;
     }
 
     sfPolicyUserPolicySet (reputation_swap_config, policy_id);
@@ -935,12 +944,12 @@ static void ReputationReload(char *args)
     if ((policy_id != 0) &&(pDefaultPolicyConfig))
         pPolicyConfig->memcap = pDefaultPolicyConfig->memcap;
 
-    _dpd.addPreproc( ReputationMain, PRIORITY_FIRST, PP_REPUTATION, PROTO_BIT__IP );
-    _dpd.addPreprocReloadVerify(ReputationReloadVerify);
+    _dpd.addPreproc( sc, ReputationMain, PRIORITY_FIRST, PP_REPUTATION, PROTO_BIT__IP );
 }
 
-static int ReputationReloadVerify(void)
+static int ReputationReloadVerify(struct _SnortConfig *sc, void *swap_config)
 {
+    tSfPolicyUserContextId reputation_swap_config = (tSfPolicyUserContextId)swap_config;
     ReputationConfig * pPolicyConfig = NULL;
     ReputationConfig * pCurrentConfig = NULL;
 
@@ -964,8 +973,6 @@ static int ReputationReloadVerify(void)
     if (pPolicyConfig->memcap != pCurrentConfig->memcap)
     {
         _dpd.errMsg("Reputation reload: Changing memcap settings requires a restart.\n");
-        ReputationFreeConfig(reputation_swap_config);
-        reputation_swap_config = NULL;
         return -1;
     }
 
@@ -979,8 +986,6 @@ static int ReputationReloadVerify(void)
                 ||(pPolicyConfig->sharedMem.updateInterval != pCurrentConfig->sharedMem.updateInterval))
         {
             _dpd.errMsg("Reputation reload: Changing memory settings requires a restart.\n");
-            ReputationFreeConfig(reputation_swap_config);
-            reputation_swap_config = NULL;
             return -1;
         }
 
@@ -1006,8 +1011,9 @@ static int ReputationFreeUnusedConfigPolicy(
     return 0;
 }
 
-static void * ReputationReloadSwap(void)
+static void * ReputationReloadSwap(struct _SnortConfig *sc, void *swap_config)
 {
+    tSfPolicyUserContextId reputation_swap_config = (tSfPolicyUserContextId)swap_config;
     tSfPolicyUserContextId old_config = reputation_config;
     ReputationConfig *pDefaultPolicyConfig = NULL;
 
@@ -1015,13 +1021,12 @@ static void * ReputationReloadSwap(void)
         return NULL;
 
     reputation_config = reputation_swap_config;
-    reputation_swap_config = NULL;
 
     pDefaultPolicyConfig = (ReputationConfig *)sfPolicyUserDataGetDefault(reputation_config);
     if (pDefaultPolicyConfig->localSegment)
         IPtables = &pDefaultPolicyConfig->localSegment;
 
-    sfPolicyUserDataIterate (old_config, ReputationFreeUnusedConfigPolicy);
+    sfPolicyUserDataFreeIterate (old_config, ReputationFreeUnusedConfigPolicy);
 
     if (sfPolicyUserPolicyGetActive(old_config) == 0)
     {

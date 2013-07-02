@@ -82,7 +82,6 @@ config no_promisc
 config pkt_count
 config rate_filter
 config response
-config read_bin_file
 config set_gid
 config set_uid
 config snaplen
@@ -116,6 +115,8 @@ preprocessor frag3_global
 preprocessor perfmonitor
  file
  snortfile
+ flow-file
+ flow-ip-file
 preprocessor sfportscan
  memcap
  logfile

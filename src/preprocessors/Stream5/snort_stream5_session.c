@@ -39,6 +39,7 @@
 #include "config.h"
 #endif
 
+#include "active.h"
 #include "decode.h"
 #include "sf_types.h"
 #include "snort_debug.h"
@@ -46,9 +47,11 @@
 #include "util.h"
 #include "snort_stream5_session.h"
 #include "stream5_common.h"
+#include "stream5_ha.h"
 #include "sfhashfcn.h"
 #include "bitop_funcs.h"
 #include "sp_flowbits.h"
+#include "packet_time.h"
 
 #ifndef WIN32
 # include <sys/socket.h>
@@ -59,12 +62,25 @@
 #include "snort.h"
 
 #if 0
-// if you want to use this, print ip_l,h for proper ip4,6 support
 void PrintSessionKey(SessionKey *skey)
 {
+    char ipL[INET6_ADDRSTRLEN], ipH[INET6_ADDRSTRLEN];
+
+    ipL[0] = ipH[0] = '\0';
+    if (skey->ip_l[1] || skey->ip_l[2] || skey->ip_l[3] || skey->ip_h[1] || skey->ip_h[2] || skey->ip_h[3])
+    {
+        sfip_raw_ntop(AF_INET6, skey->ip_l, ipL, sizeof(ipL));
+        sfip_raw_ntop(AF_INET6, skey->ip_h, ipH, sizeof(ipH));
+    }
+    else
+    {
+        sfip_raw_ntop(AF_INET, skey->ip_l, ipL, sizeof(ipL));
+        sfip_raw_ntop(AF_INET, skey->ip_h, ipH, sizeof(ipH));
+    }
+
     LogMessage("SessionKey:\n");
-    LogMessage("      ip_l     = 0x%08X\n", skey->ip_l);
-    LogMessage("      ip_h     = 0x%08X\n", skey->ip_h);
+    LogMessage("      ip_l     = %s\n", ipL);
+    LogMessage("      ip_h     = %s\n", ipH);
     LogMessage("      prt_l    = %d\n", skey->port_l);
     LogMessage("      prt_h    = %d\n", skey->port_h);
     LogMessage("      vlan_tag = %d\n", skey->vlan_tag);
@@ -120,6 +136,17 @@ int GetLWSessionKeyFromIpPort(
                 dport = dstPort;
                 break;
             case IPPROTO_ICMP:
+                if (srcPort == ICMP_ECHOREPLY)
+                {
+                    dport = ICMP_ECHO; /* Treat ICMP echo reply the same as request */
+                    sport = 0;
+                }
+                else /* otherwise, every ICMP type gets different key */
+                {
+                    sport = srcPort;
+                    dport = 0;
+                }
+                break;
             default:
                 sport = dport = 0;
                 break;
@@ -186,6 +213,29 @@ int GetLWSessionKeyFromIpPort(
                 dport = dstPort;
                 break;
             case IPPROTO_ICMP:
+                if (srcPort == ICMP_ECHOREPLY)
+                {
+                    dport = ICMP_ECHO; /* Treat ICMP echo reply the same as request */
+                    sport = 0;
+                }
+                else /* otherwise, every ICMP type gets different key */
+                {
+                    sport = srcPort;
+                    dport = 0;
+                }
+                break;
+            case IPPROTO_ICMPV6:
+                if (srcPort == ICMP6_REPLY)
+                {
+                    dport = ICMP6_ECHO; /* Treat ICMPv6 echo reply the same as request */
+                    sport = 0;
+                }
+                else /* otherwise, every ICMP type gets different key */
+                {
+                    sport = srcPort;
+                    dport = 0;
+                }
+                break;
             default:
                 sport = dport = 0;
                 break;
@@ -262,6 +312,7 @@ int GetLWSessionKey(Packet *p, SessionKey *key)
     char proto = GET_IPH_PROTO(p);
     uint32_t mplsId = 0;
     uint16_t vlanId = 0;
+    uint16_t sport = p->sp;
     uint16_t addressSpaceId = 0;
 # ifdef MPLS
     if (ScMplsOverlappingIp() && (p->mpls != NULL))
@@ -275,7 +326,12 @@ int GetLWSessionKey(Packet *p, SessionKey *key)
 
     if (p->vh && !ScVlanAgnostic())
         vlanId = (uint16_t)VTH_VLAN(p->vh);
-    return GetLWSessionKeyFromIpPort(GET_SRC_IP(p), p->sp,
+    if ((proto == IPPROTO_ICMP) || (proto == IPPROTO_ICMPV6))
+    {
+        /* ICMP */
+        sport = p->icmph->type;
+    }
+    return GetLWSessionKeyFromIpPort(GET_SRC_IP(p), sport,
         GET_DST_IP(p), p->dp,
         proto, vlanId, mplsId, addressSpaceId, key);
 }
@@ -435,7 +491,7 @@ Stream5LWSession *GetLWSession(Stream5SessionCache *sessionCache, Packet *p, Ses
     return returned;
 }
 
-Stream5LWSession *GetLWSessionFromKey(Stream5SessionCache *sessionCache, SessionKey *key)
+Stream5LWSession *GetLWSessionFromKey(Stream5SessionCache *sessionCache, const SessionKey *key)
 {
     Stream5LWSession *returned = NULL;
     SFXHASH_NODE *hnode;
@@ -473,8 +529,9 @@ void FreeLWApplicationData(Stream5LWSession *ssn)
     ssn->appDataList = NULL;
 }
 
-int RemoveLWSession(Stream5SessionCache *sessionCache, Stream5LWSession *ssn)
+static int RemoveLWSession(Stream5SessionCache *sessionCache, Stream5LWSession *ssn)
 {
+    SFXHASH_NODE *hnode;
     Stream5Config *pPolicyConfig = NULL;
     tSfPolicyId policy_id = ssn->policy_id;
     mempool_free(&s5FlowMempool, ssn->flowdata);
@@ -495,7 +552,13 @@ int RemoveLWSession(Stream5SessionCache *sessionCache, Stream5LWSession *ssn)
         }
     }
 
-    return sfxhash_remove(sessionCache->hashTable, ssn->key);
+    hnode = sfxhash_find_node(sessionCache->hashTable, ssn->key);
+    if (!hnode)
+        return SFXHASH_ERR;
+    if (sessionCache->nextTimeoutEvalNode == hnode)
+        sessionCache->nextTimeoutEvalNode = NULL;
+
+    return sfxhash_free_node(sessionCache->hashTable, hnode);
 }
 
 int DeleteLWSession(Stream5SessionCache *sessionCache,
@@ -522,13 +585,18 @@ int DeleteLWSession(Stream5SessionCache *sessionCache,
     uint16_t client_port = ntohs(ssn->client_port);
     uint16_t server_port = ntohs(ssn->server_port);
     uint16_t lw_session_state = ssn->session_state;
-    uint32_t lw_session_flags = ssn->session_flags;
+    uint32_t lw_session_flags = ssn->ha_state.session_flags;
 #ifdef TARGET_BASED
-    int16_t app_proto_id = ssn->application_protocol;
+    int16_t app_proto_id = ssn->ha_state.application_protocol;
 #endif
 
     sfip_set_ip(&client_ip, &ssn->client_ip);
     sfip_set_ip(&server_ip, &ssn->server_ip);
+
+#ifdef ENABLE_HA
+    if (!(sessionCache->flags & SESSION_CACHE_FLAG_PURGING))
+        Stream5HANotifyDeletion(ssn);
+#endif
 
     /*
      * Call callback to cleanup the protocol (TCP/UDP/ICMP)
@@ -589,6 +657,8 @@ int PurgeLWSessionCache(Stream5SessionCache *sessionCache)
     if (!sessionCache)
         return 0;
 
+    sessionCache->flags |= SESSION_CACHE_FLAG_PURGING;
+
     /* Remove all sessions from the hash table. */
     hnode = sfxhash_mru_node(sessionCache->hashTable);
     while (hnode)
@@ -600,13 +670,16 @@ int PurgeLWSessionCache(Stream5SessionCache *sessionCache)
         }
         else
         {
-            Stream5SetRuntimeConfiguration(idx, idx->protocol);
-            idx->session_flags |= SSNFLAG_PRUNED;
-            DeleteLWSession(sessionCache, idx, "purge whole cache");
+            idx->ha_state.session_flags |= SSNFLAG_PRUNED;
+
+            if ( !Stream5SetRuntimeConfiguration(idx, idx->protocol) )
+                DeleteLWSession(sessionCache, idx, "purge whole cache");
         }
         hnode = sfxhash_mru_node(sessionCache->hashTable);
         retCount++;
     }
+
+    sessionCache->flags &= ~SESSION_CACHE_FLAG_PURGING;
 
     return retCount;
 }
@@ -628,7 +701,7 @@ int DeleteLWSessionCache(Stream5SessionCache *sessionCache)
 
 static inline int SessionWasBlocked (Stream5LWSession* ssn)
 {
-    return (ssn->session_flags & (SSNFLAG_DROP_CLIENT|SSNFLAG_DROP_SERVER)) != 0;
+    return (ssn->ha_state.session_flags & (SSNFLAG_DROP_CLIENT|SSNFLAG_DROP_SERVER)) != 0;
 }
 
 int PruneLWSessionCache(Stream5SessionCache *sessionCache,
@@ -638,6 +711,7 @@ int PruneLWSessionCache(Stream5SessionCache *sessionCache,
 {
     Stream5LWSession *idx;
     uint32_t pruned = 0;
+    Active_Suspend();
 
     if (thetime != 0)
     {
@@ -647,6 +721,7 @@ int PruneLWSessionCache(Stream5SessionCache *sessionCache,
 
         if(idx == NULL)
         {
+            Active_Resume();
             return 0;
         }
 
@@ -666,6 +741,7 @@ int PruneLWSessionCache(Stream5SessionCache *sessionCache,
                 else
                 {
                     sessionCache->prunes += pruned;
+                    Active_Resume();
                     return pruned;
                 }
             }
@@ -677,7 +753,7 @@ int PruneLWSessionCache(Stream5SessionCache *sessionCache,
                 if(sfxhash_count(sessionCache->hashTable) > 1)
                 {
                     DEBUG_WRAP(DebugMessage(DEBUG_STREAM, "pruning stale session\n"););
-                    savidx->session_flags |= SSNFLAG_TIMEDOUT;
+                    savidx->ha_state.session_flags |= SSNFLAG_TIMEDOUT;
                     DeleteLWSession(sessionCache, savidx, "stale/timeout");
 
                     idx = (Stream5LWSession *) sfxhash_lru(sessionCache->hashTable);
@@ -686,16 +762,18 @@ int PruneLWSessionCache(Stream5SessionCache *sessionCache,
                 }
                 else
                 {
-                    savidx->session_flags |= SSNFLAG_TIMEDOUT;
+                    savidx->ha_state.session_flags |= SSNFLAG_TIMEDOUT;
                     DeleteLWSession(sessionCache, savidx, "stale/timeout/last ssn");
                     pruned++;
                     sessionCache->prunes += pruned;
+                    Active_Resume();
                     return pruned;
                 }
             }
             else
             {
                 sessionCache->prunes += pruned;
+                Active_Resume();
                 return pruned;
             }
 
@@ -707,6 +785,7 @@ int PruneLWSessionCache(Stream5SessionCache *sessionCache,
         } while ((idx != NULL) && (got_one == 1));
 
         sessionCache->prunes += pruned;
+        Active_Resume();
         return pruned;
     }
     else
@@ -746,7 +825,7 @@ int PruneLWSessionCache(Stream5SessionCache *sessionCache,
             {
                 if ( (idx != save_me) && (!memCheck || !SessionWasBlocked(idx)) )
                 {
-                    idx->session_flags |= SSNFLAG_PRUNED;
+                    idx->ha_state.session_flags |= SSNFLAG_PRUNED;
                     DeleteLWSession(sessionCache, idx, memCheck ? "memcap/check" : "memcap/stale");
                     pruned++;
                     idx = (Stream5LWSession *) sfxhash_lru(sessionCache->hashTable);
@@ -793,21 +872,24 @@ int PruneLWSessionCache(Stream5SessionCache *sessionCache,
         );
     }
     sessionCache->prunes += pruned;
+    Active_Resume();
     return pruned;
 }
 
 Stream5LWSession *NewLWSession(Stream5SessionCache *sessionCache, Packet *p,
-                               SessionKey *key, void *policy)
+                               const SessionKey *key, void *policy)
 {
     Stream5LWSession *retSsn = NULL;
+    Stream5Config *pLWSPolicyConfig;
     SFXHASH_NODE *hnode;
     StreamFlowData *flowdata;
+    time_t timestamp = p ? p->pkth->ts.tv_sec : packet_time();
 
     hnode = sfxhash_get_node(sessionCache->hashTable, key);
     if (!hnode)
     {
         DEBUG_WRAP(DebugMessage(DEBUG_STREAM, "HashTable full, clean it\n"););
-        if (!PruneLWSessionCache(sessionCache, p->pkth->ts.tv_sec, NULL, 0))
+        if (!PruneLWSessionCache(sessionCache, timestamp, NULL, 0))
         {
             DEBUG_WRAP(DebugMessage(DEBUG_STREAM, "HashTable full, no timeouts, clean it\n"););
             PruneLWSessionCache(sessionCache, 0, NULL, 0);
@@ -834,7 +916,7 @@ Stream5LWSession *NewLWSession(Stream5SessionCache *sessionCache, Packet *p,
         retSsn->key = hnode->key;
 
         retSsn->protocol = key->protocol;
-        retSsn->last_data_seen = p->pkth->ts.tv_sec;
+        retSsn->last_data_seen = timestamp;
         retSsn->flowdata = mempool_alloc(&s5FlowMempool);
         flowdata = retSsn->flowdata->data;
         boInitStaticBITOP(&(flowdata->boFlowbits), getFlowbitSizeInBytes(),
@@ -843,7 +925,26 @@ Stream5LWSession *NewLWSession(Stream5SessionCache *sessionCache, Packet *p,
         retSsn->policy = policy;
         retSsn->config = s5_config;
         retSsn->policy_id = getRuntimePolicy();
-        ((Stream5Config *)sfPolicyUserDataGet(retSsn->config, retSsn->policy_id))->ref_count++;
+        pLWSPolicyConfig = (Stream5Config *) sfPolicyUserDataGet(retSsn->config, retSsn->policy_id);
+        pLWSPolicyConfig->ref_count++;
+#ifdef ENABLE_HA
+        if (pLWSPolicyConfig->global_config->enable_ha)
+        {
+            retSsn->ha_flags |= HA_FLAG_NEW;
+            /* Calculate the threshold time for the first HA update message. */
+            packet_gettimeofday(&retSsn->ha_next_update);
+            if (pLWSPolicyConfig->ha_config)
+            {
+                retSsn->ha_next_update.tv_usec += pLWSPolicyConfig->ha_config->min_session_lifetime.tv_usec;
+                if (retSsn->ha_next_update.tv_usec > 1000000)
+                {
+                    retSsn->ha_next_update.tv_usec -= 1000000;
+                    retSsn->ha_next_update.tv_sec++;
+                }
+                retSsn->ha_next_update.tv_sec += pLWSPolicyConfig->ha_config->min_session_lifetime.tv_sec;
+            }
+        }
+#endif
     }
 
     return retSsn;
@@ -1101,60 +1202,85 @@ Stream5SetRuntimeConfiguration(
     if (pPolicyConfig->global_config == NULL)
         return -1;
 
+    s5_global_eval_config = pPolicyConfig->global_config;
+
     switch (protocol)
     {
         case IPPROTO_TCP:
-            if (pPolicyConfig->tcp_config == NULL)
+            if (!s5_global_eval_config->track_tcp_sessions || !pPolicyConfig->tcp_config)
+            {
+                s5_tcp_eval_config = NULL;
                 return -1;
+            }
             s5_tcp_eval_config = pPolicyConfig->tcp_config;
             break;
         case IPPROTO_UDP:
-            if (pPolicyConfig->udp_config == NULL)
+            if (!s5_global_eval_config->track_udp_sessions || !pPolicyConfig->udp_config)
+            {
+                s5_udp_eval_config = NULL;
                 return -1;
+            }
             s5_udp_eval_config = pPolicyConfig->udp_config;
             break;
         case IPPROTO_ICMP:
-            if (pPolicyConfig->icmp_config == NULL)
-                return -1;
-            s5_icmp_eval_config = pPolicyConfig->icmp_config;
-            break;
-        default:
-            if (pPolicyConfig->ip_config == NULL)
-                return -1;
-            s5_ip_eval_config = pPolicyConfig->ip_config;
-    }
+            if (s5_global_eval_config->track_icmp_sessions && pPolicyConfig->icmp_config)
+            {
+                s5_icmp_eval_config = pPolicyConfig->icmp_config;
+                return 0;
+            }
+            s5_icmp_eval_config = NULL;
+            // fall thru ... icmp is also handled by ip
 
-    s5_global_eval_config = pPolicyConfig->global_config;
+        default:
+            if (!s5_global_eval_config->track_ip_sessions || !pPolicyConfig->ip_config)
+            {
+                s5_ip_eval_config = NULL;
+                return -1;
+            }
+            s5_ip_eval_config = pPolicyConfig->ip_config;
+            break;
+    }
 
     return 0;
 }
 
 static void checkCacheFlowTimeout(uint32_t flowCount, time_t cur_time, Stream5SessionCache *cache)
 {
-    uint32_t flowRetiredCount = 0;
-    Stream5LWSession *idx;
-    SFXHASH_NODE *hnode;
+    uint32_t flowRetiredCount = 0, flowExaminedCount = 0;
+    Stream5LWSession *lwssn;
+    SFXHASH_NODE *hnode, *hnode_next;
 
-    if (cache)
+    if (!cache)
+        return;
+
+    hnode_next = cache->nextTimeoutEvalNode;
+    while (flowRetiredCount < flowCount && flowExaminedCount < (2 * flowCount))
     {
-        while ((hnode = sfxhash_lru_node(cache->hashTable)))
-        {
-            idx = (Stream5LWSession *)hnode->data;
-            if((time_t)(idx->last_data_seen + cache->timeoutNominal) > cur_time)
-            {
-                break;
-            }
+        if (!(hnode = hnode_next) && !(hnode = sfxhash_lru_node(cache->hashTable)))
+            break;
 
-            DEBUG_WRAP(DebugMessage(DEBUG_STREAM, "retiring stale session\n"););
-            idx->session_flags |= SSNFLAG_TIMEDOUT;
-            DeleteLWSession(cache, idx, "stale/timeout");
+        lwssn = (Stream5LWSession *) hnode->data;
+        if ((time_t)(lwssn->last_data_seen + cache->timeoutNominal) > cur_time)
+           break;
 
-            if (flowRetiredCount++ >= flowCount)
-            {
-                break;
-            }
-        }
+        hnode_next = hnode->gnext;
+        flowExaminedCount++;
+
+#ifdef ENABLE_HA
+        if (lwssn->ha_flags & HA_FLAG_STANDBY)
+            continue;
+#endif
+
+        DEBUG_WRAP(DebugMessage(DEBUG_STREAM, "retiring stale session\n"););
+        lwssn->ha_state.session_flags |= SSNFLAG_TIMEDOUT;
+
+        if ( !Stream5SetRuntimeConfiguration(lwssn, lwssn->protocol) )
+            DeleteLWSession(cache, lwssn, "stale/timeout");
+
+        flowRetiredCount++;
     }
+
+    cache->nextTimeoutEvalNode = hnode_next;
 }
 
 extern Stream5SessionCache *tcp_lws_cache, *udp_lws_cache;
@@ -1162,9 +1288,11 @@ extern Stream5SessionCache *tcp_lws_cache, *udp_lws_cache;
 /*get next flow from session cache. */
 void checkLWSessionTimeout(uint32_t flowCount, time_t cur_time)
 {
+    Active_Suspend();
     checkCacheFlowTimeout(flowCount, cur_time, tcp_lws_cache);
     checkCacheFlowTimeout(flowCount, cur_time, udp_lws_cache);
     //icmp_lws_cache does not need cleaning
+    Active_Resume();
 
 }
 

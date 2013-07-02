@@ -30,13 +30,12 @@
 
 /* Function prototypes for Dynamic Detection Plugins */
 void CloseDynamicDetectionLibs(void);
-void LoadAllDynamicDetectionLibsCurrPath(void);
-void LoadAllDynamicDetectionLibs(char *path);
-int LoadDynamicDetectionLib(char *library_name, int indent);
+void LoadAllDynamicDetectionLibs(const char * const path);
+int LoadDynamicDetectionLib(const char * const library_name, int indent);
 int InitDynamicDetectionPlugins(SnortConfig *);
 void RemoveDuplicateDetectionPlugins(void);
 
-typedef int (*InitDetectionLibFunc)(void);
+typedef int (*InitDetectionLibFunc)(SnortConfig *);
 typedef int (*DumpDetectionRules)(void);
 
 typedef int (*RequiredEngineLibFunc)(DynamicPluginMeta *);

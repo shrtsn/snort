@@ -71,6 +71,7 @@ typedef struct _FileContext
     void *     file_type_context;
     void *     file_signature_context;
     void *     file_config;
+    time_t expires;
 } FileContext;
 
 typedef enum _FilePosition

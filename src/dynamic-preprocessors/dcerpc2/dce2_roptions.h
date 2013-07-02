@@ -17,7 +17,7 @@
  * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
  *
  ****************************************************************************
- * 
+ *
  ****************************************************************************/
 
 #ifndef _DCE2_ROPTIONS_H_
@@ -55,7 +55,8 @@ typedef struct _DCE2_Roptions
 /********************************************************************
  * Public function prototypes
  ********************************************************************/
-void DCE2_RegRuleOptions(void);
+struct _SnortConfig;
+void DCE2_RegRuleOptions(struct _SnortConfig *);
 void DCE2_PrintRoptions(DCE2_Roptions *);
 int DCE2_GetByteOrder(void *, int32_t);
 

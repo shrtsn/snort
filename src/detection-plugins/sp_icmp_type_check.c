@@ -50,8 +50,8 @@ extern PreprocStats ruleOTNEvalPerfStats;
 #include "sfhashfcn.h"
 #include "detection_options.h"
 
-void IcmpTypeCheckInit(char *, OptTreeNode *, int);
-void ParseIcmpType(char *, OptTreeNode *);
+void IcmpTypeCheckInit(struct _SnortConfig *, char *, OptTreeNode *, int);
+void ParseIcmpType(struct _SnortConfig *, char *, OptTreeNode *);
 int IcmpTypeCheck(void *option_data, Packet *p);
 
 uint32_t IcmpTypeCheckHash(void *d)
@@ -114,7 +114,7 @@ void SetupIcmpTypeCheck(void)
 
 /****************************************************************************
  *
- * Function: IcmpTypeCheckInit(char *, OptTreeNode *)
+ * Function: IcmpTypeCheckInit(struct _SnortConfig *, char *, OptTreeNode *)
  *
  * Purpose: Initialize the rule data structs and parse the rule argument
  *          data, then link in the detection function
@@ -125,7 +125,7 @@ void SetupIcmpTypeCheck(void)
  * Returns: void function
  *
  ****************************************************************************/
-void IcmpTypeCheckInit(char *data, OptTreeNode *otn, int protocol)
+void IcmpTypeCheckInit(struct _SnortConfig *sc, char *data, OptTreeNode *otn, int protocol)
 {
     OptFpList *fpl;
     if(protocol != IPPROTO_ICMP)
@@ -147,7 +147,7 @@ void IcmpTypeCheckInit(char *data, OptTreeNode *otn, int protocol)
 
     /* this is where the keyword arguments are processed and placed into the
        rule option's data structure */
-    ParseIcmpType(data, otn);
+    ParseIcmpType(sc, data, otn);
 
     /* finally, attach the option's detection function to the rule's
        detect function pointer list */
@@ -160,7 +160,7 @@ void IcmpTypeCheckInit(char *data, OptTreeNode *otn, int protocol)
 
 /****************************************************************************
  *
- * Function: ParseIcmpType(char *, OptTreeNode *)
+ * Function: ParseIcmpType(struct _SnortConfig *, char *, OptTreeNode *)
  *
  * Purpose: Process the itype argument and stick it in the data struct
  *
@@ -170,7 +170,7 @@ void IcmpTypeCheckInit(char *data, OptTreeNode *otn, int protocol)
  * Returns: void function
  *
  ****************************************************************************/
-void ParseIcmpType(char *data, OptTreeNode *otn)
+void ParseIcmpType(struct _SnortConfig *sc, char *data, OptTreeNode *otn)
 {
     char *type;
     IcmpTypeCheckData *ds_ptr;  /* data struct pointer */
@@ -278,7 +278,7 @@ void ParseIcmpType(char *data, OptTreeNode *otn)
         ds_ptr->operator = ICMP_TYPE_TEST_EQ;
     }
 
-    if (add_detection_option(RULE_OPTION_TYPE_ICMP_TYPE, (void *)ds_ptr, &ds_ptr_dup) == DETECTION_OPTION_EQUAL)
+    if (add_detection_option(sc, RULE_OPTION_TYPE_ICMP_TYPE, (void *)ds_ptr, &ds_ptr_dup) == DETECTION_OPTION_EQUAL)
     {
         free(ds_ptr);
         ds_ptr = otn->ds_list[PLUGIN_ICMP_TYPE] = ds_ptr_dup;

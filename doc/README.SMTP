@@ -85,6 +85,22 @@ DEFAULT empty list, but preprocessor has this list hard-coded:
 { STARTTLS TICK TIME TURN TURNME VERB VRFY X-EXPS X-LINK2STATE }
 { XADR XAUTH XCIR XEXCH50 XGEN XLICENSE XQUE XSTA XTRN XUSR  }
 
+* data_cmds { <Space-delimited list of commands> } *
+List of commands that initiate sending of data with an end of data delimiter
+the same as that of the DATA command per RFC 5321 - "<CRLF>.<CRLF>".
+DEFAULT { DATA }
+
+* binary_data_cmds { <Space-delimited list of commands> } *
+List of commands that initiate sending of data and use a length value after
+the command to indicate the amount of data to be sent, similar to that of the
+BDAT command per RFC 3030.
+DEFAULT { BDAT XEXCH50 }
+
+* auth_cmds { <Space-delimited list of commands> } *
+List of commands that initiate an authentication exchange between client
+and server.
+DEFAULT { AUTH XAUTH X-EXPS }
+
 * alert_unknown_cmds *
 Alert if we don't recognize command.
 DEFAULT off

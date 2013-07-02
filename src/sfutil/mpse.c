@@ -121,9 +121,81 @@ void * mpseNew( int method, int use_global_counter_flag,
         case MPSE_LOWMEM_Q:
             p->obj = KTrieNew(1,userfree, optiontreefree, neg_list_free);
             break;
+        default:
+            /* p is free'd below if no case */
+            break;
+    }
+
+    if( !p->obj )
+    {
+        free(p);
+        p = NULL;
+    }
+
+    return (void *)p;
+}
+
+void * mpseNewWithSnortConfig( struct _SnortConfig *sc,
+                int method, int use_global_counter_flag,
+                void (*userfree)(void *p),
+                void (*optiontreefree)(void **p),
+                void (*neg_list_free)(void **p))
+{
+    MPSE * p;
+
+    p = (MPSE*)calloc( 1,sizeof(MPSE) );
+    if( !p ) return NULL;
+
+    p->method = method;
+    p->verbose = 0;
+    p->obj = NULL;
+    p->bcnt = 0;
+    p->inc_global_counter = (char)use_global_counter_flag;
+
+    switch( method )
+    {
+        case MPSE_AC_BNFA:
+            p->obj=bnfaNew(userfree, optiontreefree, neg_list_free);
+            if(p->obj)
+               ((bnfa_struct_t*)(p->obj))->bnfaMethod = 1;
+            break;
+        case MPSE_AC_BNFA_Q:
+            p->obj=bnfaNew(userfree, optiontreefree, neg_list_free);
+            if(p->obj)
+               ((bnfa_struct_t*)(p->obj))->bnfaMethod = 0;
+            break;
+        case MPSE_AC:
+            p->obj = acsmNew(userfree, optiontreefree, neg_list_free);
+            break;
+        case MPSE_ACF:
+            p->obj = acsmNew2(userfree, optiontreefree, neg_list_free);
+            if(p->obj)acsmSelectFormat2((ACSM_STRUCT2*)p->obj,ACF_FULL  );
+            break;
+        case MPSE_ACF_Q:
+            p->obj = acsmNew2(userfree, optiontreefree, neg_list_free);
+            if(p->obj)acsmSelectFormat2((ACSM_STRUCT2*)p->obj,ACF_FULLQ  );
+            break;
+        case MPSE_ACS:
+            p->obj = acsmNew2(userfree, optiontreefree, neg_list_free);
+            if(p->obj)acsmSelectFormat2((ACSM_STRUCT2*)p->obj,ACF_SPARSE  );
+            break;
+        case MPSE_ACB:
+            p->obj = acsmNew2(userfree, optiontreefree, neg_list_free);
+            if(p->obj)acsmSelectFormat2((ACSM_STRUCT2*)p->obj,ACF_BANDED  );
+            break;
+        case MPSE_ACSB:
+            p->obj = acsmNew2(userfree, optiontreefree, neg_list_free);
+            if(p->obj)acsmSelectFormat2((ACSM_STRUCT2*)p->obj,ACF_SPARSEBANDS  );
+            break;
+        case MPSE_LOWMEM:
+            p->obj = KTrieNew(0,userfree, optiontreefree, neg_list_free);
+            break;
+        case MPSE_LOWMEM_Q:
+            p->obj = KTrieNew(1,userfree, optiontreefree, neg_list_free);
+            break;
 #ifdef INTEL_SOFT_CPM
         case MPSE_INTEL_CPM:
-            p->obj=IntelPmNew(userfree, optiontreefree, neg_list_free);
+            p->obj=IntelPmNew(sc, userfree, optiontreefree, neg_list_free);
             break;
 #endif
         default:
@@ -250,9 +322,43 @@ int  mpseAddPattern ( void * pvoid, void * P, int m,
      case MPSE_LOWMEM_Q:
        return KTrieAddPattern( (KTRIE_STRUCT *)p->obj, (unsigned char *)P, m,
                                 noCase, negative, ID );
+     default:
+       return -1;
+   }
+}
+
+int  mpseAddPatternWithSnortConfig ( SnortConfig *sc, void * pvoid, void * P, int m,
+                      unsigned noCase, unsigned offset, unsigned depth,
+                      unsigned negative, void* ID, int IID )
+{
+  MPSE * p = (MPSE*)pvoid;
+
+  switch( p->method )
+   {
+     case MPSE_AC_BNFA:
+     case MPSE_AC_BNFA_Q:
+       return bnfaAddPattern( (bnfa_struct_t*)p->obj, (unsigned char *)P, m,
+              noCase, negative, ID );
+
+     case MPSE_AC:
+       return acsmAddPattern( (ACSM_STRUCT*)p->obj, (unsigned char *)P, m,
+              noCase, offset, depth, negative, ID, IID );
+
+     case MPSE_ACF:
+     case MPSE_ACF_Q:
+     case MPSE_ACS:
+     case MPSE_ACB:
+     case MPSE_ACSB:
+       return acsmAddPattern2( (ACSM_STRUCT2*)p->obj, (unsigned char *)P, m,
+              noCase, offset, depth, negative, ID, IID );
+
+     case MPSE_LOWMEM:
+     case MPSE_LOWMEM_Q:
+       return KTrieAddPattern( (KTRIE_STRUCT *)p->obj, (unsigned char *)P, m,
+                                noCase, negative, ID );
 #ifdef INTEL_SOFT_CPM
      case MPSE_INTEL_CPM:
-       return IntelPmAddPattern((IntelPm *)p->obj, (unsigned char *)P, m,
+       return IntelPmAddPattern(sc, (IntelPm *)p->obj, (unsigned char *)P, m,
                noCase, negative, ID, IID);
 #endif
      default:
@@ -301,9 +407,47 @@ int  mpsePrepPatterns  ( void * pvoid,
      case MPSE_LOWMEM_Q:
        return KTrieCompile( (KTRIE_STRUCT *)p->obj, build_tree, neg_list_func );
 
+     default:
+       retv = 1;
+     break;
+   }
+
+  return retv;
+}
+
+int  mpsePrepPatternsWithSnortConf  ( struct _SnortConfig *sc, void * pvoid,
+                         int ( *build_tree )(struct _SnortConfig *, void *id, void **existing_tree),
+                         int ( *neg_list_func )(void *id, void **list) )
+{
+  int retv;
+  MPSE * p = (MPSE*)pvoid;
+
+  switch( p->method )
+   {
+     case MPSE_AC_BNFA:
+     case MPSE_AC_BNFA_Q:
+       retv = bnfaCompileWithSnortConf( sc, (bnfa_struct_t*) p->obj, build_tree, neg_list_func );
+     break;
+
+     case MPSE_AC:
+       retv = acsmCompileWithSnortConf( sc, (ACSM_STRUCT*) p->obj, build_tree, neg_list_func );
+     break;
+
+     case MPSE_ACF:
+     case MPSE_ACF_Q:
+     case MPSE_ACS:
+     case MPSE_ACB:
+     case MPSE_ACSB:
+       retv = acsmCompile2WithSnortConf( sc, (ACSM_STRUCT2*) p->obj, build_tree, neg_list_func );
+     break;
+
+     case MPSE_LOWMEM:
+     case MPSE_LOWMEM_Q:
+       return KTrieCompileWithSnortConf( sc, (KTRIE_STRUCT *)p->obj, build_tree, neg_list_func );
+
 #ifdef INTEL_SOFT_CPM
      case MPSE_INTEL_CPM:
-       return IntelPmFinishGroup((IntelPm *)p->obj, build_tree, neg_list_func);
+       return IntelPmFinishGroup(sc, (IntelPm *)p->obj, build_tree, neg_list_func);
 #endif
 
      default:
@@ -390,8 +534,45 @@ int mpsePrintSummary(int method)
             break;
     }
 
+    return 0;
+}
+
+int mpsePrintSummaryWithSnortConfig(SnortConfig *sc, int method)
+{
+    switch (method)
+    {
+        case MPSE_AC_BNFA:
+        case MPSE_AC_BNFA_Q:
+            bnfaPrintSummary();
+            break;
+        case MPSE_AC:
+            acsmPrintSummaryInfo();
+            break;
+        case MPSE_ACF:
+        case MPSE_ACF_Q:
+        case MPSE_ACS:
+        case MPSE_ACB:
+        case MPSE_ACSB:
+            acsmPrintSummaryInfo2();
+            break;
+        case MPSE_LOWMEM:
+        case MPSE_LOWMEM_Q:
+            if( KTrieMemUsed() )
+            {
+                double x;
+                x = (double) KTrieMemUsed();
+                LogMessage("[ LowMem Search-Method Memory Used : %g %s ]\n",
+                        (x > 1.e+6) ?  x/1.e+6 : x/1.e+3,
+                        (x > 1.e+6) ? "MBytes" : "KBytes" );
+
+            }
+            break;
+        default:
+            break;
+    }
+
 #ifdef INTEL_SOFT_CPM
-    IntelPmPrintSummary();
+    IntelPmPrintSummary(sc);
 #endif
 
     return 0;

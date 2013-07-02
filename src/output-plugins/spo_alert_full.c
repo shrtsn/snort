@@ -67,8 +67,8 @@ typedef struct _SpoAlertFullData
     TextLog* log;
 } SpoAlertFullData;
 
-static void AlertFullInit(char *);
-static SpoAlertFullData *ParseAlertFullArgs(char *);
+static void AlertFullInit(struct _SnortConfig *sc, char *);
+static SpoAlertFullData *ParseAlertFullArgs(struct _SnortConfig *, char *);
 static void AlertFull(Packet *, char *, void *, Event *);
 static void AlertFullCleanExit(int, void *);
 
@@ -113,17 +113,17 @@ void AlertFullSetup(void)
  * Returns: void function
  *
  */
-static void AlertFullInit(char *args)
+static void AlertFullInit(struct _SnortConfig *sc, char *args)
 {
     SpoAlertFullData *data;
     DEBUG_WRAP(DebugMessage(DEBUG_INIT, "Output: AlertFull Initialized\n"););
 
     /* parse the argument list from the rules file */
-    data = ParseAlertFullArgs(args);
+    data = ParseAlertFullArgs(sc, args);
     DEBUG_WRAP(DebugMessage(DEBUG_INIT,"Linking AlertFull functions to call lists...\n"););
 
     /* Set the preprocessor function into the function list */
-    AddFuncToOutputList(AlertFull, OUTPUT_TYPE__ALERT, data);
+    AddFuncToOutputList(sc, AlertFull, OUTPUT_TYPE__ALERT, data);
     AddFuncToCleanExitList(AlertFullCleanExit, data);
 }
 
@@ -131,7 +131,6 @@ static void AlertFull(Packet *p, char *msg, void *arg, Event *event)
 {
     SpoAlertFullData *data = (SpoAlertFullData *)arg;
 
-    if(msg != NULL)
     {
         TextLog_Puts(data->log, "[**] ");
 
@@ -147,18 +146,17 @@ static void AlertFull(Packet *p, char *msg, void *arg, Event *event)
         {
             const char* iface = PRINT_INTERFACE(DAQ_GetInterfaceSpec());
             TextLog_Print(data->log, " <%s> ", iface);
+        }
+
+        if(msg != NULL)
+        {
             TextLog_Puts(data->log, msg);
             TextLog_Puts(data->log, " [**]\n");
         }
         else
         {
-            TextLog_Puts(data->log, msg);
-            TextLog_Puts(data->log, " [**]\n");
+            TextLog_Puts(data->log, "[**]\n");
         }
-    }
-    else
-    {
-        TextLog_Puts(data->log, "[**] Snort Alert! [**]\n");
     }
 
     if(p && IPH_IS_VALID(p))
@@ -224,7 +222,7 @@ static void AlertFull(Packet *p, char *msg, void *arg, Event *event)
  *
  * Returns: void function
  */
-static SpoAlertFullData *ParseAlertFullArgs(char *args)
+static SpoAlertFullData *ParseAlertFullArgs(struct _SnortConfig *sc, char *args)
 {
     char **toks;
     int num_toks;
@@ -254,7 +252,7 @@ static SpoAlertFullData *ParseAlertFullArgs(char *args)
                 if ( !strcasecmp(tok, "stdout") )
                     filename = SnortStrdup(tok);
                 else
-                    filename = ProcessFileOption(snort_conf_for_parsing, tok);
+                    filename = ProcessFileOption(sc, tok);
                 break;
 
             case 1:
@@ -283,7 +281,7 @@ static SpoAlertFullData *ParseAlertFullArgs(char *args)
     mSplitFree(&toks, num_toks);
 
 #ifdef DEFAULT_FILE
-    if ( !filename ) filename = ProcessFileOption(snort_conf_for_parsing, DEFAULT_FILE);
+    if ( !filename ) filename = ProcessFileOption(sc, DEFAULT_FILE);
 #endif
 
     DEBUG_WRAP(DebugMessage(
@@ -291,8 +289,8 @@ static SpoAlertFullData *ParseAlertFullArgs(char *args)
         filename ? filename : "alert", limit
     ););
 
-    if ((filename == NULL) && (snort_conf->alert_file != NULL))
-        filename = SnortStrdup(snort_conf->alert_file);
+    if ((filename == NULL) && (sc->alert_file != NULL))
+        filename = SnortStrdup(sc->alert_file);
 
     data->log = TextLog_Init(filename, LOG_BUFFER, limit);
 

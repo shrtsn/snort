@@ -90,13 +90,15 @@ typedef enum _RuleOptType
 
 } RuleOptType;
 
-typedef void (*RuleOptConfigFunc)(char *, OptTreeNode *, int);
-typedef void (*RuleOptOtnHandler)(OptTreeNode *);
-typedef void (*RuleOptOverrideFunc)(char *, char *, char *, OptTreeNode *, int);
+typedef void (*RuleOptConfigFunc)(struct _SnortConfig *, char *, OptTreeNode *, int);
+typedef void (*RuleOptOtnHandler)(struct _SnortConfig *, OptTreeNode *);
+typedef void (*RuleOptOverrideFunc)(struct _SnortConfig *, char *, char *, char *, OptTreeNode *, int);
 typedef void (*RuleOptOverrideInitFunc)(char *, char *, RuleOptOverrideFunc);
 typedef int (*RuleOptEvalFunc)(void *, Packet *);
 typedef int (*ResponseFunc)(Packet*, void*);
 typedef void (*PluginSignalFunc)(int, void *);
+typedef void (*PluginSignalFuncWithSnortConfig)(struct _SnortConfig *, int, void *);
+typedef void (*PostConfigFunc)(struct _SnortConfig *, int, void *);
 typedef void (*RuleOptParseCleanupFunc)(void);
 typedef int (*RuleOptByteOrderFunc)(void *, int32_t);
 
@@ -184,24 +186,32 @@ typedef struct _DetectionEvalFuncNode
 
 } DetectionEvalFuncNode;
 
-DetectionEvalFuncNode * AddFuncToDetectionList(DetectionEvalFunc, uint16_t, uint32_t, uint32_t);
+DetectionEvalFuncNode * AddFuncToDetectionList(struct _SnortConfig *, DetectionEvalFunc, uint16_t, uint32_t, uint32_t);
 void FreeDetectionEvalFuncs(DetectionEvalFuncNode *);
 
 /***************************** Preprocessor API *******************************/
-typedef void (*PreprocConfigFunc)(char *);
+typedef void (*PreprocConfigFunc)(struct _SnortConfig *, char *);
 typedef void (*PreprocStatsFunc)(int);
 typedef void (*PreprocEvalFunc)(Packet *, void *);
-typedef void (*PreprocCheckConfigFunc)(void);
+typedef int (*PreprocCheckConfigFunc)(struct _SnortConfig *);
 typedef void (*PreprocSignalFunc)(int, void *);
-typedef void (*PreprocPostConfigFunc)(void *);
+typedef void (*PreprocPostConfigFunc)(struct _SnortConfig *, void *);
 typedef void (*PreprocMetaEvalFunc)(int, const uint8_t *);
 
 typedef void (*PeriodicFunc)(int, void *);
 
 #ifdef SNORT_RELOAD
-typedef void (*PreprocReloadFunc)(char *);
-typedef int (*PreprocReloadVerifyFunc)(void);
-typedef void * (*PreprocReloadSwapFunc)(void);
+struct _PreprocConfigFuncNode;
+typedef struct _PreprocessorSwapData
+{
+    struct _PreprocConfigFuncNode *preprocNode;
+    void *data;
+    struct _PreprocessorSwapData *next;
+} PreprocessorSwapData;
+
+typedef void (*PreprocReloadFunc)(struct _SnortConfig *, char *, void **);
+typedef int (*PreprocReloadVerifyFunc)(struct _SnortConfig *, void *);
+typedef void * (*PreprocReloadSwapFunc)(struct _SnortConfig *, void *);
 typedef void (*PreprocReloadSwapFreeFunc)(void *);
 #endif
 
@@ -218,7 +228,6 @@ typedef struct _PreprocConfigFuncNode
 #ifdef SNORT_RELOAD
     /* Tells whether we call the config func or reload func */
     int initialized;
-    void *swap_free_data;
     PreprocReloadFunc reload_func;
     PreprocReloadVerifyFunc reload_verify_func;
     PreprocReloadSwapFunc reload_swap_func;
@@ -323,19 +332,6 @@ typedef struct _PeriodicCheckFuncNode
 
 } PeriodicCheckFuncNode;
 
-#ifdef SNORT_RELOAD
-typedef struct _PreprocReloadVerifyFuncNode
-{
-    union
-    {
-        PreprocReloadVerifyFunc fptr;
-        void *void_fptr;
-    } fptr;
-    struct _PreprocReloadVerifyFuncNode *next;
-
-} PreprocReloadVerifyFuncNode;
-#endif
-
 
 struct _SnortConfig;
 
@@ -344,22 +340,25 @@ void RegisterPreprocessors(void);
 void RegisterPreprocessor(const char *, PreprocConfigFunc);
 #else
 void RegisterPreprocessor(const char *, PreprocConfigFunc, PreprocReloadFunc,
-                          PreprocReloadSwapFunc, PreprocReloadSwapFreeFunc);
+                          PreprocReloadVerifyFunc, PreprocReloadSwapFunc,
+                          PreprocReloadSwapFreeFunc);
+void *GetRelatedReloadData(struct _SnortConfig *, const char *);
+void *GetReloadStreamConfig(struct _SnortConfig *sc);
 #endif
 PreprocConfigFuncNode * GetPreprocConfig(char *);
 PreprocConfigFunc GetPreprocConfigFunc(char *);
 void RegisterPreprocStats(const char *, PreprocStatsFunc);
 void DumpPreprocessors(void);
-void AddFuncToConfigCheckList(PreprocCheckConfigFunc);
-void AddFuncToPreprocPostConfigList(PreprocPostConfigFunc, void *);
-void CheckPreprocessorsConfig(struct _SnortConfig *);
-PreprocEvalFuncNode * AddFuncToPreprocList(PreprocEvalFunc, uint16_t, uint32_t, uint32_t);
-PreprocMetaEvalFuncNode * AddFuncToPreprocMetaEvalList(PreprocMetaEvalFunc, uint16_t, uint32_t);
+void AddFuncToConfigCheckList(struct _SnortConfig *, PreprocCheckConfigFunc);
+void AddFuncToPreprocPostConfigList(struct _SnortConfig *, PreprocPostConfigFunc, void *);
+int CheckPreprocessorsConfig(struct _SnortConfig *);
+PreprocEvalFuncNode * AddFuncToPreprocList(struct _SnortConfig *, PreprocEvalFunc, uint16_t, uint32_t, uint32_t);
+PreprocMetaEvalFuncNode * AddFuncToPreprocMetaEvalList(struct _SnortConfig *, PreprocMetaEvalFunc, uint16_t, uint32_t);
 void AddFuncToPreprocCleanExitList(PreprocSignalFunc, void *, uint16_t, uint32_t);
 void AddFuncToPreprocShutdownList(PreprocSignalFunc, void *, uint16_t, uint32_t);
 void AddFuncToPreprocResetList(PreprocSignalFunc, void *, uint16_t, uint32_t);
 void AddFuncToPreprocResetStatsList(PreprocSignalFunc, void *, uint16_t, uint32_t);
-int IsPreprocEnabled(uint32_t);
+int IsPreprocEnabled(struct _SnortConfig *, uint32_t);
 void FreePreprocConfigFuncs(void);
 void FreePreprocCheckConfigFuncs(PreprocCheckConfigFuncNode *);
 void FreePreprocStatsFuncs(PreprocStatsFuncNode *);
@@ -371,12 +370,10 @@ void PostConfigPreprocessors(struct _SnortConfig *);
 void FilterConfigPreprocessors(struct _SnortConfig *sc);
 
 #ifdef SNORT_RELOAD
-void AddFuncToPreprocReloadVerifyList(PreprocReloadVerifyFunc);
-void FreePreprocReloadVerifyFuncs(PreprocReloadVerifyFuncNode *);
 int VerifyReloadedPreprocessors(struct _SnortConfig *);
-void SwapPreprocConfigurations(void);
-void FreeSwappedPreprocConfigurations(void);
-void FreePreprocReloadVerifyFuncList(PreprocReloadVerifyFuncNode *);
+void SwapPreprocConfigurations(struct _SnortConfig *);
+void FreeSwappedPreprocConfigurations(struct _SnortConfig *);
+void FreePreprocessorReloadData(struct _SnortConfig *);
 #endif
 
 void AddFuncToPeriodicCheckList(PeriodicFunc, void *, uint16_t, uint32_t, uint32_t);
@@ -412,8 +409,8 @@ static inline int SetAllPreprocBits(Packet *p)
     return 0;
 }
 
-void DisableAllPolicies(void);
-int ReenablePreprocBit(unsigned int preproc_id);
+void DisableAllPolicies(struct _SnortConfig *);
+int ReenablePreprocBit(struct _SnortConfig *, unsigned int preproc_id);
 
 /************************** Miscellaneous Functions  **************************/
 
@@ -429,16 +426,28 @@ typedef struct _PluginSignalFuncNode
 
 } PluginSignalFuncNode;
 
+typedef struct _PostConfigFuncNode
+{
+    void *arg;
+    union
+    {
+        PostConfigFunc fptr;
+        void *void_fptr;
+    } fptr;
+    struct _PostConfigFuncNode *next;
+
+} PostConfigFuncNode;
+
 /* Used for both rule options and output.  Preprocessors have their own */
 #ifdef SNORT_RELOAD
-void AddFuncToReloadList(PluginSignalFunc, void *);
+void AddFuncToReloadList(PostConfigFunc, void *);
 #endif
 void AddFuncToCleanExitList(PluginSignalFunc, void *);
 void AddFuncToShutdownList(PluginSignalFunc, void *);
-void AddFuncToPostConfigList(PluginSignalFunc, void *);
+void AddFuncToPostConfigList(struct _SnortConfig *, PostConfigFunc, void *);
 void AddFuncToSignalList(PluginSignalFunc, void *, PluginSignalFuncNode **);
-void PostConfigInitPlugins(PluginSignalFuncNode *);
+void PostConfigInitPlugins(struct _SnortConfig *, PostConfigFuncNode *);
 void FreePluginSigFuncs(PluginSignalFuncNode *);
-
+void FreePluginPostConfigFuncs(PostConfigFuncNode *);
 
 #endif /* __PLUGBASE_H__ */

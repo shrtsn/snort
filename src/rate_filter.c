@@ -94,7 +94,7 @@ void RateFilter_Cleanup(void)
 /*
  * Create and Add a Thresholding Event Object
  */
-int RateFilter_Create(RateFilterConfig *rf_config, tSFRFConfigNode *thdx)
+int RateFilter_Create(SnortConfig *sc, RateFilterConfig *rf_config, tSFRFConfigNode *thdx)
 {
     int error;
 
@@ -109,7 +109,7 @@ int RateFilter_Create(RateFilterConfig *rf_config, tSFRFConfigNode *thdx)
 #endif
 
     /* Add the object to the table - */
-    error = SFRF_ConfigAdd(rf_config, thdx);
+    error = SFRF_ConfigAdd(sc, rf_config, thdx);
 
     // enable internal events as required
     if ( !error && EventIsInternal(thdx->gid) )

@@ -43,6 +43,9 @@
 #include "snort_stream5_ip.h"
 #include "parser.h"
 #include "active.h"
+#ifdef ENABLE_HA
+#include "stream5_ha.h"
+#endif
 
 static void printIgnoredRules(
         IgnoredRuleList *pIgnoredRuleList,
@@ -56,7 +59,7 @@ static void addRuleToIgnoreList(
 static inline uint64_t CalcJiffies(Packet *p)
 {
     uint64_t ret = 0;
-    uint64_t sec = (p->pkth->ts.tv_sec * TCP_HZ);
+    uint64_t sec = (uint64_t)p->pkth->ts.tv_sec * TCP_HZ;
     uint64_t usec = (p->pkth->ts.tv_usec / (1000000UL/TCP_HZ));
 
     ret = sec + usec;
@@ -64,6 +67,34 @@ static inline uint64_t CalcJiffies(Packet *p)
     return ret;
     //return (p->pkth->ts.tv_sec * TCP_HZ) +
     //       (p->pkth->ts.tv_usec / (1000000UL/TCP_HZ));
+}
+
+int Stream5ExpireSession(Stream5LWSession *lwssn)
+{
+#ifdef ENABLE_HA
+    /* Sessions in standby cannot be locally expired. */
+    if (lwssn->ha_flags & HA_FLAG_STANDBY)
+        return 0;
+#endif
+
+    sfBase.iStreamTimeouts++;
+    lwssn->ha_state.session_flags |= SSNFLAG_TIMEDOUT;
+    lwssn->session_state |= STREAM5_STATE_TIMEDOUT;
+
+    switch (lwssn->protocol)
+    {
+        case IPPROTO_TCP:
+            s5stats.tcp_timeouts++;
+            break;
+        case IPPROTO_UDP:
+            s5stats.udp_timeouts++;
+            break;
+        case IPPROTO_ICMP:
+            s5stats.icmp_timeouts++;
+            break;
+    }
+
+    return 1;
 }
 
 int Stream5Expire(Packet *p, Stream5LWSession *lwssn)
@@ -78,26 +109,8 @@ int Stream5Expire(Packet *p, Stream5LWSession *lwssn)
 
     if((int)(pkttime - lwssn->expire_time) > 0)
     {
-        sfBase.iStreamTimeouts++;
-        lwssn->session_flags |= SSNFLAG_TIMEDOUT;
-        lwssn->session_state |= STREAM5_STATE_TIMEDOUT;
-
-        switch (lwssn->protocol)
-        {
-            case IPPROTO_TCP:
-                s5stats.tcp_timeouts++;
-                //DeleteLWSession(tcp_lws_cache, lwssn);
-                break;
-            case IPPROTO_UDP:
-                s5stats.udp_timeouts++;
-                //DeleteLWSession(udp_lws_cache, lwssn);
-                break;
-            case IPPROTO_ICMP:
-                s5stats.icmp_timeouts++;
-                //DeleteLWSession(icmp_lws_cache, lwssn);
-                break;
-        }
-        return 1;
+        /* Expiration time has passed. */
+        return Stream5ExpireSession(lwssn);
     }
 
     return 0;
@@ -171,9 +184,9 @@ void MarkupPacketFlags(Packet *p, Stream5LWSession *lwssn)
     if(!lwssn)
         return;
 
-    if((lwssn->session_flags & SSNFLAG_ESTABLISHED) != SSNFLAG_ESTABLISHED)
+    if((lwssn->ha_state.session_flags & SSNFLAG_ESTABLISHED) != SSNFLAG_ESTABLISHED)
     {
-        if((lwssn->session_flags & (SSNFLAG_SEEN_SERVER|SSNFLAG_SEEN_CLIENT)) !=
+        if((lwssn->ha_state.session_flags & (SSNFLAG_SEEN_SERVER|SSNFLAG_SEEN_CLIENT)) !=
             (SSNFLAG_SEEN_SERVER|SSNFLAG_SEEN_CLIENT))
         {
             p->packet_flags |= PKT_STREAM_UNEST_UNI;
@@ -187,7 +200,7 @@ void MarkupPacketFlags(Packet *p, Stream5LWSession *lwssn)
             p->packet_flags ^= PKT_STREAM_UNEST_UNI;
         }
     }
-    if ( lwssn->session_flags & SSNFLAG_STREAM_ORDER_BAD )
+    if ( lwssn->ha_state.session_flags & SSNFLAG_STREAM_ORDER_BAD )
         p->packet_flags |= PKT_STREAM_ORDER_BAD;
 }
 
@@ -240,10 +253,8 @@ static inline char * getProtocolName (int protocol)
 int Stream5OtnHasFlowOrFlowbit(OptTreeNode *otn)
 {
     if (otn->ds_list[PLUGIN_CLIENTSERVER] ||
-#ifdef DYNAMIC_PLUGIN
         DynamicHasFlow(otn) ||
         DynamicHasFlowbit(otn) ||
-#endif
         otn->ds_list[PLUGIN_FLOWBIT])
     {
         return 1;
@@ -257,6 +268,7 @@ int Stream5OtnHasFlowOrFlowbit(OptTreeNode *otn)
  * @param protocol - protocol type
  */
 void setPortFilterList(
+        struct _SnortConfig *sc,
         uint16_t *portList,
         int protocol,
         int ignoreAnyAnyRules,
@@ -274,7 +286,6 @@ void setPortFilterList(
     char *protocolName;
     SFGHASH_NODE *hashNode;
     int flowBitIsSet = 0;
-    SnortConfig *sc = snort_conf_for_parsing;
 
     if (sc == NULL)
     {
@@ -386,8 +397,8 @@ void setPortFilterList(
 
     /* If portscan is tracking TCP/UDP, need to create
      * sessions for all ports */
-    if (((protocol == IPPROTO_UDP) && (ps_get_protocols(policyId) & PS_PROTO_UDP))
-     || ((protocol == IPPROTO_TCP) && (ps_get_protocols(policyId) & PS_PROTO_TCP)))
+    if (((protocol == IPPROTO_UDP) && (ps_get_protocols(sc, policyId) & PS_PROTO_UDP))
+     || ((protocol == IPPROTO_TCP) && (ps_get_protocols(sc, policyId) & PS_PROTO_TCP)))
     {
         int j;
         for (j=0; j<MAX_PORTS; j++)
@@ -460,11 +471,9 @@ int Stream5AnyAnyFlow(
         if (otn->ds_list[PLUGIN_PATTERN_MATCH] ||
                 otn->ds_list[PLUGIN_PATTERN_MATCH_OR] ||
                 otn->ds_list[PLUGIN_PATTERN_MATCH_URI] ||
-#ifdef DYNAMIC_PLUGIN
                 DynamicHasContent(otn) ||
                 DynamicHasByteTest(otn) ||
                 DynamicHasPCRE(otn) ||
-#endif
                 otn->ds_list[PLUGIN_BYTE_TEST] ||
                 otn->ds_list[PLUGIN_PCRE])
         {
@@ -567,7 +576,7 @@ void Stream5FreeConfigs(tSfPolicyUserContextId config)
     if (config == NULL)
         return;
 
-    sfPolicyUserDataIterate (config, Stream5FreeConfigsPolicy);
+    sfPolicyUserDataFreeIterate (config, Stream5FreeConfigsPolicy);
 
     sfPolicyConfigDelete(config);
 }
@@ -606,6 +615,14 @@ void Stream5FreeConfig(Stream5Config *config)
         Stream5IpConfigFree(config->ip_config);
         config->ip_config = NULL;
     }
+
+#ifdef ENABLE_HA
+    if (config->ha_config != NULL)
+    {
+        Stream5HAConfigFree(config->ha_config);
+        config->ha_config = NULL;
+    }
+#endif
 
     free(config);
 }

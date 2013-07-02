@@ -241,11 +241,7 @@ static inline void DCE2_SsnSetReassembly(const SFSnortPacket *p)
  ********************************************************************/
 static inline int DCE2_SsnIsRebuilt(const SFSnortPacket *p)
 {
-    return
-#ifdef ENABLE_PAF
-        PacketHasFullPDU(p) ||
-#endif
-        (p->flags & FLAG_REBUILT_STREAM);
+    return PacketHasFullPDU(p) || (p->flags & FLAG_REBUILT_STREAM);
 }
 
 /********************************************************************
@@ -338,12 +334,11 @@ static inline int DCE2_SsnFromClient(const SFSnortPacket *p)
  ********************************************************************/
 static inline bool DCE2_SsnIsPafActive(const SFSnortPacket *p)
 {
-#ifdef ENABLE_PAF
     if ((p->stream_session_ptr == NULL)
             || (_dpd.streamAPI->is_paf_active(p->stream_session_ptr, true)
                 && _dpd.streamAPI->is_paf_active(p->stream_session_ptr, false)))
         return true;
-#endif
+
     return false;
 }
 

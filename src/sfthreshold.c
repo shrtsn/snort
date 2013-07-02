@@ -383,7 +383,7 @@ void sfthreshold_free(void)
     Create and Add a Thresholding Event Object
 
 */
-int sfthreshold_create(ThresholdConfig *thd_config, THDX_STRUCT *thdx)
+int sfthreshold_create(struct _SnortConfig *sc, ThresholdConfig *thd_config, THDX_STRUCT *thdx)
 {
     if (thd_config == NULL)
         return -1;
@@ -402,7 +402,8 @@ int sfthreshold_create(ThresholdConfig *thd_config, THDX_STRUCT *thdx)
     /* print_thdx( thdx ); */
 
     /* Add the object to the table - */
-    return sfthd_create_threshold(thd_config->thd_objs,
+    return sfthd_create_threshold(sc,
+                                  thd_config->thd_objs,
                                   thdx->gen_id,
                                   thdx->sig_id,
                                   thdx->tracking,

@@ -85,17 +85,17 @@ int16_t gtp_app_id = SFTARGET_UNKNOWN_PROTOCOL;
  * Function prototype(s)
  */
 GTPData * GTPGetNewSession(SFSnortPacket *, tSfPolicyId);
-static void GTPInit( char* );
-static void GTPCheckConfig(void);
+static void GTPInit( struct _SnortConfig *, char* );
+static int GTPCheckConfig(struct _SnortConfig *);
 static void FreeGTPData( void* );
 static inline int GTP_Process(SFSnortPacket *, GTPData*);
 static void GTPmain( void*, void* );
 static inline int CheckGTPPort( uint16_t );
 static void GTPFreeConfig(tSfPolicyUserContextId);
-static void _addPortsToStream5Filter(GTPConfig *, tSfPolicyId);
+static void _addPortsToStream5Filter(struct _SnortConfig *, GTPConfig *, tSfPolicyId);
 static void GTP_PrintStats(int);
 #ifdef TARGET_BASED
-static void _addServicesToStream5Filter(tSfPolicyId);
+static void _addServicesToStream5Filter(struct _SnortConfig *, tSfPolicyId);
 #endif
 
 static void GTPCleanExit(int, void *);
@@ -109,10 +109,9 @@ GTPConfig *gtp_eval_config;
 tSfPolicyUserContextId gtp_config;
 
 #ifdef SNORT_RELOAD
-static tSfPolicyUserContextId gtp_swap_config = NULL;
-static void GTPReload(char *);
-static int GTPReloadVerify(void);
-static void * GTPReloadSwap(void);
+static void GTPReload(struct _SnortConfig *, char *, void **);
+static int GTPReloadVerify(struct _SnortConfig *, void *);
+static void * GTPReloadSwap(struct _SnortConfig *, void *);
 static void GTPReloadSwapFree(void *);
 #endif
 
@@ -133,7 +132,7 @@ void SetupGTP(void)
     _dpd.registerPreproc( "gtp", GTPInit );
 #else
     _dpd.registerPreproc("gtp", GTPInit, GTPReload,
-            GTPReloadSwap, GTPReloadSwapFree);
+            GTPReloadVerify, GTPReloadSwap, GTPReloadSwapFree);
 #endif
 }
 
@@ -146,9 +145,9 @@ void SetupGTP(void)
  *
  * RETURNS:     Nothing.
  */
-static void GTPInit(char *argp)
+static void GTPInit(struct _SnortConfig *sc, char *argp)
 {
-    tSfPolicyId policy_id = _dpd.getParserPolicy();
+    tSfPolicyId policy_id = _dpd.getParserPolicy(sc);
     GTPConfig *pDefaultPolicyConfig = NULL;
     GTPConfig *pPolicyConfig = NULL;
 
@@ -163,7 +162,7 @@ static void GTPInit(char *argp)
                     "for GTP config.\n");
         }
 
-        _dpd.addPreprocConfCheck(GTPCheckConfig);
+        _dpd.addPreprocConfCheck(sc, GTPCheckConfig);
         _dpd.registerPreprocStats(GTP_NAME, GTP_PrintStats);
         _dpd.addPreprocExit(GTPCleanExit, NULL, PRIORITY_LAST, PP_GTP);
 
@@ -197,7 +196,7 @@ static void GTPInit(char *argp)
 
     sfPolicyUserDataSetCurrent(gtp_config, pPolicyConfig);
 
-    GTP_RegRuleOptions();
+    GTP_RegRuleOptions(sc);
 
     ParseGTPArgs(pPolicyConfig, (u_char *)argp);
 
@@ -207,12 +206,12 @@ static void GTPInit(char *argp)
         DynamicPreprocessorFatalMessage("SetupGTP(): The Stream preprocessor must be enabled.\n");
     }
 
-    _dpd.addPreproc( GTPmain, PRIORITY_APPLICATION, PP_GTP, PROTO_BIT__UDP );
+    _dpd.addPreproc( sc, GTPmain, PRIORITY_APPLICATION, PP_GTP, PROTO_BIT__UDP );
 
-    _addPortsToStream5Filter(pPolicyConfig, policy_id);
+    _addPortsToStream5Filter(sc, pPolicyConfig, policy_id);
 
 #ifdef TARGET_BASED
-    _addServicesToStream5Filter(policy_id);
+    _addServicesToStream5Filter(sc, policy_id);
 #endif
 }
 
@@ -522,7 +521,7 @@ static inline int CheckGTPPort( uint16_t port )
  * RETURNS: None
  ***********************************************************************/
 
-static void _addPortsToStream5Filter(GTPConfig *config, tSfPolicyId policy_id)
+static void _addPortsToStream5Filter(struct _SnortConfig *sc, GTPConfig *config, tSfPolicyId policy_id)
 {
     int portNum;
 
@@ -534,31 +533,37 @@ static void _addPortsToStream5Filter(GTPConfig *config, tSfPolicyId policy_id)
         if(config->ports[(portNum/8)] & (1<<(portNum%8)))
         {
             //Add port the port
-            _dpd.streamAPI->set_port_filter_status(IPPROTO_UDP, (uint16_t)portNum, PORT_MONITOR_SESSION, policy_id, 1);
+            _dpd.streamAPI->set_port_filter_status(sc, IPPROTO_UDP, (uint16_t)portNum, PORT_MONITOR_SESSION, policy_id, 1);
         }
     }
 
 }
 #ifdef TARGET_BASED
 
-static void _addServicesToStream5Filter(tSfPolicyId policy_id)
+static void _addServicesToStream5Filter(struct _SnortConfig *sc, tSfPolicyId policy_id)
 {
-    _dpd.streamAPI->set_service_filter_status(gtp_app_id, PORT_MONITOR_SESSION, policy_id, 1);
+    _dpd.streamAPI->set_service_filter_status(sc, gtp_app_id, PORT_MONITOR_SESSION, policy_id, 1);
 }
 #endif
-static int GTPCheckPolicyConfig(tSfPolicyUserContextId config, tSfPolicyId policyId, void* pData)
+static int GTPCheckPolicyConfig(struct _SnortConfig *sc, tSfPolicyUserContextId config, tSfPolicyId policyId, void* pData)
 {
-    _dpd.setParserPolicy(policyId);
+    _dpd.setParserPolicy(sc, policyId);
 
-    if (!_dpd.isPreprocEnabled(PP_STREAM5))
+    if (!_dpd.isPreprocEnabled(sc, PP_STREAM5))
     {
-        DynamicPreprocessorFatalMessage("GTPCheckPolicyConfig(): The Stream preprocessor must be enabled.\n");
+        _dpd.errMsg("GTPCheckPolicyConfig(): The Stream preprocessor must be enabled.\n");
+        return -1;
     }
     return 0;
 }
-void GTPCheckConfig(void)
+int GTPCheckConfig(struct _SnortConfig *sc)
 {
-    sfPolicyUserDataIterate (gtp_config, GTPCheckPolicyConfig);
+    int rval;
+
+    if ((rval = sfPolicyUserDataIterate (sc, gtp_config, GTPCheckPolicyConfig)))
+        return rval;
+
+    return 0;
 }
 
 
@@ -593,7 +598,7 @@ void GTPFreeConfig(tSfPolicyUserContextId config)
     if (config == NULL)
         return;
 
-    sfPolicyUserDataIterate (config, GTPFreeConfigPolicy);
+    sfPolicyUserDataFreeIterate (config, GTPFreeConfigPolicy);
     sfPolicyConfigDelete(config);
 }
 
@@ -639,9 +644,10 @@ static void GTP_PrintStats(int exiting)
     }
 }
 #ifdef SNORT_RELOAD
-static void GTPReload(char *args)
+static void GTPReload(struct _SnortConfig *sc, char *args, void **new_config)
 {
-    tSfPolicyId policy_id = _dpd.getParserPolicy();
+    tSfPolicyUserContextId gtp_swap_config = (tSfPolicyUserContextId)*new_config;
+    tSfPolicyId policy_id = _dpd.getParserPolicy(sc);
     GTPConfig * pPolicyConfig = NULL;
 
     if (gtp_swap_config == NULL)
@@ -653,7 +659,7 @@ static void GTPReload(char *args)
             DynamicPreprocessorFatalMessage("Failed to allocate memory "
                     "for GTP config.\n");
         }
-
+        *new_config = (void *)gtp_swap_config;
     }
 
     sfPolicyUserPolicySet (gtp_swap_config, policy_id);
@@ -672,7 +678,7 @@ static void GTPReload(char *args)
     }
     sfPolicyUserDataSetCurrent(gtp_swap_config, pPolicyConfig);
 
-    GTP_RegRuleOptions();
+    GTP_RegRuleOptions(sc);
 
     ParseGTPArgs(pPolicyConfig, (u_char *)args);
 
@@ -681,18 +687,18 @@ static void GTPReload(char *args)
         DynamicPreprocessorFatalMessage("SetupGTP(): The Stream preprocessor must be enabled.\n");
     }
 
-    _dpd.addPreproc( GTPmain, PRIORITY_APPLICATION, PP_GTP, PROTO_BIT__UDP );
-    _dpd.addPreprocReloadVerify(GTPReloadVerify);
+    _dpd.addPreproc( sc, GTPmain, PRIORITY_APPLICATION, PP_GTP, PROTO_BIT__UDP );
 
-    _addPortsToStream5Filter(pPolicyConfig, policy_id);
+    _addPortsToStream5Filter(sc, pPolicyConfig, policy_id);
 
 #ifdef TARGET_BASED
-    _addServicesToStream5Filter(policy_id);
+    _addServicesToStream5Filter(sc, policy_id);
 #endif
 }
 
-static int GTPReloadVerify(void)
+static int GTPReloadVerify(struct _SnortConfig *sc, void *swap_config)
 {
+    tSfPolicyUserContextId gtp_swap_config = (tSfPolicyUserContextId)swap_config;
     GTPConfig * pPolicyConfig = NULL;
     GTPConfig * pCurrentConfig = NULL;
 
@@ -705,9 +711,10 @@ static int GTPReloadVerify(void)
         return 0;
 
 
-    if (!_dpd.isPreprocEnabled(PP_STREAM5))
+    if (!_dpd.isPreprocEnabled(sc, PP_STREAM5))
     {
-        DynamicPreprocessorFatalMessage("SetupGTP(): The Stream preprocessor must be enabled.\n");
+        _dpd.errMsg("SetupGTP(): The Stream preprocessor must be enabled.\n");
+        return -1;
     }
 
     if (gtp_config != NULL)
@@ -717,7 +724,6 @@ static int GTPReloadVerify(void)
 
     if (!pCurrentConfig)
         return 0;
-
 
     return 0;
 }
@@ -739,17 +745,17 @@ static int GTPFreeUnusedConfigPolicy(
     return 0;
 }
 
-static void * GTPReloadSwap(void)
+static void * GTPReloadSwap(struct _SnortConfig *sc, void *swap_config)
 {
+    tSfPolicyUserContextId gtp_swap_config = (tSfPolicyUserContextId)swap_config;
     tSfPolicyUserContextId old_config = gtp_config;
 
     if (gtp_swap_config == NULL)
         return NULL;
 
     gtp_config = gtp_swap_config;
-    gtp_swap_config = NULL;
 
-    sfPolicyUserDataIterate (old_config, GTPFreeUnusedConfigPolicy);
+    sfPolicyUserDataFreeIterate (old_config, GTPFreeUnusedConfigPolicy);
 
     if (sfPolicyUserPolicyGetActive(old_config) == 0)
     {

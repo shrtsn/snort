@@ -299,3 +299,35 @@ int geteuid(void)
 {
 	return 0;
 }
+
+/****************************************************************************
+ *
+ * Function: ffs(int x)
+ *
+ * Purpose:  find first bit set in x
+ *
+ * Arguments: int x => integer in which to find bit
+ *
+ * Returns: bit => position of first LSB that is set in x
+ *
+ ****************************************************************************/
+int ffs(int x)
+{
+	int bit = 1;
+	int mask = 1;
+
+	if (x == 0)
+		return 0;
+
+	while ((x & mask) == 0)
+	{
+		mask = mask << 1;
+		bit += 1;
+
+	}
+
+	if (bit > (sizeof(int)*8))
+		bit = 0;
+
+	return bit;
+}

@@ -21,7 +21,7 @@
 
 
 /*
-**   ACSMX.H 
+**   ACSMX.H
 **
 **
 */
@@ -43,9 +43,9 @@
 */
 
 
-#define ALPHABET_SIZE    256     
+#define ALPHABET_SIZE    256
 
-#define ACSM_FAIL_STATE   -1     
+#define ACSM_FAIL_STATE   -1
 
 typedef struct _acsm_userdata
 {
@@ -54,7 +54,7 @@ typedef struct _acsm_userdata
 
 } ACSM_USERDATA;
 
-typedef struct _acsm_pattern {      
+typedef struct _acsm_pattern {
 
     struct  _acsm_pattern *next;
     unsigned char         *patrn;
@@ -72,27 +72,27 @@ typedef struct _acsm_pattern {
 } ACSM_PATTERN;
 
 
-typedef struct  {    
+typedef struct  {
 
     /* Next state - based on input character */
-    int      NextState[ ALPHABET_SIZE ];  
+    int      NextState[ ALPHABET_SIZE ];
 
     /* Failure state - used while building NFA & DFA  */
-    int      FailState;   
+    int      FailState;
 
     /* List of patterns that end here, if any */
-    ACSM_PATTERN *MatchList;   
+    ACSM_PATTERN *MatchList;
 
-}ACSM_STATETABLE; 
+}ACSM_STATETABLE;
 
 
 /*
 * State machine Struct
 */
 typedef struct {
-  
-    int acsmMaxStates;  
-    int acsmNumStates;  
+
+    int acsmMaxStates;
+    int acsmNumStates;
 
     ACSM_PATTERN    * acsmPatterns;
     ACSM_STATETABLE * acsmStateTable;
@@ -120,8 +120,12 @@ int acsmAddPattern( ACSM_STRUCT * p, unsigned char * pat, int n,
 int acsmCompile ( ACSM_STRUCT * acsm,
              int (*build_tree)(void * id, void **existing_tree),
              int (*neg_list_func)(void *id, void **list));
+struct _SnortConfig;
+int acsmCompileWithSnortConf ( struct _SnortConfig *, ACSM_STRUCT * acsm,
+                               int (*build_tree)(struct _SnortConfig *, void * id, void **existing_tree),
+                               int (*neg_list_func)(void *id, void **list));
 
-int acsmSearch ( ACSM_STRUCT * acsm,unsigned char * T, int n, 
+int acsmSearch ( ACSM_STRUCT * acsm,unsigned char * T, int n,
                  int (*Match)(void * id, void *tree, int index, void *data, void *neg_list),
                  void * data, int* current_state );
 

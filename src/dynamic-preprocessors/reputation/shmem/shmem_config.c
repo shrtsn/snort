@@ -117,12 +117,14 @@ void FreeShmemUser()
 {
     if (shmusr_ptr)
         free(shmusr_ptr);
+    shmusr_ptr = NULL;
 }
 
 void FreeShmemDataMgmtFunctions()
 {
     if (dmfunc_ptr)
         free(dmfunc_ptr);
+    dmfunc_ptr = NULL;
 }
 
 void PrintConfig()

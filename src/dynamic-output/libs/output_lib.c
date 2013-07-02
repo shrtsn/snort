@@ -68,7 +68,7 @@ OUTPUT_SO_PUBLIC int initOutputPlugins(void *dod)
 
 }
 
-void init_output_module(Output_Module_t *om, char *args)
+void init_output_module(struct _SnortConfig *sc, Output_Module_t *om, char *args)
 {
     void *config;
 
@@ -79,11 +79,11 @@ void init_output_module(Output_Module_t *om, char *args)
     om->parse_args(&config, args, om->default_file);
     if (om->alert_output)
     {
-        _dod.addOutputModule(om->alert_output, DYNAMIC_OUTPUT_TYPE_FLAG__ALERT, config);
+        _dod.addOutputModule(sc, om->alert_output, DYNAMIC_OUTPUT_TYPE_FLAG__ALERT, config);
     }
     if (om->log_output)
     {
-        _dod.addOutputModule(om->log_output, DYNAMIC_OUTPUT_TYPE_FLAG__LOG, config);
+        _dod.addOutputModule(sc, om->log_output, DYNAMIC_OUTPUT_TYPE_FLAG__LOG, config);
     }
 #ifdef SNORT_RELOAD
     if (om->rotate)
@@ -93,7 +93,7 @@ void init_output_module(Output_Module_t *om, char *args)
 #endif
     if (om->postconfig)
     {
-        _dod.addPostconfig(om->postconfig, config);
+        _dod.addPostconfig(sc, om->postconfig, config);
     }
     if (om->shutdown)
     {

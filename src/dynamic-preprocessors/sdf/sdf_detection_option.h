@@ -26,9 +26,9 @@
 #include "sf_dynamic_engine.h"
 #include "spp_sdf.h"
 
-int SDFOptionInit(char *name, char *args, void **data);
+int SDFOptionInit(struct _SnortConfig *sc, char *name, char *args, void **data);
 int SDFOptionEval(void *p, const uint8_t **cursor, void *data);
-int SDFOtnHandler(void *potn);
+int SDFOtnHandler(struct _SnortConfig *sc, void *potn);
 
 /* Struct for SDF option data */
 typedef struct _SDFOptionData

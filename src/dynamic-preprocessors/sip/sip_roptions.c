@@ -52,13 +52,13 @@
 /********************************************************************
  * Private function prototypes
  ********************************************************************/
-static int SIP_MethodInit(char *, char *, void **);
+static int SIP_MethodInit(struct _SnortConfig *sc, char *, char *, void **);
 static int SIP_MethodEval(void *, const uint8_t **, void *);
-static int SIP_HeaderInit(char *, char *, void **);
+static int SIP_HeaderInit(struct _SnortConfig *sc, char *, char *, void **);
 static int SIP_HeaderEval(void *, const uint8_t **, void *);
-static int SIP_StatCodeInit(char *, char *, void **);
+static int SIP_StatCodeInit(struct _SnortConfig *sc, char *, char *, void **);
 static int SIP_StatCodeEval(void *, const uint8_t **, void *);
-static int SIP_BodyInit(char *, char *, void **);
+static int SIP_BodyInit(struct _SnortConfig *sc, char *, char *, void **);
 static int SIP_BodyEval(void *, const uint8_t **, void *);
 static int SIP_MethodAddFastPatterns(void *, int, int, FPContentInfo **);
 
@@ -87,7 +87,7 @@ static inline int IsRequest(SIP_Roptions *ropts)
 }
 
 /* Parsing for the rule option */
-static int SIP_MethodInit(char *name, char *params, void **data)
+static int SIP_MethodInit(struct _SnortConfig *sc, char *name, char *params, void **data)
 {
 
 	int flags = 0, mask = 0;
@@ -97,15 +97,16 @@ static int SIP_MethodInit(char *name, char *params, void **data)
 	int numTokens = 0;
 	SipMethodRuleOptData *sdata;
 	SIPMethodNode *method;
+	SIPConfig * sip_parsing_config;
 
 	if (strcasecmp(name, SIP_ROPT__METHOD) != 0)
 		return 0;
 
 
 	/*Evaluate whether all the methods are in the PP configurations */
-	sip_eval_config = sfPolicyUserDataGetCurrent(sip_config);
+	sip_parsing_config = getParsingSIPConfig(sc);
 
-	if (NULL == sip_eval_config)
+	if (NULL == sip_parsing_config)
 	    DynamicPreprocessorFatalMessage("%s(%d) => Configuration error!\n",
 	            *(_dpd.config_file), *(_dpd.config_line));
 
@@ -139,12 +140,12 @@ static int SIP_MethodInit(char *name, char *params, void **data)
 	        DynamicPreprocessorFatalMessage("%s(%d) => %s, only one method is allowed with ! for %s.\n",
 	                *(_dpd.config_file), *(_dpd.config_line), tok, name);
 	    }
-		method = SIP_FindMethod (sip_eval_config->methods, tok, strlen (tok));
+		method = SIP_FindMethod (sip_parsing_config->methods, tok, strlen (tok));
 
 		/*if method is not found, add it as a user defined method*/
 		if (NULL == method)
 		{
-		    method = SIP_AddUserDefinedMethod(tok, &sip_eval_config->methodsConfig, &sip_eval_config->methods );
+		    method = SIP_AddUserDefinedMethod(tok, &sip_parsing_config->methodsConfig, &sip_parsing_config->methods );
 		    if (NULL == method)
 		        DynamicPreprocessorFatalMessage("%s(%d) => %s can't add new method to %s.\n",
 		                *(_dpd.config_file), *(_dpd.config_line), tok, name);
@@ -245,7 +246,7 @@ static int SIP_MethodAddFastPatterns(void *data, int protocol,
 	return 0;
 }
 /* Parsing for the rule option */
-static int SIP_HeaderInit(char *name, char *params, void **data)
+static int SIP_HeaderInit(struct _SnortConfig *sc, char *name, char *params, void **data)
 {
 	if (strcasecmp(name, SIP_ROPT__HEADER) != 0)
 		return 0;
@@ -298,7 +299,7 @@ static int SIP_HeaderEval(void *pkt, const uint8_t **cursor, void *data)
 
 
 /* Parsing for the rule option */
-static int SIP_StatCodeInit(char *name, char *params, void **data)
+static int SIP_StatCodeInit(struct _SnortConfig *sc, char *name, char *params, void **data)
 {
 	char *end = NULL;
 	char *tok;
@@ -401,7 +402,7 @@ static int SIP_StatCodeEval(void *pkt, const uint8_t **cursor, void *data)
 }
 
 /* Parsing for the rule option */
-static int SIP_BodyInit(char *name, char *params, void **data)
+static int SIP_BodyInit(struct _SnortConfig *sc, char *name, char *params, void **data)
 {
 
 	if (strcasecmp(name, SIP_ROPT__BODY) != 0)
@@ -463,15 +464,15 @@ static int SIP_BodyEval(void *pkt, const uint8_t **cursor, void *data)
  * Returns: void
  *
  ********************************************************************/
-void SIP_RegRuleOptions(void)
+void SIP_RegRuleOptions(struct _SnortConfig *sc)
 {
-	_dpd.preprocOptRegister(SIP_ROPT__METHOD, SIP_MethodInit, SIP_MethodEval,
+	_dpd.preprocOptRegister(sc, SIP_ROPT__METHOD, SIP_MethodInit, SIP_MethodEval,
 			free, NULL, NULL, NULL, SIP_MethodAddFastPatterns);
-	_dpd.preprocOptRegister(SIP_ROPT__HEADER, SIP_HeaderInit, SIP_HeaderEval,
+	_dpd.preprocOptRegister(sc, SIP_ROPT__HEADER, SIP_HeaderInit, SIP_HeaderEval,
 			NULL, NULL, NULL, NULL, NULL);
-	_dpd.preprocOptRegister(SIP_ROPT__STATUS_CODE, SIP_StatCodeInit, SIP_StatCodeEval,
+	_dpd.preprocOptRegister(sc, SIP_ROPT__STATUS_CODE, SIP_StatCodeInit, SIP_StatCodeEval,
 			free, NULL, NULL, NULL, NULL);
-	_dpd.preprocOptRegister(SIP_ROPT__BODY, SIP_BodyInit, SIP_BodyEval,
+	_dpd.preprocOptRegister(sc, SIP_ROPT__BODY, SIP_BodyInit, SIP_BodyEval,
 			NULL, NULL, NULL, NULL, NULL);
 }
 

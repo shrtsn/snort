@@ -65,7 +65,7 @@ struct _CS_MESSAGE
     CSMessageHeader hdr;
     CSMessageDataHeader msg_hdr;
     uint8_t msg[4096];
-} __attribute__((packed)); 
+} __attribute__((packed));
 
 typedef struct _CS_MESSAGE CSMessage;
 

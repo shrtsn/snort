@@ -52,6 +52,11 @@ POST_UNINSTALL = :
 build_triplet = @build@
 host_triplet = @host@
 bin_PROGRAMS = snort$(EXEEXT)
+@BUILD_SIDE_CHANNEL_TRUE@am__append_1 = \
+@BUILD_SIDE_CHANNEL_TRUE@side-channel/libsidechannel.a \
+@BUILD_SIDE_CHANNEL_TRUE@side-channel/plugins/libsscm.a
+
+@BUILD_SIDE_CHANNEL_TRUE@am__append_2 = side-channel
 subdir = src
 DIST_COMMON = $(srcdir)/Makefile.am $(srcdir)/Makefile.in
 ACLOCAL_M4 = $(top_srcdir)/aclocal.m4
@@ -105,7 +110,7 @@ snort_DEPENDENCIES = output-plugins/libspo.a \
 	preprocessors/HttpInspect/libhttp_inspect.a \
 	preprocessors/Stream5/libstream5.a sfutil/libsfutil.a \
 	control/libsfcontrol.a file-process/libfileAPI.a \
-	file-process/libs/libfile.a
+	file-process/libs/libfile.a $(am__append_1)
 DEFAULT_INCLUDES = -I.@am__isrc@ -I$(top_builddir)
 depcomp =
 am__depfiles_maybe =
@@ -142,7 +147,7 @@ CTAGS = ctags
 DIST_SUBDIRS = sfutil win32 output-plugins detection-plugins \
 	dynamic-plugins preprocessors parser dynamic-preprocessors \
 	dynamic-output target-based control file-process \
-	dynamic-examples
+	dynamic-examples side-channel
 DISTFILES = $(DIST_COMMON) $(DIST_SOURCES) $(TEXINFOS) $(EXTRA_DIST)
 am__relativize = \
   dir0=`pwd`; \
@@ -357,22 +362,19 @@ rule_option_types.h \
 sfdaq.c sfdaq.h \
 idle_processing.c idle_processing.h idle_processing_funcs.h
 
-snort_LDADD = output-plugins/libspo.a \
-detection-plugins/libspd.a            \
-dynamic-plugins/libdynamic.a            \
-dynamic-output/plugins/liboutput.a      \
-preprocessors/libspp.a                \
-parser/libparser.a \
-target-based/libtarget_based.a \
-preprocessors/HttpInspect/libhttp_inspect.a \
-preprocessors/Stream5/libstream5.a \
-sfutil/libsfutil.a \
-control/libsfcontrol.a \
-file-process/libfileAPI.a \
-file-process/libs/libfile.a
-
+snort_LDADD = output-plugins/libspo.a detection-plugins/libspd.a \
+	dynamic-plugins/libdynamic.a \
+	dynamic-output/plugins/liboutput.a preprocessors/libspp.a \
+	parser/libparser.a target-based/libtarget_based.a \
+	preprocessors/HttpInspect/libhttp_inspect.a \
+	preprocessors/Stream5/libstream5.a sfutil/libsfutil.a \
+	control/libsfcontrol.a file-process/libfileAPI.a \
+	file-process/libs/libfile.a $(am__append_1)
 @BUILD_DYNAMIC_EXAMPLES_TRUE@EXAMPLES_DIR = dynamic-examples
-SUBDIRS = sfutil win32 output-plugins detection-plugins dynamic-plugins preprocessors parser dynamic-preprocessors dynamic-output target-based control file-process $(EXAMPLES_DIR)
+SUBDIRS = sfutil win32 output-plugins detection-plugins \
+	dynamic-plugins preprocessors parser dynamic-preprocessors \
+	dynamic-output target-based control file-process \
+	$(EXAMPLES_DIR) $(am__append_2)
 all: all-recursive
 
 .SUFFIXES:

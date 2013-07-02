@@ -32,6 +32,7 @@ SFGHASH * PreprocessorRuleOptionsNew(void);
 void PreprocessorRuleOptionsFree(SFGHASH *);
 
 int RegisterPreprocessorRuleOption(
+    struct _SnortConfig *,
     char *optionName,
     PreprocOptionInit initFunc,
     PreprocOptionEval evalFunc,
@@ -43,6 +44,7 @@ int RegisterPreprocessorRuleOption(
 );
 
 void RegisterPreprocessorRuleOptionOverride(
+    struct _SnortConfig *,
     char *keyword, char *option,
     PreprocOptionInit initFunc,
     PreprocOptionEval evalFunc,
@@ -54,6 +56,7 @@ void RegisterPreprocessorRuleOptionOverride(
 );
 
 int GetPreprocessorRuleOptionFuncs(
+    struct _SnortConfig *,
     char *optionName,
     PreprocOptionInit* initFunc,
     PreprocOptionEval* evalFunc,
@@ -65,7 +68,7 @@ int GetPreprocessorRuleOptionFuncs(
 
 void RegisterPreprocessorRuleOptionByteOrder(char *keyword, PreprocOptionByteOrderFunc bo_func);
 
-int AddPreprocessorRuleOption(char *, OptTreeNode *, void *, PreprocOptionEval);
+int AddPreprocessorRuleOption(struct _SnortConfig *sc, char *, OptTreeNode *, void *, PreprocOptionEval);
 
 uint32_t PreprocessorRuleOptionHash(void *d);
 int PreprocessorRuleOptionCompare(void *l, void *r);

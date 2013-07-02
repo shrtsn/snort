@@ -115,6 +115,7 @@
 #include <sys/types.h>
 #include <stdlib.h>
 #include <ctype.h>
+#include <string.h>
 
 #ifdef HAVE_CONFIG_H
 #include "config.h"
@@ -182,7 +183,7 @@ PreprocStats boPerfStats;
 static tSfPolicyUserContextId bo_config = NULL;
 
 /* list of function prototypes for this preprocessor */
-static void BoInit(char *);
+static void BoInit(struct _SnortConfig *, char *);
 static void BoFind(Packet *, void *);
 
 /* list of private functions */
@@ -196,9 +197,8 @@ static void BoFreeConfig(tSfPolicyUserContextId bo);
 static void BoCleanExit(int, void *);
 
 #ifdef SNORT_RELOAD
-static tSfPolicyUserContextId bo_swap_config = NULL;
-static void BoReload(char *);
-static void * BoReloadSwap(void);
+static void BoReload(struct _SnortConfig *, char *, void **);
+static void * BoReloadSwap(struct _SnortConfig *, void *);
 static void BoReloadSwapFree(void *);
 #endif
 
@@ -220,7 +220,7 @@ void SetupBo(void)
 #ifndef SNORT_RELOAD
     RegisterPreprocessor("bo", BoInit);
 #else
-    RegisterPreprocessor("bo", BoInit, BoReload, BoReloadSwap, BoReloadSwapFree);
+    RegisterPreprocessor("bo", BoInit, BoReload, NULL, BoReloadSwap, BoReloadSwapFree);
 #endif
 
     DEBUG_WRAP(DebugMessage(DEBUG_PLUGIN,
@@ -238,9 +238,9 @@ void SetupBo(void)
  * Returns: void function
  *
  */
-static void BoInit(char *args)
+static void BoInit(struct _SnortConfig *sc, char *args)
 {
-    int policy_id = (int)getParserPolicy();
+    int policy_id = (int)getParserPolicy(sc);
     BoConfig *pPolicyConfig = NULL;
 
     if (bo_config == NULL)
@@ -279,7 +279,7 @@ static void BoInit(char *args)
     ProcessArgs(pPolicyConfig, args);
 
     /* Set the preprocessor function into the function list */
-    AddFuncToPreprocList(BoFind, PRIORITY_LAST, PP_BO, PROTO_BIT__UDP);
+    AddFuncToPreprocList(sc, BoFind, PRIORITY_LAST, PP_BO, PROTO_BIT__UDP);
 }
 
 
@@ -472,8 +472,8 @@ static void PrecalcPrefix(void)
     char *cp_ptr;       /* cookie plaintext indexing pointer */
     uint16_t cyphertext_referent;
 
-    memset(&lookup1[0], 0, sizeof(lookup1));
-    memset(&lookup2[0], 0, sizeof(lookup2));
+    memset(lookup1, 0, sizeof(lookup1));
+    memset(lookup2, 0, sizeof(lookup2));
 
     for(key=0;key<65536;key++)
     {
@@ -857,7 +857,7 @@ static void BoFreeConfig(tSfPolicyUserContextId bo)
     if (bo == NULL)
         return;
 
-    sfPolicyUserDataIterate (bo, BoFreeConfigPolicy);
+    sfPolicyUserDataFreeIterate (bo, BoFreeConfigPolicy);
 
     sfPolicyConfigDelete(bo);
 }
@@ -869,15 +869,16 @@ static void BoCleanExit(int signal, void *unused)
 }
 
 #ifdef SNORT_RELOAD
-static void BoReload(char *args)
+static void BoReload(struct _SnortConfig *sc, char *args, void **new_config)
 {
-    int policy_id = (int)getParserPolicy();
+    tSfPolicyUserContextId bo_swap_config = (tSfPolicyUserContextId)*new_config;
+    int policy_id = (int)getParserPolicy(sc);
     BoConfig *pPolicyConfig = NULL;
 
-    if (bo_swap_config == NULL)
+    if (!bo_swap_config)
     {
-        //create a context
         bo_swap_config = sfPolicyConfigCreate();
+        *new_config = (void *)bo_swap_config;
     }
 
     sfPolicyUserPolicySet (bo_swap_config, policy_id);
@@ -898,11 +899,12 @@ static void BoReload(char *args)
 
     ProcessArgs(pPolicyConfig, args);
 
-    AddFuncToPreprocList(BoFind, PRIORITY_LAST, PP_BO, PROTO_BIT__UDP);
+    AddFuncToPreprocList(sc, BoFind, PRIORITY_LAST, PP_BO, PROTO_BIT__UDP);
 }
 
-static void * BoReloadSwap(void)
+static void * BoReloadSwap(struct _SnortConfig *sc, void *swap_config)
 {
+    tSfPolicyUserContextId bo_swap_config = (tSfPolicyUserContextId)swap_config;
     tSfPolicyUserContextId old_config = bo_config;
 
     if (bo_swap_config == NULL)

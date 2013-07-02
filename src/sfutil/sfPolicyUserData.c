@@ -28,9 +28,6 @@
 #include "sfPolicy.h"
 #include "sfPolicyUserData.h"
 
-tSfPolicyId runtimePolicyId = 0;
-tSfPolicyId parserPolicyId = 0;
-
 /** @defgroup sfPolicyConfig Sourcefire policy configuration module
  *
  *  Create a user policy configuration context. A context provides facility for creating
@@ -144,6 +141,29 @@ void * sfPolicyUserDataClear (
 }
 
 int sfPolicyUserDataIterate (
+        struct _SnortConfig *sc,
+        tSfPolicyUserContextId pContext,
+        int (*callback)(struct _SnortConfig *sc, tSfPolicyUserContextId pContext, tSfPolicyId policyId, void* config)
+        )
+{
+    tSfPolicyId policyId;
+    int ret = 0;
+
+    //must not use numActivePolicies because the callback may delete a policy
+    for (policyId = 0; policyId < pContext->numAllocatedPolicies; policyId++)
+    {
+        if (pContext->userConfig[policyId])
+        {
+            ret = callback(sc, pContext, policyId, pContext->userConfig[policyId]);
+            if (ret != 0)
+                break;
+        }
+    }
+
+    return ret;
+}
+
+int sfPolicyUserDataFreeIterate (
         tSfPolicyUserContextId pContext,
         int (*callback)(tSfPolicyUserContextId pContext, tSfPolicyId policyId, void* config)
         )
@@ -164,7 +184,6 @@ int sfPolicyUserDataIterate (
 
     return ret;
 }
-
 
 /** @} */ //
 

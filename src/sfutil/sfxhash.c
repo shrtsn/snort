@@ -634,7 +634,7 @@ SFXHASH_NODE * sfxhash_newnode( SFXHASH * t )
 #define hashmask(n) (hashsize(n)-1)
 
 static
-SFXHASH_NODE * sfxhash_find_node_row( SFXHASH * t, void * key, int * rindex )
+SFXHASH_NODE * sfxhash_find_node_row( SFXHASH * t, const void * key, int * rindex )
 {
     unsigned       hashkey;
     int            index;
@@ -769,7 +769,7 @@ int sfxhash_add( SFXHASH * t, void * key, void * data )
  * @retval SFXHASH_INTABLE already in the table, t->cnode points to the node
  * @retval SFXHASH_NOMEM   not enough memory
  */
-SFXHASH_NODE * sfxhash_get_node( SFXHASH * t, void * key )
+SFXHASH_NODE * sfxhash_get_node( SFXHASH * t, const void * key )
 {
     int            index;
     SFXHASH_NODE * hnode;
@@ -836,7 +836,7 @@ SFXHASH_NODE * sfxhash_get_node( SFXHASH * t, void * key )
  * @retval 0               node not found
  *
  */
-SFXHASH_NODE * sfxhash_find_node( SFXHASH * t, void * key)
+SFXHASH_NODE * sfxhash_find_node( SFXHASH * t, const void * key)
 {
     int            rindex;
 

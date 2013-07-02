@@ -569,7 +569,10 @@ int BitEncExtract(const uint8_t *start, const uint8_t *end, Email_DecodeState *d
 
     if( (uint32_t)(end-start) < bytes_avail )
     {
-        act_size = ( end - start);
+        if ((end > start) && (*(end-1) == '\r'))
+            act_size = ( end - start) - 1;
+        else
+            act_size = ( end - start);
     }
     else
     {

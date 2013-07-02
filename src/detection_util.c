@@ -129,10 +129,9 @@ void EventTrace_Log (const Packet* p, OptTreeNode* otn, int action)
     );
     TextLog_Print(tlog,
         "Pkt Cnts: Dsz=%u, Alt=%u, Bytes2Insp=%d"
-        ", NUri=%u, NHttp=%u\n",
+        ", NUri=%u\n",
         (unsigned)p->dsize, (unsigned)p->alt_dsize, p->bytes_to_inspect,
-        (unsigned)p->uri_count, p->http_pipeline_count
-    );
+        (unsigned)p->uri_count);
     TextLog_Print(tlog, "Detect: DoeFlags=0x%X, DetectFlags=0x%X, DetBuf=%u, B64=%u\n",
         doe_buf_flags, detect_flags, DetectBuffer.len, base64_decode_size
     );

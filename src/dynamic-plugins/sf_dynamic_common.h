@@ -42,6 +42,7 @@ typedef void (*DetectFlagDisableFunc)(SFDetectFlagType);
 #include <wchar.h>
 typedef void (*DebugWideMsgFunc)(uint64_t, wchar_t *, ...);
 #endif
+typedef uint32_t (*GetSnortInstance)(void);
 
 #define STD_BUF 1024
 

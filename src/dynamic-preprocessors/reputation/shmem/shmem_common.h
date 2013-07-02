@@ -31,7 +31,7 @@
 
 #define IPREP           0
 
-#define UNKNOW_LIST     0
+#define UNKNOWN_LIST    0
 #define MONITOR_LIST    1
 #define BLACK_LIST      2
 #define WHITE_LIST      3

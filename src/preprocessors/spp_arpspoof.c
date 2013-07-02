@@ -147,8 +147,8 @@ PreprocStats arpPerfStats;
 
 
 /*  P R O T O T Y P E S  ********************************************/
-static void ARPspoofInit(char *args);
-static void ARPspoofHostInit(char *args);
+static void ARPspoofInit(struct _SnortConfig *, char *args);
+static void ARPspoofHostInit(struct _SnortConfig *, char *args);
 static void ParseARPspoofArgs(ArpSpoofConfig *, char *);
 static void ParseARPspoofHostArgs(IPMacEntryList *, char *);
 static void DetectARPattacks(Packet *p, void *context);
@@ -165,10 +165,9 @@ static void PrintIPMacEntryList(IPMacEntryList *ip_mac_entry_list);
 #endif
 
 #ifdef SNORT_RELOAD
-static tSfPolicyUserContextId arp_spoof_swap_config = NULL;
-static void ARPspoofReload(char *);
-static void ARPspoofReloadHost(char *);
-static void * ARPspoofReloadSwap(void);
+static void ARPspoofReload(struct _SnortConfig *, char *, void **);
+static void ARPspoofReloadHost(struct _SnortConfig *, char *, void **);
+static void * ARPspoofReloadSwap(struct _SnortConfig *, void *);
 static void ARPspoofReloadSwapFree(void *);
 #endif
 
@@ -179,10 +178,10 @@ void SetupARPspoof(void)
     RegisterPreprocessor("arpspoof", ARPspoofInit);
     RegisterPreprocessor("arpspoof_detect_host", ARPspoofHostInit);
 #else
-    RegisterPreprocessor("arpspoof", ARPspoofInit, ARPspoofReload,
+    RegisterPreprocessor("arpspoof", ARPspoofInit, ARPspoofReload, NULL,
                          ARPspoofReloadSwap, ARPspoofReloadSwapFree);
     RegisterPreprocessor("arpspoof_detect_host", ARPspoofHostInit,
-                         ARPspoofReloadHost, NULL, NULL);
+                         ARPspoofReloadHost, NULL, NULL, NULL);
 #endif
 
     DEBUG_WRAP(DebugMessage(DEBUG_INIT,
@@ -190,9 +189,9 @@ void SetupARPspoof(void)
 }
 
 
-static void ARPspoofInit(char *args)
+static void ARPspoofInit(struct _SnortConfig *sc, char *args)
 {
-    int policy_id = (int)getParserPolicy();
+    int policy_id = (int)getParserPolicy(sc);
     ArpSpoofConfig *pDefaultPolicyConfig = NULL;
     ArpSpoofConfig *pCurrentPolicyConfig = NULL;
 
@@ -233,7 +232,7 @@ static void ARPspoofInit(char *args)
 
     sfPolicyUserDataSetCurrent(arp_spoof_config, pCurrentPolicyConfig);
     /* Add arpspoof to the preprocessor function list */
-    AddFuncToPreprocList(DetectARPattacks, PRIORITY_NETWORK, PP_ARPSPOOF, PROTO_BIT__ARP);
+    AddFuncToPreprocList(sc, DetectARPattacks, PRIORITY_NETWORK, PP_ARPSPOOF, PROTO_BIT__ARP);
 
     //policy independent configuration. First policy defines actual values.
     if (policy_id != 0)
@@ -267,9 +266,9 @@ static void ParseARPspoofArgs(ArpSpoofConfig *config, char *args)
 }
 
 
-static void ARPspoofHostInit(char *args)
+static void ARPspoofHostInit(struct _SnortConfig *sc, char *args)
 {
-    tSfPolicyId policy_id = getParserPolicy();
+    tSfPolicyId policy_id = getParserPolicy(sc);
     ArpSpoofConfig *pPolicyConfig = NULL;
 
     if (arp_spoof_config == NULL)
@@ -618,7 +617,7 @@ static void ArpSpoofFreeConfig(tSfPolicyUserContextId config)
     if (config == NULL)
         return;
 
-    sfPolicyUserDataIterate (config, ArpSpoofFreeConfigPolicy);
+    sfPolicyUserDataFreeIterate (config, ArpSpoofFreeConfigPolicy);
     sfPolicyConfigDelete(config);
 
 }
@@ -662,18 +661,19 @@ static void PrintIPMacEntryList(IPMacEntryList *ip_mac_entry_list)
 #endif
 
 #ifdef SNORT_RELOAD
-static void ARPspoofReload(char *args)
+static void ARPspoofReload(struct _SnortConfig *sc, char *args, void **new_config)
 {
-    int policy_id = (int)getParserPolicy();
-    ArpSpoofConfig *pPolicyConfig = NULL;
+    tSfPolicyUserContextId arp_spoof_swap_config = (tSfPolicyUserContextId)*new_config;
+    int policy_id = (int)getParserPolicy(sc);
+    ArpSpoofConfig *pPolicyConfig;
 
-    if (arp_spoof_swap_config == NULL)
+    if (!arp_spoof_swap_config)
     {
-
-         arp_spoof_swap_config = sfPolicyConfigCreate();
+        arp_spoof_swap_config = sfPolicyConfigCreate();
+        *new_config = (void *)arp_spoof_swap_config;
     }
 
-     sfPolicyUserPolicySet (arp_spoof_swap_config, policy_id);
+    sfPolicyUserPolicySet (arp_spoof_swap_config, policy_id);
 
     pPolicyConfig = (ArpSpoofConfig *)sfPolicyUserDataGetCurrent(arp_spoof_swap_config);
     if (pPolicyConfig)
@@ -690,7 +690,7 @@ static void ARPspoofReload(char *args)
 
 
     /* Add arpspoof to the preprocessor function list */
-    AddFuncToPreprocList(DetectARPattacks, PRIORITY_NETWORK, PP_ARPSPOOF, PROTO_BIT__ARP);
+    AddFuncToPreprocList(sc, DetectARPattacks, PRIORITY_NETWORK, PP_ARPSPOOF, PROTO_BIT__ARP);
 
     //policy independent configuration. First policy defines actual values.
     if (policy_id != 0)
@@ -701,14 +701,16 @@ static void ARPspoofReload(char *args)
 
     /* Parse the arpspoof arguments from snort.conf */
     ParseARPspoofArgs(pPolicyConfig, args);
+
 }
 
-static void ARPspoofReloadHost(char *args)
+static void ARPspoofReloadHost(struct _SnortConfig *sc, char *args, void **new_config)
 {
-    int policy_id = (int)getParserPolicy();
+    int policy_id = (int)getParserPolicy(sc);
     ArpSpoofConfig *pPolicyConfig = NULL;
-    sfPolicyUserPolicySet (arp_spoof_swap_config, policy_id);
-    pPolicyConfig = (ArpSpoofConfig *)sfPolicyUserDataGetCurrent(arp_spoof_swap_config);
+    tSfPolicyUserContextId arp_spoof_swap_config;
+
+    arp_spoof_swap_config = (tSfPolicyUserContextId)GetRelatedReloadData(sc, "arpspoof");
 
     if ((arp_spoof_swap_config == NULL) ||
         (pPolicyConfig == NULL))
@@ -716,6 +718,9 @@ static void ARPspoofReloadHost(char *args)
         ParseError("Please activate arpspoof before trying to "
                    "use arpspoof_detect_host.");
     }
+
+    sfPolicyUserPolicySet(arp_spoof_swap_config, policy_id);
+    pPolicyConfig = (ArpSpoofConfig *)sfPolicyUserDataGetCurrent(arp_spoof_swap_config);
 
     DEBUG_WRAP(DebugMessage(DEBUG_INIT,
             "Preprocessor: ARPspoof (overwrite list) Initialized\n"););
@@ -733,8 +738,9 @@ static void ARPspoofReloadHost(char *args)
         pPolicyConfig->check_overwrite = 1;
 }
 
-static void * ARPspoofReloadSwap(void)
+static void * ARPspoofReloadSwap(struct _SnortConfig *sc, void *swap_config)
 {
+    tSfPolicyUserContextId arp_spoof_swap_config = (tSfPolicyUserContextId)swap_config;
     tSfPolicyUserContextId old_config = arp_spoof_config;
 
     if (arp_spoof_swap_config == NULL)

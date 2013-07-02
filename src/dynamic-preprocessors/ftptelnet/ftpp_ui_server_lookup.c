@@ -196,26 +196,27 @@ FTP_SERVER_PROTO_CONF *ftpp_ui_server_lookup_find(
  * @returns iError => return code indicating error or success
  *
  */
-void ftpp_ui_server_iterate(
+int ftpp_ui_server_iterate(
+    struct _SnortConfig *sc,
     SERVER_LOOKUP *ServerLookup,
-    sfrt_iterator_callback userfunc,
+    sfrt_sc_iterator_callback3 userfunc,
     int *iError
     )
 {
     if(!iError)
     {
-        return;
+        return 0;
     }
 
     if(!ServerLookup)
     {
         *iError = FTPP_INVALID_ARG;
-        return;
+        return 0;
     }
 
     *iError = FTPP_SUCCESS;
 
-    sfrt_iterate(ServerLookup, userfunc);
+    return sfrt_iterate2_with_snort_config(sc, ServerLookup, userfunc);
 }
 
 #if 0

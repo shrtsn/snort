@@ -53,6 +53,7 @@ int active_drop_ssn = 0;
 // with a active_verdict.  change over if it is a wash or better.
 
 int active_tunnel_bypass = 0;
+int active_suspend = 0;
 
 #ifdef ACTIVE_RESPONSE
 int active_have_rsp = 0;
@@ -90,6 +91,9 @@ static inline PROTO_ID GetInnerProto (const Packet* p)
 
 int Active_QueueReject (void)
 {
+    if ( Active_Suspended() )
+        return 0;
+
     if ( !s_rejFunc )
     {
         s_rejFunc = (Active_ResponseFunc)Active_KillSession;
@@ -101,6 +105,9 @@ int Active_QueueReject (void)
 
 int Active_QueueResponse (Active_ResponseFunc f, void* pv)
 {
+    if ( Active_Suspended() )
+        return 0;
+
     if ( !s_rspFunc )
     {
         s_rspFunc = f;
@@ -150,6 +157,9 @@ int Active_SendResponses (Packet* p)
 void Active_KillSession (Packet* p, EncodeFlags* pf)
 {
     EncodeFlags flags = pf ? *pf : ENC_FLAG_FWD;
+
+    if ( !IsIP(p) )
+        return 0;
 
     switch ( GET_IPH_PROTO(p) )
     {
@@ -384,6 +394,9 @@ int Active_IgnoreSession (Packet* p)
 
 int Active_ForceDropAction(Packet *p)
 {
+    if ( !IsIP(p) )
+        return 0;
+
     // explicitly drop packet
     Active_ForceDropPacket();
 

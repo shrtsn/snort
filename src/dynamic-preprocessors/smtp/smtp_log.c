@@ -117,9 +117,6 @@ void SMTP_DecodeAlert(void)
         case DECODE_UU:
                 SMTP_GenerateAlert(SMTP_UU_DECODING_FAILED, "%s", SMTP_UU_DECODING_FAILED_STR);
                 break;
-        case DECODE_BITENC:
-                SMTP_GenerateAlert(SMTP_BITENC_DECODING_FAILED, "%s", SMTP_BITENC_DECODING_FAILED_STR);
-                break;
 
         default:
                 break;

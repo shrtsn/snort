@@ -250,8 +250,11 @@ static int IsHttpServerData(HI_SESSION *Session, Packet *p, HttpSessionData *sd)
         {
             if(ServerConf->server_flow_depth > 0)
             {
-                sd->resp_state.flow_depth_excd = false;
-                sd->resp_state.max_seq = seq_num + ServerConf->server_flow_depth;
+                if(sd)
+                {
+                    sd->resp_state.flow_depth_excd = false;
+                    sd->resp_state.max_seq = seq_num + ServerConf->server_flow_depth;
+                }
             }
             p->packet_flags |= PKT_HTTP_DECODE;
             ApplyFlowDepth(ServerConf, p, sd, 0, 1, seq_num);
@@ -648,7 +651,7 @@ static inline const u_char *extractHttpRespHeaderFieldValues(HTTPINSPECT_CONF *S
         else if ( IsHeaderFieldName(p, end, HTTPRESP_HEADER_NAME__CONTENT_LENGTH,
                 HTTPRESP_HEADER_LENGTH__CONTENT_LENGTH) )
         {
-            if(!hsd->resp_state.last_pkt_chunked)
+            if(hsd && !hsd->resp_state.last_pkt_chunked)
                 p = extract_http_content_length(Session, ServerConf, p, start, end, header_ptr, header_field_ptr );
         }
     }
@@ -1122,12 +1125,12 @@ static inline int hi_server_inspect_body(HI_SESSION *Session, HttpSessionData *s
             ResetGzipState(sd->decomp_state);
 #endif
             ResetRespState(&(sd->resp_state));
-            return HI_INVALID_ARG;
         }
+        return HI_INVALID_ARG;
     }
 
 #ifdef ZLIB
-    if(sd && (sd->decomp_state != NULL) && sd->decomp_state->decompress_data)
+    if((sd->decomp_state != NULL) && sd->decomp_state->decompress_data)
     {
         iRet = hi_server_decompress(Session, sd, ptr, end, result);
         if(iRet == HI_NONFATAL_ERR)
@@ -1258,7 +1261,6 @@ int HttpResponseInspection(HI_SESSION *Session, Packet *p, const unsigned char *
 
     seq_num = GET_PKT_SEQ(p);
 
-#ifdef ENABLE_PAF
     if ( ScPafEnabled() )
     {
         expected_pkt = !PacketHasStartOfPDU(p);
@@ -1300,7 +1302,7 @@ int HttpResponseInspection(HI_SESSION *Session, Packet *p, const unsigned char *
             if(ServerConf->server_extract_size)
             {
                 /*Packet is beyond the extract limit*/
-                if ( sd->resp_state.data_extracted > ServerConf->server_extract_size )
+                if ( sd && (sd->resp_state.data_extracted > ServerConf->server_extract_size ))
                 {
                     expected_pkt = 0;
                     ResetState(sd);
@@ -1308,10 +1310,8 @@ int HttpResponseInspection(HI_SESSION *Session, Packet *p, const unsigned char *
             }
         }
     }
-    else
     // when PAF is hardened, the following can be removed
-#endif
-    if ( (sd != NULL) )
+    else if ( (sd != NULL) )
     {
         /* If the previously inspected packet in this session identified as a body
          * and if the packets are stream inserted wait for reassembled */
@@ -1454,11 +1454,14 @@ int HttpResponseInspection(HI_SESSION *Session, Packet *p, const unsigned char *
             if(expected_pkt)
             {
                 expected_pkt = 0;
+                if(sd != NULL)
+                {
 #ifdef ZLIB
-                ResetGzipState(sd->decomp_state);
+                    ResetGzipState(sd->decomp_state);
 #endif
-                ResetRespState(&(sd->resp_state));
-                sd->resp_state.flow_depth_excd = false;
+                    ResetRespState(&(sd->resp_state));
+                    sd->resp_state.flow_depth_excd = false;
+                }
             }
             while(hi_util_in_bounds(start, end, ptr))
             {
@@ -1591,7 +1594,6 @@ int HttpResponseInspection(HI_SESSION *Session, Packet *p, const unsigned char *
 
                         if (p->packet_flags & PKT_STREAM_INSERT)
                         {
-#ifdef ENABLE_PAF
                             if ( ScPafEnabled() )
                             {
                                 if ( PacketHasFullPDU(p) )
@@ -1599,9 +1601,7 @@ int HttpResponseInspection(HI_SESSION *Session, Packet *p, const unsigned char *
                                 else
                                     sd->resp_state.inspect_reassembled = 1;
                             }
-                            else
-#endif
-                            if (
+                            else if (
                                 header_ptr.content_len.cont_len_start &&
                                 ((uint32_t)(end - (header_ptr.header.uri_end)) >= header_ptr.content_len.len))
                             {
@@ -1658,8 +1658,9 @@ int HttpResponseInspection(HI_SESSION *Session, Packet *p, const unsigned char *
             {
                 alt_dsize = sizeof(HttpDecodeBuf.data);
             }
+            /* not checking if sd== NULL as the body_ptr.uri = NULL when sd === NULL in hi_server_inspect_body */
 #ifdef ZLIB
-            if(sd && sd->decomp_state && sd->decomp_state->decompress_data)
+            if(sd->decomp_state && sd->decomp_state->decompress_data)
             {
                 status = SafeMemcpy(HttpDecodeBuf.data, Server->response.body,
                                             alt_dsize, HttpDecodeBuf.data, HttpDecodeBuf.data + sizeof(HttpDecodeBuf.data));

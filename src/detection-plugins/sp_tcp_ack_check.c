@@ -53,8 +53,8 @@ typedef struct _TcpAckCheckData
     u_long tcp_ack;
 } TcpAckCheckData;
 
-void TcpAckCheckInit(char *, OptTreeNode *, int);
-void ParseTcpAck(char *, OptTreeNode *);
+void TcpAckCheckInit(struct _SnortConfig *, char *, OptTreeNode *, int);
+void ParseTcpAck(struct _SnortConfig *, char *, OptTreeNode *);
 int CheckTcpAckEq(void *option_data, Packet *p);
 
 uint32_t TcpAckCheckHash(void *d)
@@ -111,7 +111,7 @@ void SetupTcpAckCheck(void)
 
 /****************************************************************************
  *
- * Function: TcpAckCheckInit(char *, OptTreeNode *)
+ * Function: TcpAckCheckInit(struct _SnortConfig *, char *, OptTreeNode *)
  *
  * Purpose: Attach the option data to the rule data struct and link in the
  *          detection function to the function pointer list.
@@ -122,7 +122,7 @@ void SetupTcpAckCheck(void)
  * Returns: void function
  *
  ****************************************************************************/
-void TcpAckCheckInit(char *data, OptTreeNode *otn, int protocol)
+void TcpAckCheckInit(struct _SnortConfig *sc, char *data, OptTreeNode *otn, int protocol)
 {
     OptFpList *fpl;
 
@@ -145,7 +145,7 @@ void TcpAckCheckInit(char *data, OptTreeNode *otn, int protocol)
 
     /* this is where the keyword arguments are processed and placed into the
        rule option's data structure */
-    ParseTcpAck(data, otn);
+    ParseTcpAck(sc, data, otn);
 
     /* finally, attach the option's detection function to the rule's
        detect function pointer list */
@@ -158,7 +158,7 @@ void TcpAckCheckInit(char *data, OptTreeNode *otn, int protocol)
 
 /****************************************************************************
  *
- * Function: ParseTcpAck(char *, OptTreeNode *)
+ * Function: ParseTcpAck(struct _SnortConfig *, char *, OptTreeNode *)
  *
  * Purpose: Attach the option rule's argument to the data struct.
  *
@@ -168,7 +168,7 @@ void TcpAckCheckInit(char *data, OptTreeNode *otn, int protocol)
  * Returns: void function
  *
  ****************************************************************************/
-void ParseTcpAck(char *data, OptTreeNode *otn)
+void ParseTcpAck(struct _SnortConfig *sc, char *data, OptTreeNode *otn)
 {
     TcpAckCheckData *ds_ptr;  /* data struct pointer */
     void *ds_ptr_dup;
@@ -181,7 +181,7 @@ void ParseTcpAck(char *data, OptTreeNode *otn)
     ds_ptr->tcp_ack = strtoul(data, ep, 0);
     ds_ptr->tcp_ack = htonl(ds_ptr->tcp_ack);
 
-    if (add_detection_option(RULE_OPTION_TYPE_TCP_ACK, (void *)ds_ptr, &ds_ptr_dup) == DETECTION_OPTION_EQUAL)
+    if (add_detection_option(sc, RULE_OPTION_TYPE_TCP_ACK, (void *)ds_ptr, &ds_ptr_dup) == DETECTION_OPTION_EQUAL)
     {
         free(ds_ptr);
         ds_ptr = otn->ds_list[PLUGIN_TCP_ACK_CHECK] = ds_ptr_dup;

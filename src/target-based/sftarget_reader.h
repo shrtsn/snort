@@ -158,7 +158,8 @@ HostAttributeEntry *SFAT_LookupHostEntryByDst(Packet *p);
 void SFAT_UpdateApplicationProtocol(sfip_t *ipAddr, uint16_t port, uint16_t protocol, uint16_t id);
 
 /* Returns whether this has been configured */
-int IsAdaptiveConfigured(tSfPolicyId, int);
+int IsAdaptiveConfigured(tSfPolicyId);
+int IsAdaptiveConfiguredForSnortConfig(struct _SnortConfig *, tSfPolicyId);
 
 void SFAT_StartReloadThread(void);
 

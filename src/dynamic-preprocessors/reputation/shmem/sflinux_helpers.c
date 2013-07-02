@@ -47,7 +47,7 @@ int CheckNumaNodes()
    {
        while ((de = readdir(dir)))
        {
-           if (!de->d_name || strncmp(de->d_name, "node", 4) != 0)
+           if (strncmp(de->d_name, "node", 4) != 0)
                continue;
            num_nodes++;
        }

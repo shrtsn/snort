@@ -75,9 +75,9 @@ typedef struct _IcmpIdCheckData
 
 } IcmpIdCheckData;
 
-void ParseIcmpId(char *, OptTreeNode *);
+void ParseIcmpId(struct _SnortConfig *, char *, OptTreeNode *);
 int IcmpIdCheck(void *option_data, Packet *);
-void IcmpIdCheckInit(char *, OptTreeNode *, int);
+void IcmpIdCheckInit(struct _SnortConfig *, char *, OptTreeNode *, int);
 
 uint32_t IcmpIdCheckHash(void *d)
 {
@@ -147,7 +147,7 @@ void SetupIcmpIdCheck(void)
  * Returns: void function
  *
  ****************************************************************************/
-void IcmpIdCheckInit(char *data, OptTreeNode *otn, int protocol)
+void IcmpIdCheckInit(struct _SnortConfig *sc, char *data, OptTreeNode *otn, int protocol)
 {
     OptFpList *fpl;
     if(protocol != IPPROTO_ICMP)
@@ -170,7 +170,7 @@ void IcmpIdCheckInit(char *data, OptTreeNode *otn, int protocol)
     /* this is where the keyword arguments are processed and placed into the
        rule option's data structure */
 
-    ParseIcmpId(data, otn);
+    ParseIcmpId(sc, data, otn);
 
     /* finally, attach the option's detection function to the rule's
        detect function pointer list */
@@ -183,7 +183,7 @@ void IcmpIdCheckInit(char *data, OptTreeNode *otn, int protocol)
 
 /****************************************************************************
  *
- * Function: ParseIcmpId(char *, OptTreeNode *)
+ * Function: ParseIcmpId(struct _SnortConfig *, char *, OptTreeNode *)
  *
  * Purpose: Convert the rule option argument to program data.
  *
@@ -193,7 +193,7 @@ void IcmpIdCheckInit(char *data, OptTreeNode *otn, int protocol)
  * Returns: void function
  *
  ****************************************************************************/
-void ParseIcmpId(char *data, OptTreeNode *otn)
+void ParseIcmpId(struct _SnortConfig *sc, char *data, OptTreeNode *otn)
 {
     IcmpIdCheckData *ds_ptr;  /* data struct pointer */
     void *ds_ptr_dup;
@@ -215,7 +215,7 @@ void ParseIcmpId(char *data, OptTreeNode *otn)
     }
     ds_ptr->icmpid = htons(ds_ptr->icmpid);
 
-    if (add_detection_option(RULE_OPTION_TYPE_ICMP_ID, (void *)ds_ptr, &ds_ptr_dup) == DETECTION_OPTION_EQUAL)
+    if (add_detection_option(sc, RULE_OPTION_TYPE_ICMP_ID, (void *)ds_ptr, &ds_ptr_dup) == DETECTION_OPTION_EQUAL)
     {
         free(ds_ptr);
         ds_ptr = otn->ds_list[PLUGIN_ICMP_ID_CHECK] = ds_ptr_dup;

@@ -96,9 +96,10 @@ am__installdirs = "$(DESTDIR)$(outputlibdir)" \
 LTLIBRARIES = $(outputlib_LTLIBRARIES)
 libsf_dynamic_output_la_LIBADD =
 am__libsf_dynamic_output_la_SOURCES_DIST = output_lib.c
-@HAVE_DYNAMIC_PLUGINS_TRUE@@SO_WITH_STATIC_LIB_TRUE@am_libsf_dynamic_output_la_OBJECTS = libsf_dynamic_output_la-output_lib.lo
+@SO_WITH_STATIC_LIB_TRUE@am_libsf_dynamic_output_la_OBJECTS = libsf_dynamic_output_la-output_lib.lo
 am__objects_1 =
-@HAVE_DYNAMIC_PLUGINS_TRUE@@SO_WITH_STATIC_LIB_TRUE@nodist_libsf_dynamic_output_la_OBJECTS = $(am__objects_1)
+@SO_WITH_STATIC_LIB_TRUE@nodist_libsf_dynamic_output_la_OBJECTS =  \
+@SO_WITH_STATIC_LIB_TRUE@	$(am__objects_1)
 libsf_dynamic_output_la_OBJECTS =  \
 	$(am_libsf_dynamic_output_la_OBJECTS) \
 	$(nodist_libsf_dynamic_output_la_OBJECTS)
@@ -106,9 +107,8 @@ libsf_dynamic_output_la_LINK = $(LIBTOOL) --tag=CC $(AM_LIBTOOLFLAGS) \
 	$(LIBTOOLFLAGS) --mode=link $(CCLD) \
 	$(libsf_dynamic_output_la_CFLAGS) $(CFLAGS) \
 	$(libsf_dynamic_output_la_LDFLAGS) $(LDFLAGS) -o $@
-@HAVE_DYNAMIC_PLUGINS_TRUE@@SO_WITH_STATIC_LIB_TRUE@am_libsf_dynamic_output_la_rpath =  \
-@HAVE_DYNAMIC_PLUGINS_TRUE@@SO_WITH_STATIC_LIB_TRUE@	-rpath \
-@HAVE_DYNAMIC_PLUGINS_TRUE@@SO_WITH_STATIC_LIB_TRUE@	$(outputlibdir)
+@SO_WITH_STATIC_LIB_TRUE@am_libsf_dynamic_output_la_rpath = -rpath \
+@SO_WITH_STATIC_LIB_TRUE@	$(outputlibdir)
 DEFAULT_INCLUDES = -I.@am__isrc@ -I$(top_builddir)
 depcomp =
 am__depfiles_maybe =
@@ -266,38 +266,38 @@ top_build_prefix = @top_build_prefix@
 top_builddir = @top_builddir@
 top_srcdir = @top_srcdir@
 AUTOMAKE_OPTIONS = foreign no-dependencies
-@HAVE_DYNAMIC_PLUGINS_TRUE@@SO_WITH_STATIC_LIB_TRUE@outputlibdir = $(pkglibdir)/dynamic_output
-@HAVE_DYNAMIC_PLUGINS_TRUE@@SO_WITH_STATIC_LIB_TRUE@outputlibincludedir = $(pkgincludedir)/dynamic_output
-@HAVE_DYNAMIC_PLUGINS_TRUE@@SO_WITH_STATIC_LIB_TRUE@outputlib_LTLIBRARIES = libsf_dynamic_output.la
-@HAVE_DYNAMIC_PLUGINS_TRUE@@SO_WITH_STATIC_LIB_TRUE@libsf_dynamic_output_la_CFLAGS = -fPIC -DPIC
-@HAVE_DYNAMIC_PLUGINS_TRUE@@SO_WITH_STATIC_LIB_TRUE@libsf_dynamic_output_la_LDFLAGS = -static
-@HAVE_DYNAMIC_PLUGINS_TRUE@@SO_WITH_STATIC_LIB_TRUE@libsf_dynamic_output_la_SOURCES = \
-@HAVE_DYNAMIC_PLUGINS_TRUE@@SO_WITH_STATIC_LIB_TRUE@output_lib.c
+@SO_WITH_STATIC_LIB_TRUE@outputlibdir = $(pkglibdir)/dynamic_output
+@SO_WITH_STATIC_LIB_TRUE@outputlibincludedir = $(pkgincludedir)/dynamic_output
+@SO_WITH_STATIC_LIB_TRUE@outputlib_LTLIBRARIES = libsf_dynamic_output.la
+@SO_WITH_STATIC_LIB_TRUE@libsf_dynamic_output_la_CFLAGS = -fPIC -DPIC
+@SO_WITH_STATIC_LIB_TRUE@libsf_dynamic_output_la_LDFLAGS = -static
+@SO_WITH_STATIC_LIB_TRUE@libsf_dynamic_output_la_SOURCES = \
+@SO_WITH_STATIC_LIB_TRUE@output_lib.c
 
-@HAVE_DYNAMIC_PLUGINS_TRUE@@SO_WITH_STATIC_LIB_TRUE@preprocincludedir = $(top_builddir)/src/dynamic-preprocessors/include
-@HAVE_DYNAMIC_PLUGINS_TRUE@@SO_WITH_STATIC_LIB_TRUE@external_headers = \
-@HAVE_DYNAMIC_PLUGINS_TRUE@@SO_WITH_STATIC_LIB_TRUE@$(top_srcdir)/src/dynamic-output/plugins/output_lib.h \
-@HAVE_DYNAMIC_PLUGINS_TRUE@@SO_WITH_STATIC_LIB_TRUE@$(top_srcdir)/src/dynamic-output/plugins/output_api.h \
-@HAVE_DYNAMIC_PLUGINS_TRUE@@SO_WITH_STATIC_LIB_TRUE@$(top_srcdir)/src/dynamic-output/plugins/output_common.h \
-@HAVE_DYNAMIC_PLUGINS_TRUE@@SO_WITH_STATIC_LIB_TRUE@$(preprocincludedir)/obfuscation.h \
-@HAVE_DYNAMIC_PLUGINS_TRUE@@SO_WITH_STATIC_LIB_TRUE@$(preprocincludedir)/ipv6_port.h \
-@HAVE_DYNAMIC_PLUGINS_TRUE@@SO_WITH_STATIC_LIB_TRUE@$(preprocincludedir)/sf_ip.h \
-@HAVE_DYNAMIC_PLUGINS_TRUE@@SO_WITH_STATIC_LIB_TRUE@$(preprocincludedir)/snort_debug.h \
-@HAVE_DYNAMIC_PLUGINS_TRUE@@SO_WITH_STATIC_LIB_TRUE@$(preprocincludedir)/sfPolicy.h \
-@HAVE_DYNAMIC_PLUGINS_TRUE@@SO_WITH_STATIC_LIB_TRUE@$(preprocincludedir)/sf_dynamic_common.h \
-@HAVE_DYNAMIC_PLUGINS_TRUE@@SO_WITH_STATIC_LIB_TRUE@$(preprocincludedir)/stream_api.h \
-@HAVE_DYNAMIC_PLUGINS_TRUE@@SO_WITH_STATIC_LIB_TRUE@$(preprocincludedir)/preprocids.h \
-@HAVE_DYNAMIC_PLUGINS_TRUE@@SO_WITH_STATIC_LIB_TRUE@$(preprocincludedir)/bitop.h \
-@HAVE_DYNAMIC_PLUGINS_TRUE@@SO_WITH_STATIC_LIB_TRUE@$(preprocincludedir)/sf_snort_packet.h \
-@HAVE_DYNAMIC_PLUGINS_TRUE@@SO_WITH_STATIC_LIB_TRUE@$(preprocincludedir)/sf_protocols.h \
-@HAVE_DYNAMIC_PLUGINS_TRUE@@SO_WITH_STATIC_LIB_TRUE@$(preprocincludedir)/sfrt.h \
-@HAVE_DYNAMIC_PLUGINS_TRUE@@SO_WITH_STATIC_LIB_TRUE@$(preprocincludedir)/sfrt_dir.h \
-@HAVE_DYNAMIC_PLUGINS_TRUE@@SO_WITH_STATIC_LIB_TRUE@$(preprocincludedir)/sfrt_trie.h
+@SO_WITH_STATIC_LIB_TRUE@preprocincludedir = $(top_builddir)/src/dynamic-preprocessors/include
+@SO_WITH_STATIC_LIB_TRUE@external_headers = \
+@SO_WITH_STATIC_LIB_TRUE@$(top_srcdir)/src/dynamic-output/plugins/output_lib.h \
+@SO_WITH_STATIC_LIB_TRUE@$(top_srcdir)/src/dynamic-output/plugins/output_api.h \
+@SO_WITH_STATIC_LIB_TRUE@$(top_srcdir)/src/dynamic-output/plugins/output_common.h \
+@SO_WITH_STATIC_LIB_TRUE@$(preprocincludedir)/obfuscation.h \
+@SO_WITH_STATIC_LIB_TRUE@$(preprocincludedir)/ipv6_port.h \
+@SO_WITH_STATIC_LIB_TRUE@$(preprocincludedir)/sf_ip.h \
+@SO_WITH_STATIC_LIB_TRUE@$(preprocincludedir)/snort_debug.h \
+@SO_WITH_STATIC_LIB_TRUE@$(preprocincludedir)/sfPolicy.h \
+@SO_WITH_STATIC_LIB_TRUE@$(preprocincludedir)/sf_dynamic_common.h \
+@SO_WITH_STATIC_LIB_TRUE@$(preprocincludedir)/stream_api.h \
+@SO_WITH_STATIC_LIB_TRUE@$(preprocincludedir)/preprocids.h \
+@SO_WITH_STATIC_LIB_TRUE@$(preprocincludedir)/bitop.h \
+@SO_WITH_STATIC_LIB_TRUE@$(preprocincludedir)/sf_snort_packet.h \
+@SO_WITH_STATIC_LIB_TRUE@$(preprocincludedir)/sf_protocols.h \
+@SO_WITH_STATIC_LIB_TRUE@$(preprocincludedir)/sfrt.h \
+@SO_WITH_STATIC_LIB_TRUE@$(preprocincludedir)/sfrt_dir.h \
+@SO_WITH_STATIC_LIB_TRUE@$(preprocincludedir)/sfrt_trie.h
 
-@HAVE_DYNAMIC_PLUGINS_TRUE@@SO_WITH_STATIC_LIB_TRUE@nodist_libsf_dynamic_output_la_SOURCES = $(external_headers)
-@HAVE_DYNAMIC_PLUGINS_TRUE@@SO_WITH_STATIC_LIB_TRUE@nodist_outputlibinclude_HEADERS = $(external_headers)
-@HAVE_DYNAMIC_PLUGINS_TRUE@@SO_WITH_STATIC_LIB_TRUE@pkgconfigdir = $(libdir)/pkgconfig
-@HAVE_DYNAMIC_PLUGINS_TRUE@@SO_WITH_STATIC_LIB_TRUE@pkgconfig_DATA = snort_output.pc
+@SO_WITH_STATIC_LIB_TRUE@nodist_libsf_dynamic_output_la_SOURCES = $(external_headers)
+@SO_WITH_STATIC_LIB_TRUE@nodist_outputlibinclude_HEADERS = $(external_headers)
+@SO_WITH_STATIC_LIB_TRUE@pkgconfigdir = $(libdir)/pkgconfig
+@SO_WITH_STATIC_LIB_TRUE@pkgconfig_DATA = snort_output.pc
 EXTRA_DIST = \
 snort_output.pc.in
 

@@ -42,13 +42,20 @@
 #include "file_lib.h"
 
 
-#define FILE_SERVICE_OPT__TYPE_DEPTH        "file_type_depth"
-#define FILE_SERVICE_OPT__SIG_DEPTH         "file_signature_depth"
+#define FILE_SERVICE_OPT__TYPE_DEPTH           "file_type_depth"
+#define FILE_SERVICE_OPT__SIG_DEPTH            "file_signature_depth"
+#define FILE_SERVICE_OPT__BLOCK_TIMEOUT         "file_block_timeout"
+#define FILE_SERVICE_OPT__LOOKUP_TIMEOUT        "file_lookup_timeout"
+#define FILE_SERVICE_OPT__BLOCK_TIMEOUT_LOOKUP  "block_timeout_lookup"
 
-#define FILE_SERVICE_TYPE_DEPTH_MIN    0
-#define FILE_SERVICE_TYPE_DEPTH_MAX    UINT32_MAX
-#define FILE_SERVICE_SIG_DEPTH_MIN    0
-#define FILE_SERVICE_SIG_DEPTH_MAX    UINT32_MAX
+#define FILE_SERVICE_TYPE_DEPTH_MIN       0
+#define FILE_SERVICE_TYPE_DEPTH_MAX       UINT32_MAX
+#define FILE_SERVICE_SIG_DEPTH_MIN        0
+#define FILE_SERVICE_SIG_DEPTH_MAX        UINT32_MAX
+#define FILE_SERVICE_BLOCK_TIMEOUT_MIN    0
+#define FILE_SERVICE_BLOCK_TIMEOUT_MAX    UINT32_MAX
+#define FILE_SERVICE_LOOKUP_TIMEOUT_MIN   0
+#define FILE_SERVICE_LOOKUP_TIMEOUT_MAX   UINT32_MAX
 
 #if defined(DEBUG_MSGS) || defined (REG_TEST)
 #define FILE_SERVICE_OPT__TYPE              "type_id"
@@ -56,6 +63,7 @@
 #define FILE_SERVICE_OPT__SHOW_DATA_DEPTH   "show_data_depth"
 #include "file_api.h"
 #endif
+
 /*The main function for parsing rule option*/
 void file_service_config(char *args, void **conf)
 {
@@ -78,6 +86,7 @@ void file_service_config(char *args, void **conf)
         char **opts;
         int num_opts;
         char *option_args = NULL;
+        unsigned long value = 0;
 
         DEBUG_WRAP(DebugMessage(DEBUG_FILE,"   option: %s\n", toks[i]););
 
@@ -93,75 +102,62 @@ void file_service_config(char *args, void **conf)
         }
         if ( !strcasecmp( opts[0], FILE_SERVICE_OPT__TYPE_DEPTH ))
         {
-            long int value;
-            char *endptr;
-
-            if (option_args == NULL)
-                ParseError("%s rule option requires an argument.",
-                        FILE_SERVICE_OPT__TYPE_DEPTH );
-
-            value = SnortStrtol(option_args, &endptr, 0);
-            if ((errno == ERANGE) || (*endptr != '\0') ||
-                    (value > FILE_SERVICE_TYPE_DEPTH_MAX) ||(value < FILE_SERVICE_TYPE_DEPTH_MIN) )
-            {
-                ParseError("Bad value specified for %s. Please specify an integer between %u and %u",
-                        FILE_SERVICE_OPT__TYPE_DEPTH, FILE_SERVICE_TYPE_DEPTH_MIN, FILE_SERVICE_TYPE_DEPTH_MAX);
-            }
-            if (value == 0)
-                value = FILE_SERVICE_TYPE_DEPTH_MAX;
-
-            file_config->file_type_depth = value;
-
+            CheckValueInRange(option_args, FILE_SERVICE_OPT__TYPE_DEPTH,
+                    FILE_SERVICE_TYPE_DEPTH_MIN, FILE_SERVICE_TYPE_DEPTH_MAX,
+                    &value);
+            file_config->file_type_depth = (int64_t)value;
+            if (file_config->file_type_depth == 0)
+                file_config->file_type_depth = FILE_SERVICE_TYPE_DEPTH_MAX;
         }
         else if ( !strcasecmp( opts[0], FILE_SERVICE_OPT__SIG_DEPTH ))
         {
-            long int value;
-            char *endptr;
-
-            if (option_args == NULL)
-                ParseError("%s rule option requires an argument.",
-                        FILE_SERVICE_OPT__SIG_DEPTH );
-
-            value = SnortStrtol(option_args, &endptr, 0);
-            if ((errno == ERANGE) || (*endptr != '\0') ||
-                    (value > FILE_SERVICE_SIG_DEPTH_MAX) ||(value < FILE_SERVICE_SIG_DEPTH_MIN) )
-            {
-                ParseError("Bad value specified for %s. Please specify an integer between %u and %u",
-                        FILE_SERVICE_OPT__SIG_DEPTH, FILE_SERVICE_SIG_DEPTH_MIN, FILE_SERVICE_SIG_DEPTH_MAX);
-            }
-            if (value == 0)
-                value = FILE_SERVICE_SIG_DEPTH_MAX;
-
-            file_config->file_signature_depth = value;
+            CheckValueInRange(option_args, FILE_SERVICE_OPT__SIG_DEPTH,
+                    FILE_SERVICE_SIG_DEPTH_MIN, FILE_SERVICE_SIG_DEPTH_MAX,
+                    &value);
+            file_config->file_signature_depth = (int64_t)value;
+            if (file_config->file_signature_depth == 0)
+                file_config->file_signature_depth = FILE_SERVICE_SIG_DEPTH_MAX;
+        }
+        else if ( !strcasecmp( opts[0], FILE_SERVICE_OPT__BLOCK_TIMEOUT ))
+        {
+            CheckValueInRange(option_args, FILE_SERVICE_OPT__BLOCK_TIMEOUT,
+                    FILE_SERVICE_BLOCK_TIMEOUT_MIN, FILE_SERVICE_BLOCK_TIMEOUT_MAX,
+                    &value);
+            file_config->file_block_timeout = (int64_t)value;
+            if (file_config->file_block_timeout == 0)
+                file_config->file_block_timeout = FILE_SERVICE_BLOCK_TIMEOUT_MAX;
+        }
+        else if ( !strcasecmp( opts[0], FILE_SERVICE_OPT__LOOKUP_TIMEOUT ))
+        {
+            CheckValueInRange(option_args, FILE_SERVICE_OPT__LOOKUP_TIMEOUT,
+                    FILE_SERVICE_LOOKUP_TIMEOUT_MIN, FILE_SERVICE_LOOKUP_TIMEOUT_MAX,
+                    &value);
+            file_config->file_lookup_timeout = (int64_t)value;
+            if (file_config->file_lookup_timeout == 0)
+                file_config->file_lookup_timeout = FILE_SERVICE_LOOKUP_TIMEOUT_MAX;
+        }
+        else if ( !strcasecmp( opts[0], FILE_SERVICE_OPT__BLOCK_TIMEOUT_LOOKUP ))
+        {
+            file_config->block_timeout_lookup = true;
         }
 #if defined(DEBUG_MSGS) || defined (REG_TEST)
         else if ( !strcasecmp( opts[0], FILE_SERVICE_OPT__TYPE ))
         {
-            file_api->enable_file_type(NULL, NULL);
+            file_api->enable_file_type(NULL);
 
         }
         else if ( !strcasecmp( opts[0], FILE_SERVICE_OPT__SIG ))
         {
-            file_api->enable_file_signature(NULL, NULL);
+            file_api->enable_file_signature(NULL);
         }
         else if ( !strcasecmp( opts[0], FILE_SERVICE_OPT__SHOW_DATA_DEPTH ))
         {
-            long int value;
-            char *endptr;
-
-            if (option_args == NULL)
-                ParseError("%s rule option requires an argument.",
-                        FILE_SERVICE_OPT__SHOW_DATA_DEPTH );
-
-            value = SnortStrtol(option_args, &endptr, 0);
-            if ((errno == ERANGE) || (*endptr != '\0') ||
-                    (value > FILE_SERVICE_SIG_DEPTH_MAX) ||(value < FILE_SERVICE_SIG_DEPTH_MIN) )
-            {
-                ParseError("Bad value specified for %s. Please specify an integer between %u and %u",
-                        FILE_SERVICE_OPT__SHOW_DATA_DEPTH, FILE_SERVICE_SIG_DEPTH_MIN, FILE_SERVICE_SIG_DEPTH_MAX);
-            }
-
-            file_config->show_data_depth = value;
+            CheckValueInRange(option_args, FILE_SERVICE_OPT__SHOW_DATA_DEPTH,
+                    FILE_SERVICE_SIG_DEPTH_MIN, FILE_SERVICE_SIG_DEPTH_MAX,
+                    &value);
+            file_config->show_data_depth = (int64_t)value;
+            if (file_config->show_data_depth == 0)
+                file_config->show_data_depth = FILE_SERVICE_SIG_DEPTH_MAX;
         }
 #endif
         else

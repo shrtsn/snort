@@ -47,6 +47,7 @@
 #include "sfPolicyUserData.h"
 #include "mempool.h"
 #include "sf_email_attach_decode.h"
+#include "file_api.h"
 
 #ifdef DEBUG
 #include "sf_types.h"
@@ -83,7 +84,7 @@
 #define STATE_TLS_CLIENT_PEND  4    /* Got STARTTLS */
 #define STATE_TLS_SERVER_PEND  5    /* Got STARTTLS */
 #define STATE_TLS_DATA         6    /* Successful handshake, TLS encrypted data */
-#define STATE_X_EXPS           7
+#define STATE_AUTH             7
 #define STATE_XEXCH50          8
 #define STATE_UNKNOWN          9
 
@@ -205,6 +206,7 @@ typedef enum _SMTPRespEnum
     RESP_502,
     RESP_503,
     RESP_504,
+    RESP_535,
     RESP_550,
     RESP_551,
     RESP_552,
@@ -256,21 +258,6 @@ typedef struct _SMTPPcre
 
 } SMTPPcre;
 
-typedef struct s_SMTP_LogState
-{
-    MemBucket *log_hdrs_bkt;
-    unsigned char *emailHdrs;
-    uint32_t log_depth;
-    uint32_t hdrs_logged;
-    uint8_t *recipients;
-    uint16_t rcpts_logged;
-    uint8_t *senders;
-    uint16_t snds_logged;
-    uint8_t *filenames;
-    uint16_t file_logged;
-    uint16_t file_current;
-} SMTP_LogState;
-
 typedef struct _SMTP
 {
     int state;
@@ -293,7 +280,7 @@ typedef struct _SMTP
     MemBucket *decode_bkt;
     SMTPMimeBoundary  mime_boundary;
     Email_DecodeState *decode_state;
-    SMTP_LogState *log_state;
+    MAIL_LogState *log_state;
 
     /* In future if we look at forwarded mail (message/rfc822) we may
      * need to keep track of additional mime boundaries
@@ -323,7 +310,6 @@ int SMTP_GetFilename(void *data, uint8_t **buf, uint32_t *len, uint32_t *type);
 int SMTP_GetMailFrom(void *data, uint8_t **buf, uint32_t *len, uint32_t *type);
 int SMTP_GetRcptTo(void *data, uint8_t **buf, uint32_t *len, uint32_t *type);
 int SMTP_GetEmailHdrs(void *data, uint8_t **buf, uint32_t *len, uint32_t *type);
-void SMTP_MimeMempoolInit(int, int);
 void SMTP_MempoolInit(uint32_t, uint32_t);
 
 /**************************************************************************/

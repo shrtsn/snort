@@ -31,7 +31,7 @@
 #define SF_VLAN_BINDING_MAX 4096
 #define SF_POLICY_ID_BINDING_MAX 4096
 #define SF_NETWORK_BINDING_MAX 4096
-#define SF_VLAN_UNBOUND 0xffffffff
+#define SF_POLICY_UNBOUND 0xffffffff
 
 
 //vlan id or address range is reduced to policy id. and subsequent processing is done using policy id only.
@@ -180,5 +180,7 @@ int sfDynArrayCheckBounds (
         );
 
 typedef tSfPolicyId (*GetPolicyFunc)(void);
+struct _SnortConfig;
+typedef tSfPolicyId (*GetParserPolicyFunc)(struct _SnortConfig *);
 
 #endif

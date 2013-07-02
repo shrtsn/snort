@@ -77,7 +77,9 @@ typedef int (*GetDynamicPreprocOptFpContentsFunc)(void *, FPContentInfo **);
 typedef void (*RuleFreeFunc)(void *);
 
 /* ruleInfo is passed to OTNCheckFunction when the fast pattern matches. */
+struct _SnortConfig;
 typedef int (*RegisterRule)(
+    struct _SnortConfig *,
     uint32_t, uint32_t, void *,
     OTNCheckFunction, OTNHasFunction,
     int, GetDynamicContentsFunction, RuleFreeFunc,
@@ -88,7 +90,7 @@ typedef void (*UnregisterBit)(void *);
 typedef int (*CheckFlowbit)(void *, void *);
 typedef int (*DetectAsn1)(void *, void *, const uint8_t *);
 typedef int (*PreprocOptionEval)(void *p, const uint8_t **cursor, void *dataPtr);
-typedef int (*PreprocOptionInit)(char *, char *, void **dataPtr);
+typedef int (*PreprocOptionInit)(struct _SnortConfig *, char *, char *, void **dataPtr);
 typedef void (*PreprocOptionCleanup)(void *dataPtr);
 typedef int (*SfUnfold)(const uint8_t *, uint32_t , uint8_t *, uint32_t , uint32_t *);
 typedef int (*SfBase64Decode)(uint8_t *, uint32_t , uint8_t *, uint32_t , uint32_t *);
@@ -100,14 +102,15 @@ typedef int (*PreprocOptionKeyCompare)(void *, void *);
  * fast pattern matcher */
 typedef int (*PreprocOptionFastPatternFunc)
     (void *rule_opt_data, int protocol, int direction, FPContentInfo **info);
-typedef int (*PreprocOptionOtnHandler)(void *);
+typedef int (*PreprocOptionOtnHandler)(struct _SnortConfig *, void *);
 typedef int (*PreprocOptionByteOrderFunc)(void *, int32_t);
 
 typedef int (*RegisterPreprocRuleOpt)(
+    struct _SnortConfig *,
     char *, PreprocOptionInit, PreprocOptionEval,
     PreprocOptionCleanup, PreprocOptionHash, PreprocOptionKeyCompare,
     PreprocOptionOtnHandler, PreprocOptionFastPatternFunc);
-typedef int (*PreprocRuleOptInit)(void *);
+typedef int (*PreprocRuleOptInit)(struct _SnortConfig *, void *);
 
 typedef void (*SessionDataFree)(void *);
 typedef int (*SetRuleData)(void *, void *, uint32_t, SessionDataFree);
@@ -133,7 +136,7 @@ typedef void (*FreeRuleData)(void *);
 typedef void *(*PCRECompileFunc)(const char *, int, const char **, int *, const unsigned char *);
 typedef void *(*PCREStudyFunc)(const void *, int, const char **);
 typedef int (*PCREExecFunc)(const void *, const void *, const char *, int, int, int, int *, int);
-typedef void (*PCRECapture)(const void *, const void *);
+typedef void (*PCRECapture)(struct _SnortConfig *, const void *, const void *);
 typedef void(*PCREOvectorInfo)(int **, int *);
 
 typedef struct _DynamicEngineData
@@ -190,8 +193,8 @@ extern DynamicEngineData _ded;
 
 /* Function prototypes for Dynamic Engine Plugins */
 void CloseDynamicEngineLibs(void);
-void LoadAllDynamicEngineLibs(char *path);
-int LoadDynamicEngineLib(char *library_name, int indent);
+void LoadAllDynamicEngineLibs(const char * const path);
+int LoadDynamicEngineLib(const char * const library_name, int indent);
 typedef int (*InitEngineLibFunc)(DynamicEngineData *);
 typedef int (*CompatibilityFunc)(DynamicPluginMeta *meta, DynamicPluginMeta *lib);
 

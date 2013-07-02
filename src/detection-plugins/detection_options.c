@@ -94,6 +94,7 @@
 #include "profiler.h"
 #include "sfPolicy.h"
 #include "detection_filter.h"
+#include "encode.h"
 
 typedef struct _detection_option_key
 {
@@ -225,7 +226,6 @@ uint32_t detection_option_hash_func(SFHASHFCN *p, unsigned char *k, int n)
         case RULE_OPTION_TYPE_URILEN:
             hash = UriLenCheckHash(key->option_data);
             break;
-#ifdef DYNAMIC_PLUGIN
         case RULE_OPTION_TYPE_HDR_OPT_CHECK:
             hash = HdrOptCheckHash(key->option_data);
             break;
@@ -235,7 +235,6 @@ uint32_t detection_option_hash_func(SFHASHFCN *p, unsigned char *k, int n)
         case RULE_OPTION_TYPE_DYNAMIC:
             hash = DynamicRuleHash(key->option_data);
             break;
-#endif
         case RULE_OPTION_TYPE_LEAF_NODE:
             hash = 0;
             break;
@@ -379,7 +378,6 @@ int detection_option_key_compare_func(const void *k1, const void *k2, size_t n)
         case RULE_OPTION_TYPE_URILEN:
             ret = UriLenCheckCompare(key1->option_data, key2->option_data);
             break;
-#ifdef DYNAMIC_PLUGIN
         case RULE_OPTION_TYPE_HDR_OPT_CHECK:
             ret = HdrOptCheckCompare(key1->option_data, key2->option_data);
             break;
@@ -389,7 +387,6 @@ int detection_option_key_compare_func(const void *k1, const void *k2, size_t n)
         case RULE_OPTION_TYPE_DYNAMIC:
             ret = DynamicRuleCompare(key1->option_data, key2->option_data);
             break;
-#endif
     }
 
     return ret;
@@ -516,7 +513,6 @@ int detection_hash_free_func(void *option_key, void *data)
         case RULE_OPTION_TYPE_URILEN:
             free(key->option_data);
             break;
-#ifdef DYNAMIC_PLUGIN
         case RULE_OPTION_TYPE_HDR_OPT_CHECK:
             break;
         case RULE_OPTION_TYPE_PREPROCESSOR:
@@ -525,7 +521,6 @@ int detection_hash_free_func(void *option_key, void *data)
         case RULE_OPTION_TYPE_DYNAMIC:
             fpDynamicDataFree(key->option_data);
             break;
-#endif
         case RULE_OPTION_TYPE_LEAF_NODE:
             break;
     }
@@ -559,9 +554,8 @@ void DetectionHashTableFree(SFXHASH *doht)
         sfxhash_delete(doht);
 }
 
-int add_detection_option(option_type_t type, void *option_data, void **existing_data)
+int add_detection_option(struct _SnortConfig *sc, option_type_t type, void *option_data, void **existing_data)
 {
-    SnortConfig *sc = snort_conf_for_parsing;
     detection_option_key_t key;
 
     if (sc == NULL)
@@ -771,13 +765,10 @@ char *option_type_str[] =
     "RULE_OPTION_TYPE_TCP_SEQ",
     "RULE_OPTION_TYPE_TCP_WIN",
     "RULE_OPTION_TYPE_TTL",
-    "RULE_OPTION_TYPE_URILEN"
-#ifdef DYNAMIC_PLUGIN
-    ,
+    "RULE_OPTION_TYPE_URILEN",
     "RULE_OPTION_TYPE_HDR_OPT_CHECK",
     "RULE_OPTION_TYPE_PREPROCESSOR",
     "RULE_OPTION_TYPE_DYNAMIC"
-#endif
 };
 
 #ifdef DEBUG_OPTION_TREE
@@ -800,9 +791,8 @@ void print_option_tree(detection_option_tree_node_t *node, int level)
 }
 #endif
 
-int add_detection_option_tree(detection_option_tree_node_t *option_tree, void **existing_data)
+int add_detection_option_tree(SnortConfig *sc, detection_option_tree_node_t *option_tree, void **existing_data)
 {
-    SnortConfig *sc = snort_conf_for_parsing;
     detection_option_key_t key;
 
     if (sc == NULL)
@@ -849,6 +839,7 @@ int detection_option_node_evaluate(detection_option_tree_node_t *node, detection
     int loop_count = 0;
     uint32_t tmp_byte_extract_vars[NUM_BYTE_EXTRACT_VARS];
     uint16_t save_dflags = 0;
+    uint64_t cur_eval_pkt_count = (rule_eval_pkt_count + (GetRebuiltPktCount()));
     NODE_PROFILE_VARS;
 
     if (!node || !eval_data || !eval_data->p || !eval_data->pomd)
@@ -862,9 +853,8 @@ int detection_option_node_evaluate(detection_option_tree_node_t *node, detection
         /* Only matters if not relative... */
         if ((node->last_check.ts.tv_usec == eval_data->p->pkth->ts.tv_usec) &&
             (node->last_check.ts.tv_sec == eval_data->p->pkth->ts.tv_sec) &&
-            (node->last_check.packet_number == rule_eval_pkt_count) &&
-            (node->last_check.pipeline_number == eval_data->p->http_pipeline_count) &&
-            (node->last_check.rebuild_flag == (eval_data->p->packet_flags & REBUILD_FLAGS)) &&
+            (node->last_check.packet_number == cur_eval_pkt_count) &&
+            (node->last_check.rebuild_flag == (eval_data->p->packet_flags & PKT_REBUILT_STREAM)) &&
             (!(eval_data->p->packet_flags & PKT_ALLOW_MULTIPLE_DETECT)))
         {
             /* eval'd this rule option before on this packet,
@@ -882,15 +872,14 @@ int detection_option_node_evaluate(detection_option_tree_node_t *node, detection
 
     node->last_check.ts.tv_sec = eval_data->p->pkth->ts.tv_sec;
     node->last_check.ts.tv_usec = eval_data->p->pkth->ts.tv_usec;
-    node->last_check.packet_number = rule_eval_pkt_count;
-    node->last_check.pipeline_number = eval_data->p->http_pipeline_count;
-    node->last_check.rebuild_flag = (eval_data->p->packet_flags & REBUILD_FLAGS);
+    node->last_check.packet_number = cur_eval_pkt_count;
+    node->last_check.rebuild_flag = (eval_data->p->packet_flags & PKT_REBUILT_STREAM);
     node->last_check.flowbit_failed = 0;
 
     /* Save some stuff off for repeated pattern tests */
     orig_doe_ptr = doe_ptr;
 
-    if ((node->option_type == RULE_OPTION_TYPE_CONTENT) || 
+    if ((node->option_type == RULE_OPTION_TYPE_CONTENT) ||
             (node->option_type == RULE_OPTION_TYPE_CONTENT_URI))
     {
         PatternMatchDuplicatePmd(node->option_data, &dup_content_option_data);
@@ -965,7 +954,7 @@ int detection_option_node_evaluate(detection_option_tree_node_t *node, detection
         }
         else if (!(dup_pcre_option_data.options & SNORT_PCRE_RAWBYTES))
         {
-            /* If AltDetect is set by calling the rule options which set it, 
+            /* If AltDetect is set by calling the rule options which set it,
              * we should use the Alt Detect before checking for any other buffers.
              * Alt Detect will take precedence over the Alt Decode and/or packet data.
              */
@@ -1055,15 +1044,15 @@ int detection_option_node_evaluate(detection_option_tree_node_t *node, detection
                     /* This will be set in the fast pattern matcher if we found
                      * a content and the rule option specifies not that
                      * content. Essentially we've already evaluated this rule
-                     * option via the fast pattern matcher since only not
+                     * option via the content option processing since only not
                      * contents that are not relative in any way will have this
                      * flag set */
                     if (dup_content_option_data.exception_flag)
                     {
                         if ((dup_content_option_data.last_check.ts.tv_sec == eval_data->p->pkth->ts.tv_sec) &&
                             (dup_content_option_data.last_check.ts.tv_usec == eval_data->p->pkth->ts.tv_usec) &&
-                            (dup_content_option_data.last_check.packet_number == rule_eval_pkt_count) &&
-                            (dup_content_option_data.last_check.rebuild_flag == (eval_data->p->packet_flags & REBUILD_FLAGS)))
+                            (dup_content_option_data.last_check.packet_number == cur_eval_pkt_count) &&
+                            (dup_content_option_data.last_check.rebuild_flag == (eval_data->p->packet_flags & PKT_REBUILT_STREAM)))
                         {
                             rval = DETECTION_OPTION_NO_MATCH;
                             break;
@@ -1144,14 +1133,12 @@ int detection_option_node_evaluate(detection_option_tree_node_t *node, detection
             case RULE_OPTION_TYPE_TCP_WIN:
             case RULE_OPTION_TYPE_TTL:
             case RULE_OPTION_TYPE_URILEN:
-#ifdef DYNAMIC_PLUGIN
             case RULE_OPTION_TYPE_HDR_OPT_CHECK:
             case RULE_OPTION_TYPE_PREPROCESSOR:
                 if (node->evaluate)
                     rval = node->evaluate(node->option_data, eval_data->p);
                 break;
             case RULE_OPTION_TYPE_DYNAMIC:
-#endif
                 if (node->evaluate)
                     rval = node->evaluate(node->option_data, eval_data->p);
                 break;

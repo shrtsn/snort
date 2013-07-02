@@ -60,7 +60,7 @@ extern char *file_name;  /* this is the file name from rules.c, generally used
 extern int file_line;    /* this is the file line number from rules.c that is
                             used to indicate file lines for error messages */
 
-static void FileDataInit(char *, OptTreeNode *, int);
+static void FileDataInit(struct _SnortConfig *, char *, OptTreeNode *, int);
 void FileDataParse(char *, FileData *, OptTreeNode *);
 int  FileDataEval(void *option_data, Packet *p);
 
@@ -118,7 +118,7 @@ void SetupFileData(void)
 
 /****************************************************************************
  *
- * Function: FileDataInit(char *, OptTreeNode *, int protocol)
+ * Function: FileDataInit(struct _SnortConfig *, char *, OptTreeNode *, int protocol)
  *
  * Purpose: Generic rule configuration function.  Handles parsing the rule
  *          information and attaching the associated detection function to
@@ -131,7 +131,7 @@ void SetupFileData(void)
  * Returns: void function
  *
  ****************************************************************************/
-static void FileDataInit(char *data, OptTreeNode *otn, int protocol)
+static void FileDataInit(struct _SnortConfig *sc, char *data, OptTreeNode *otn, int protocol)
 {
     FileData *idx;
     OptFpList *fpl;
@@ -151,7 +151,7 @@ static void FileDataInit(char *data, OptTreeNode *otn, int protocol)
 
     FileDataParse(data, idx, otn);
 
-    if (add_detection_option(RULE_OPTION_TYPE_FILE_DATA, (void *)idx, &idx_dup) == DETECTION_OPTION_EQUAL)
+    if (add_detection_option(sc, RULE_OPTION_TYPE_FILE_DATA, (void *)idx, &idx_dup) == DETECTION_OPTION_EQUAL)
     {
         free(idx);
         idx = idx_dup;

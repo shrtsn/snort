@@ -81,11 +81,11 @@ am__libsfutil_a_SOURCES_DIST = sfghash.c sfghash.h sfhashfcn.c \
 	sfprimetable.h sf_ip.c sf_ip.h sf_ipvar.c sf_ipvar.h \
 	sf_vartable.c sf_vartable.h sf_iph.c sf_iph.h sf_textlog.c \
 	sf_textlog.h sfPolicy.c sfPolicy.h sfPolicyUserData.c \
-	sfPolicyUserData.h sfActionQueue.c sfActionQueue.h sfrf.c \
-	sfrf.h strvec.c strvec.h sf_email_attach_decode.c \
-	sf_email_attach_decode.h sf_base64decode.c sf_base64decode.h \
-	Unified2_common.h sf_seqnums.h intel-soft-cpm.c \
-	intel-soft-cpm.h
+	sfPolicyUserData.h sfPolicyData.h sfActionQueue.c \
+	sfActionQueue.h sfrf.c sfrf.h strvec.c strvec.h \
+	sf_email_attach_decode.c sf_email_attach_decode.h \
+	sf_base64decode.c sf_base64decode.h Unified2_common.h \
+	sf_seqnums.h intel-soft-cpm.c intel-soft-cpm.h
 @HAVE_INTEL_SOFT_CPM_TRUE@am__objects_1 = intel-soft-cpm.$(OBJEXT)
 am_libsfutil_a_OBJECTS = sfghash.$(OBJEXT) sfhashfcn.$(OBJEXT) \
 	sflsq.$(OBJEXT) sfmemcap.$(OBJEXT) sfthd.$(OBJEXT) \
@@ -297,6 +297,7 @@ libsfutil_a_SOURCES = \
     sf_textlog.c sf_textlog.h \
     sfPolicy.c sfPolicy.h \
     sfPolicyUserData.c sfPolicyUserData.h \
+    sfPolicyData.h \
     sfActionQueue.c sfActionQueue.h \
     sfrf.c sfrf.h \
     strvec.c strvec.h \

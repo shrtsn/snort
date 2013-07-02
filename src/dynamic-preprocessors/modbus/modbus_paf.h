@@ -45,9 +45,10 @@ typedef struct _modbus_paf_data
     uint16_t modbus_length;
 } modbus_paf_data_t;
 
-void ModbusAddPortsToPaf(modbus_config_t *config, tSfPolicyId policy_id);
-int ModbusPafRegister(uint16_t port, tSfPolicyId policy_id);
-PAF_Status ModbusPaf(void *ssn, void **user, const uint8_t *data, 
+void ModbusAddPortsToPaf(struct _SnortConfig *sc, modbus_config_t *config, tSfPolicyId policy_id);
+int ModbusPafRegisterPort(struct _SnortConfig *sc, uint16_t port, tSfPolicyId policy_id);
+int ModbusAddServiceToPaf(struct _SnortConfig *sc, uint16_t service, tSfPolicyId policy_id);
+PAF_Status ModbusPaf(void *ssn, void **user, const uint8_t *data,
                      uint32_t len, uint32_t flags, uint32_t *fp);
 
 #endif /* MODBUS_PAF__H */

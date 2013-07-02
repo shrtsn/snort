@@ -25,20 +25,25 @@
 
 #define TIMEBUF_SIZE 26
 
+#ifdef HAVE_CONFIG_H
+# include "config.h"
+#endif
+
 #ifndef WIN32
 # include <sys/time.h>
 # include <sys/types.h>
+# ifdef LINUX
+#  include <sys/syscall.h>
+# endif
 #endif
-#include<stdlib.h>
-#include<errno.h>
+#include <stdlib.h>
+#include <errno.h>
+#include <unistd.h>
 
 #ifdef HAVE_STRINGS_H
 #include <strings.h>
 #endif
 #include <string.h>
-#ifdef HAVE_CONFIG_H
-# include "config.h"
-#endif
 
 #include "sf_types.h"
 #include "sflsq.h"
@@ -174,6 +179,7 @@ typedef struct _IntervalStats
 
 
 /* Public function prototypes *************************************************/
+void StoreSnortInfoStrings(void);
 int DisplayBanner(void);
 void GetTime(char *);
 int gmt2local(time_t);
@@ -214,6 +220,7 @@ typedef struct _ThrottleInfo
 void ErrorMessageThrottled(ThrottleInfo*,const char *, ...) __attribute__((format (printf, 2, 3)));
 
 NORETURN void FatalError(const char *, ...) __attribute__((format (printf, 1, 2)));
+NORETURN void SnortFatalExit(void);
 int SnortSnprintf(char *, size_t, const char *, ...) __attribute__((format (printf, 3, 4)));
 int SnortSnprintfAppend(char *, size_t, const char *, ...) __attribute__((format (printf, 3, 4)));
 
@@ -224,6 +231,9 @@ int SnortStrnlen(const char *, int);
 const char *SnortStrnPbrk(const char *s, int slen, const char *accept);
 const char *SnortStrnStr(const char *s, int slen, const char *searchstr);
 const char *SnortStrcasestr(const char *s, int slen, const char *substr);
+int CheckValueInRange(const char *value_str, char *option,
+        unsigned long lo, unsigned long hi, unsigned long *value);
+
 void *SnortAlloc(unsigned long);
 void *SnortAlloc2(size_t, const char *, ...);
 char *CurrentWorkingDir(void);
@@ -240,21 +250,12 @@ SF_LIST * SortDirectory(const char *);
 int GetFilesUnderDir(const char *, SF_QUEUE *, const char *);
 #endif
 
-char *GetUniqueName(char *);
-char *GetIP(char *);
-char *GetHostname(void);
-int GetLocalTimezone(void);
-
 /***********************************************************
  If you use any of the functions in this section, you need
  to call free() on the char * that is returned after you are
  done using it. Otherwise, you will have created a memory
  leak.
 ***********************************************************/
-char *GetTimestamp(register const struct timeval *, int);
-char *GetCurrentTimestamp(void);
-char *base64(const u_char *, int);
-char *ascii(const u_char *, int);
 char *hex(const u_char *, int);
 char *fasthex(const u_char *, int);
 long int xatol(const char *, const char *);
@@ -374,5 +375,13 @@ static inline int IsEmptyStr(const char *str)
     return 0;
 }
 
+static inline pid_t gettid(void)
+{
+#if defined(LINUX) && defined(SYS_gettid)
+    return syscall(SYS_gettid);
+#else
+    return getpid();
+#endif
+}
 
 #endif /*__UTIL_H__*/

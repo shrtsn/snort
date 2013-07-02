@@ -60,8 +60,8 @@ typedef struct _IpTosCheckData
 
 } IpTosCheckData;
 
-void IpTosCheckInit(char *, OptTreeNode *, int);
-void ParseIpTos(char *, OptTreeNode *);
+void IpTosCheckInit(struct _SnortConfig *, char *, OptTreeNode *, int);
+void ParseIpTos(struct _SnortConfig *, char *, OptTreeNode *);
 int IpTosCheckEq(void *option_data, Packet *p);
 
 uint32_t IpTosCheckHash(void *d)
@@ -121,7 +121,7 @@ void SetupIpTosCheck(void)
 
 /****************************************************************************
  *
- * Function: IpTosCheckInit(char *, OptTreeNode *)
+ * Function: IpTosCheckInit(struct _SnortConfig *, char *, OptTreeNode *)
  *
  * Purpose: Setup the tos data struct and link the function into option
  *          function pointer list
@@ -132,7 +132,7 @@ void SetupIpTosCheck(void)
  * Returns: void function
  *
  ****************************************************************************/
-void IpTosCheckInit(char *data, OptTreeNode *otn, int protocol)
+void IpTosCheckInit(struct _SnortConfig *sc, char *data, OptTreeNode *otn, int protocol)
 {
     OptFpList *fpl;
     /* multiple declaration check */
@@ -149,7 +149,7 @@ void IpTosCheckInit(char *data, OptTreeNode *otn, int protocol)
 
     /* this is where the keyword arguments are processed and placed into the
        rule option's data structure */
-    ParseIpTos(data, otn);
+    ParseIpTos(sc, data, otn);
 
     /* finally, attach the option's detection function to the rule's
        detect function pointer list */
@@ -162,7 +162,7 @@ void IpTosCheckInit(char *data, OptTreeNode *otn, int protocol)
 
 /****************************************************************************
  *
- * Function: ParseIpTos(char *, OptTreeNode *)
+ * Function: ParseIpTos(struct _SnortConfig *, char *, OptTreeNode *)
  *
  * Purpose: Convert the tos option argument to data and plug it into the
  *          data structure
@@ -173,7 +173,7 @@ void IpTosCheckInit(char *data, OptTreeNode *otn, int protocol)
  * Returns: void function
  *
  ****************************************************************************/
-void ParseIpTos(char *data, OptTreeNode *otn)
+void ParseIpTos(struct _SnortConfig *sc, char *data, OptTreeNode *otn)
 {
     IpTosCheckData *ds_ptr;  /* data struct pointer */
     void *ds_ptr_dup;
@@ -228,7 +228,7 @@ void ParseIpTos(char *data, OptTreeNode *otn)
         }
     }
 
-    if (add_detection_option(RULE_OPTION_TYPE_IP_TOS, (void *)ds_ptr, &ds_ptr_dup) == DETECTION_OPTION_EQUAL)
+    if (add_detection_option(sc, RULE_OPTION_TYPE_IP_TOS, (void *)ds_ptr, &ds_ptr_dup) == DETECTION_OPTION_EQUAL)
     {
         free(ds_ptr);
         ds_ptr = otn->ds_list[PLUGIN_IP_TOS_CHECK] = ds_ptr_dup;

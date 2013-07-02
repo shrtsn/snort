@@ -147,7 +147,7 @@ ByteTestOverrideData *byteTestOverrideFuncs = NULL;
 
 static void ByteTestOverride(char *keyword, char *option, RuleOptOverrideFunc roo_func);
 static void ByteTestOverrideFuncsFree(void);
-static void ByteTestInit(char *, OptTreeNode *, int);
+static void ByteTestInit(struct _SnortConfig *, char *, OptTreeNode *, int);
 static ByteTestOverrideData * ByteTestParse(char *data, ByteTestData *idx, OptTreeNode *otn);
 static void ByteTestOverrideCleanup(int, void *);
 
@@ -296,7 +296,7 @@ void SetupByteTest(void)
  * Returns: void function
  *
  ****************************************************************************/
-static void ByteTestInit(char *data, OptTreeNode *otn, int protocol)
+static void ByteTestInit(struct _SnortConfig *sc, char *data, OptTreeNode *otn, int protocol)
 {
     ByteTestData *idx;
     OptFpList *fpl;
@@ -320,14 +320,14 @@ static void ByteTestInit(char *data, OptTreeNode *otn, int protocol)
     {
         /* There is an override function */
         free(idx);
-        override->func(override->keyword, override->option, data, otn, protocol);
+        override->func(sc, override->keyword, override->option, data, otn, protocol);
         return;
     }
 
     fpl = AddOptFuncToList(ByteTest, otn);
     fpl->type = RULE_OPTION_TYPE_BYTE_TEST;
 
-    if (add_detection_option(RULE_OPTION_TYPE_BYTE_TEST, (void *)idx, &idx_dup) == DETECTION_OPTION_EQUAL)
+    if (add_detection_option(sc, RULE_OPTION_TYPE_BYTE_TEST, (void *)idx, &idx_dup) == DETECTION_OPTION_EQUAL)
     {
 #ifdef DEBUG_RULE_OPTION_TREE
         LogMessage("Duplicate ByteCheck:\n%d %d %d %d %c %c %c %c %d\n"

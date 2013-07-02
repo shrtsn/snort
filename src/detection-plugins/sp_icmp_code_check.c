@@ -63,8 +63,8 @@ typedef struct _IcmpCodeCheckData
 #define ICMP_CODE_TEST_RG 4
 
 
-void IcmpCodeCheckInit(char *, OptTreeNode *, int);
-void ParseIcmpCode(char *, OptTreeNode *);
+void IcmpCodeCheckInit(struct _SnortConfig *, char *, OptTreeNode *, int);
+void ParseIcmpCode(struct _SnortConfig *, char *, OptTreeNode *);
 int IcmpCodeCheck(void *option_data, Packet *);
 
 uint32_t IcmpCodeCheckHash(void *d)
@@ -139,7 +139,7 @@ void SetupIcmpCodeCheck(void)
  * Returns: void function
  *
  ****************************************************************************/
-void IcmpCodeCheckInit(char *data, OptTreeNode *otn, int protocol)
+void IcmpCodeCheckInit(struct _SnortConfig *sc, char *data, OptTreeNode *otn, int protocol)
 {
     OptFpList *fpl;
     if(protocol != IPPROTO_ICMP)
@@ -162,7 +162,7 @@ void IcmpCodeCheckInit(char *data, OptTreeNode *otn, int protocol)
 
     /* this is where the keyword arguments are processed and placed into the
        rule option's data structure */
-    ParseIcmpCode(data, otn);
+    ParseIcmpCode(sc, data, otn);
 
     /* finally, attach the option's detection function to the rule's
        detect function pointer list */
@@ -176,7 +176,7 @@ void IcmpCodeCheckInit(char *data, OptTreeNode *otn, int protocol)
 
 /****************************************************************************
  *
- * Function: ParseIcmpCode(char *, OptTreeNode *)
+ * Function: ParseIcmpCode(struct _SnortConfig *, char *, OptTreeNode *)
  *
  * Purpose: Process the icode argument and stick it in the data struct
  *
@@ -186,7 +186,7 @@ void IcmpCodeCheckInit(char *data, OptTreeNode *otn, int protocol)
  * Returns: void function
  *
  ****************************************************************************/
-void ParseIcmpCode(char *data, OptTreeNode *otn)
+void ParseIcmpCode(struct _SnortConfig *sc, char *data, OptTreeNode *otn)
 {
     char *code;
     IcmpCodeCheckData *ds_ptr;  /* data struct pointer */
@@ -294,7 +294,7 @@ void ParseIcmpCode(char *data, OptTreeNode *otn)
 
         ds_ptr->operator = ICMP_CODE_TEST_EQ;
     }
-    if (add_detection_option(RULE_OPTION_TYPE_ICMP_CODE, (void *)ds_ptr, &ds_ptr_dup) == DETECTION_OPTION_EQUAL)
+    if (add_detection_option(sc, RULE_OPTION_TYPE_ICMP_CODE, (void *)ds_ptr, &ds_ptr_dup) == DETECTION_OPTION_EQUAL)
     {
         otn->ds_list[PLUGIN_ICMP_CODE] = ds_ptr_dup;
         free(ds_ptr);

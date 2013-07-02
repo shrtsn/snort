@@ -172,11 +172,12 @@ HTTPINSPECT_CONF  *hi_ui_server_lookup_find(SERVER_LOOKUP *ServerLookup,
 }
 
 void hi_ui_server_iterate(
+        struct _SnortConfig *sc,
         SERVER_LOOKUP *ServerLookup,
-        void (*userfunc)(void *)
+        void (*userfunc)(struct _SnortConfig *, void *)
         )
 {
-     sfrt_iterate(ServerLookup, userfunc);
+     sfrt_iterate_with_snort_config(sc, ServerLookup, userfunc);
 }
 #if 0
 /** Obsoleted. After changing underlying KMAP to SFRT. SFRT provides an iterator with

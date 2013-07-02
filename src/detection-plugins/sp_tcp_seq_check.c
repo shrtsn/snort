@@ -54,8 +54,8 @@ typedef struct _TcpSeqCheckData
 
 } TcpSeqCheckData;
 
-void TcpSeqCheckInit(char *, OptTreeNode *, int);
-void ParseTcpSeq(char *, OptTreeNode *);
+void TcpSeqCheckInit(struct _SnortConfig *, char *, OptTreeNode *, int);
+void ParseTcpSeq(struct _SnortConfig *, char *, OptTreeNode *);
 int CheckTcpSeqEq(void *option_data, Packet *p);
 
 uint32_t TcpSeqCheckHash(void *d)
@@ -113,7 +113,7 @@ void SetupTcpSeqCheck(void)
 
 /****************************************************************************
  *
- * Function: TcpSeqCheckInit(char *, OptTreeNode *)
+ * Function: TcpSeqCheckInit(struct _SnortConfig *, char *, OptTreeNode *)
  *
  * Purpose: Attach the option data to the rule data struct and link in the
  *          detection function to the function pointer list.
@@ -124,7 +124,7 @@ void SetupTcpSeqCheck(void)
  * Returns: void function
  *
  ****************************************************************************/
-void TcpSeqCheckInit(char *data, OptTreeNode *otn, int protocol)
+void TcpSeqCheckInit(struct _SnortConfig *sc, char *data, OptTreeNode *otn, int protocol)
 {
     OptFpList *fpl;
     if(protocol != IPPROTO_TCP)
@@ -146,7 +146,7 @@ void TcpSeqCheckInit(char *data, OptTreeNode *otn, int protocol)
 
     /* this is where the keyword arguments are processed and placed into the
        rule option's data structure */
-    ParseTcpSeq(data, otn);
+    ParseTcpSeq(sc, data, otn);
 
     /* finally, attach the option's detection function to the rule's
        detect function pointer list */
@@ -159,7 +159,7 @@ void TcpSeqCheckInit(char *data, OptTreeNode *otn, int protocol)
 
 /****************************************************************************
  *
- * Function: ParseTcpSeq(char *, OptTreeNode *)
+ * Function: ParseTcpSeq(struct _SnortConfig *, char *, OptTreeNode *)
  *
  * Purpose: Attach the option rule's argument to the data struct.
  *
@@ -169,7 +169,7 @@ void TcpSeqCheckInit(char *data, OptTreeNode *otn, int protocol)
  * Returns: void function
  *
  ****************************************************************************/
-void ParseTcpSeq(char *data, OptTreeNode *otn)
+void ParseTcpSeq(struct _SnortConfig *sc, char *data, OptTreeNode *otn)
 {
     char **ep = NULL;
     void *ds_ptr_dup;
@@ -182,7 +182,7 @@ void ParseTcpSeq(char *data, OptTreeNode *otn)
     ds_ptr->tcp_seq = strtoul(data, ep, 0);
     ds_ptr->tcp_seq = htonl(ds_ptr->tcp_seq);
 
-    if (add_detection_option(RULE_OPTION_TYPE_TCP_SEQ, (void *)ds_ptr, &ds_ptr_dup) == DETECTION_OPTION_EQUAL)
+    if (add_detection_option(sc, RULE_OPTION_TYPE_TCP_SEQ, (void *)ds_ptr, &ds_ptr_dup) == DETECTION_OPTION_EQUAL)
     {
         otn->ds_list[PLUGIN_TCP_SEQ_CHECK] = ds_ptr_dup;
         free(ds_ptr);

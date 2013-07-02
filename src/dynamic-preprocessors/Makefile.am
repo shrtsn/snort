@@ -3,8 +3,6 @@ AUTOMAKE_OPTIONS=foreign no-dependencies
 
 INCLUDES = -I${top_builddir}/src/dynamic-preprocessors/include -I${top_srcdir}/src/dynamic-preprocessors/libs
 
-if HAVE_DYNAMIC_PLUGINS
-
 if SO_WITH_STATIC_LIB
 
 preproclibdir=$(pkglibdir)/dynamic_preproc
@@ -77,8 +75,6 @@ include/file_lib.h
 
 all-local: $(LTLIBRARIES)
 	$(MAKE) DESTDIR=`pwd`/build install-preproclibLTLIBRARIES
-
-endif
 
 endif
 
@@ -497,9 +493,7 @@ if WANT_SF_SAAC
 RZB_SAAC_DIR=rzb_saac
 endif
 
-if HAVE_DYNAMIC_PLUGINS
 SUBDIRS = . libs ftptelnet pop imap smtp ssh dns ssl dcerpc2 sdf sip reputation gtp modbus dnp3 $(RZB_SAAC_DIR)
-endif
 
 clean-local:
 	rm -rf include build
@@ -509,7 +503,6 @@ dynamic_preprocessors.dsp \
 sf_dynamic_initialize/sf_dynamic_initialize.dsp \
 treenodes.sed
 
-if HAVE_DYNAMIC_PLUGINS
 srcinstdir = $(exec_prefix)/src/snort_dynamicsrc
 
 exported_files = \
@@ -581,4 +574,3 @@ uninstall-local:
 ## Actually install the file.
 		rm -f $(DESTDIR)$(srcinstdir)/$$truefile; \
 	done
-endif

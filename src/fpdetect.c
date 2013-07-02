@@ -106,7 +106,7 @@ static inline int fpEvalHeaderUdp(Packet *p, OTNX_MATCH_DATA *);
 static inline int fpEvalHeaderSW(PORT_GROUP *port_group, Packet *p,
                                  int check_ports, char ip_rule, OTNX_MATCH_DATA *);
 static int rule_tree_match (void* id, void * tree, int index, void * data, void *neg_list );
-static inline int fpAddSessionAlert(Packet *p, OptTreeNode *otn, int alerted);
+static inline int fpAddSessionAlert(Packet *p, OptTreeNode *otn);
 static inline int fpSessionAlerted(Packet *p, OptTreeNode *otn);
 
 //static inline int fpLogEvent(RuleTreeNode *rtn, OptTreeNode *otn, Packet *p);
@@ -296,10 +296,10 @@ int fpLogEvent(RuleTreeNode *rtn, OptTreeNode *otn, Packet *p)
         fpLogOther(p, otn, action);
         return 1;
     }
-    
-    /* If this packet has been passed based on detection rules, 
-     * check the decoder/preprocessor events (they have been added to Event queue already). 
-     * If its order is lower than 'pass', it should have been passed. 
+
+    /* If this packet has been passed based on detection rules,
+     * check the decoder/preprocessor events (they have been added to Event queue already).
+     * If its order is lower than 'pass', it should have been passed.
      * This is consistent with other detection rules */
 	if ( (p->packet_flags & PKT_PASS_RULE)
          &&(ScGetEvalIndex(rtn->type) > ScGetEvalIndex(RULE_TYPE__PASS)))
@@ -631,8 +631,8 @@ static int rule_tree_match( void * id, void *tree, int index, void * data, void 
 
         neg_pmd->last_check.ts.tv_sec = eval_data.p->pkth->ts.tv_sec;
         neg_pmd->last_check.ts.tv_usec = eval_data.p->pkth->ts.tv_usec;
-        neg_pmd->last_check.packet_number = rule_eval_pkt_count;
-        neg_pmd->last_check.rebuild_flag = (eval_data.p->packet_flags & REBUILD_FLAGS);
+        neg_pmd->last_check.packet_number = (rule_eval_pkt_count + (GetRebuiltPktCount()));
+        neg_pmd->last_check.rebuild_flag = (eval_data.p->packet_flags & PKT_REBUILT_STREAM);
     }
 
     rval = detection_option_tree_evaluate(root, &eval_data);
@@ -836,7 +836,6 @@ static inline int fpFinalSelectEvent(OTNX_MATCH_DATA *o, Packet *p)
     int tcnt = 0;
     EventQueueConfig *eq = snort_conf->event_queue_config;
     RuleTreeNode *rtn;
-    int alerted = 0;
 
     for( i = 0; i < o->iMatchInfoArraySize; i++ )
     {
@@ -917,7 +916,6 @@ static inline int fpFinalSelectEvent(OTNX_MATCH_DATA *o, Packet *p)
                     if ( err )
                         pc.queue_limit++;
 
-                    alerted = 1;
                     tcnt++;
                 }
                 else
@@ -927,7 +925,7 @@ static inline int fpFinalSelectEvent(OTNX_MATCH_DATA *o, Packet *p)
                 if (tcnt <= eq->log_events)
                 {
                     if ( p->ssnptr )
-                        fpAddSessionAlert(p, otn, alerted);
+                        fpAddSessionAlert(p, otn);
 
                     if ( p->fragtracker )
                         fpAddFragAlert(p, otn);
@@ -938,6 +936,7 @@ static inline int fpFinalSelectEvent(OTNX_MATCH_DATA *o, Packet *p)
                     pc.queue_limit++;
                     return 1;
                 }
+
                 /* only log/count one pass */
                 if ((otn != NULL) && (rtn != NULL) && (rtn->type == RULE_TYPE__PASS))
                 {
@@ -962,14 +961,13 @@ static inline int fpFinalSelectEvent(OTNX_MATCH_DATA *o, Packet *p)
 **  FORMAL INPUTS
 **    Packet *      - the packet to inspect
 **    OptTreeNode * - the rule that generated the alert
-**    int           - if the packet generated alert or not.
 **
 **  FORMAL OUTPUTS
 **    int - 0 if not flagged
 **          1 if flagged
 **
 */
-static inline int fpAddSessionAlert(Packet *p, OptTreeNode *otn, int alerted)
+static inline int fpAddSessionAlert(Packet *p, OptTreeNode *otn)
 {
     if ( !p->ssnptr )
         return 0;
@@ -979,9 +977,8 @@ static inline int fpAddSessionAlert(Packet *p, OptTreeNode *otn, int alerted)
 
     /* Only track a certain number of alerts per session */
     if (stream_api)
-        return !stream_api->add_session_alert(p->ssnptr, p,
-                                  otn->sigInfo.generator,
-                                  otn->sigInfo.id, alerted);
+        return !stream_api->add_session_alert(
+            p->ssnptr, p, otn->sigInfo.generator, otn->sigInfo.id);
     return 0;
 }
 
@@ -1024,7 +1021,7 @@ Not currently used
  *
  * rule proto: # gid: # sid: # sp: # dp # \n
  */
-void printRuleFmt1( OptTreeNode * otn )
+void printRuleFmt1( SnortConfig *sc, OptTreeNode * otn )
 {
     RuleTreeNode *rtn = getParserRtnFromOtn(otn);
 
@@ -1078,17 +1075,23 @@ static inline int fpEvalHeaderSW(PORT_GROUP *port_group, Packet *p,
     RULE_NODE *rnWalk;
     void * so;
     int start_state;
-    const uint8_t *tmp_payload = p->data;
-    uint16_t tmp_dsize = p->dsize;
-    void *tmp_iph = (void *)p->iph;
-    void *tmp_ip6h = (void *)p->ip6h;
-    void *tmp_ip4h = (void *)p->ip4h;
+    const uint8_t *tmp_payload;
+    uint16_t tmp_dsize;
+    void *tmp_iph;
+    void *tmp_ip6h;
+    void *tmp_ip4h;
     char repeat = 0;
     FastPatternConfig *fp = snort_conf->fast_pattern_config;
     PROFILE_VARS;
 
     if (ip_rule)
     {
+        tmp_iph = (void *)p->iph;
+        tmp_ip6h = (void *)p->ip6h;
+        tmp_ip4h = (void *)p->ip4h;
+        tmp_payload = p->data;
+        tmp_dsize = p->dsize;
+
         /* Set the packet payload pointers to that of IP,
          ** since this is an IP rule. */
 #ifdef GRE
@@ -1375,7 +1378,7 @@ static inline int fpEvalHeaderUdp(Packet *p, OTNX_MATCH_DATA *omd)
     PORT_GROUP *src = NULL, *dst = NULL, *gen = NULL;
 
 #ifdef TARGET_BASED
-    if (IsAdaptiveConfigured(getRuntimePolicy(), 0))
+    if (IsAdaptiveConfigured(getRuntimePolicy()))
     {
         /* Check for a service/protocol ordinal for this packet */
         int16_t proto_ordinal = GetProtocolReference(p);
@@ -1453,7 +1456,7 @@ static inline int fpEvalHeaderTcp(Packet *p, OTNX_MATCH_DATA *omd)
     PORT_GROUP *src = NULL, *dst = NULL, *gen = NULL;
 
 #ifdef TARGET_BASED
-    if (IsAdaptiveConfigured(getRuntimePolicy(), 0))
+    if (IsAdaptiveConfigured(getRuntimePolicy()))
     {
         int16_t proto_ordinal = GetProtocolReference(p);
 
@@ -1633,6 +1636,7 @@ int fpEvalPacket(Packet *p)
         uint16_t tmp_dp = p->dp;
         const UDPHdr *tmp_udph = p->udph;
         const uint8_t *tmp_data = p->data;
+        int tmp_do_detect_content = do_detect_content;
         uint16_t tmp_dsize = p->dsize;
 
         if (p->outer_udph)
@@ -1644,6 +1648,8 @@ int fpEvalPacket(Packet *p)
         p->data = (const uint8_t *)p->udph + UDP_HEADER_LEN;
         if (p->outer_ip_dsize >  UDP_HEADER_LEN)
             p->dsize = p->outer_ip_dsize - UDP_HEADER_LEN;
+        if (p->dsize)
+            do_detect_content = 1;
 
         fpEvalHeaderUdp(p, omd);
 
@@ -1652,6 +1658,7 @@ int fpEvalPacket(Packet *p)
         p->udph = tmp_udph;
         p->data = tmp_data;
         p->dsize = tmp_dsize;
+        do_detect_content = tmp_do_detect_content;
     }
 
     switch(ip_proto)

@@ -55,26 +55,26 @@ typedef struct _output_module
     /* The name of the default log file */
     const char *default_file;
     /* load output module*/
-    void (*load) (char *arg);
+    void (*load) (struct _SnortConfig *, char *arg);
     /* Parse the output device configuration --required*/
     int (*parse_args) (void **config, char *arg, const char *default_output_file);
     /* Post configuration*/
-    void (*postconfig)(int unused, void *data);
+    void (*postconfig)(struct _SnortConfig *, int unused, void *data);
     /* Alert function */
     void (*alert_output) (void *packet, char *msg, void *arg, void *event);
     /* Log function */
     void (*log_output) (void *packet, char *msg, void *arg, void *event);
     /* Restart/rotate the device */
-    void (*rotate) (int signal, void *arg);
+    void (*rotate) (struct _SnortConfig *, int signal, void *arg);
     /* Close the device and clean up --required */
     void (*shutdown) (int signal, void *arg);
     void  *next;
 
 } Output_Module_t;
 
-void init_output_module(Output_Module_t *, char *);
+void init_output_module(struct _SnortConfig *, Output_Module_t *, char *);
 
-#define OUTPUT_API_MAJOR_VERSION    0x00010000
+#define OUTPUT_API_MAJOR_VERSION    0x00020000
 #define OUTPUT_API_MINOR_VERSION    0x00000001
 
 #endif /* _OUTPUT_API_H */

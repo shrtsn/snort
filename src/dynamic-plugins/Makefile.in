@@ -272,6 +272,7 @@ sf_dynamic_define.h \
 sf_dynamic_meta.h \
 sf_dynamic_plugins.c \
 sf_dynamic_preprocessor.h \
+sf_dynamic_side_channel.h \
 sp_dynamic.c \
 sp_dynamic.h \
 sp_preprocopt.c \

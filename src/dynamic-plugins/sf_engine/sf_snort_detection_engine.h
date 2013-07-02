@@ -29,11 +29,12 @@
 #define SF_SNORT_DETECTION_ENGINE__H
 
 int BoyerContentSetup(Rule *rule, ContentInfo *content);
-int PCRESetup(Rule *rule, PCREInfo *pcreInfo);
+int PCRESetup(struct _SnortConfig *sc, Rule *rule, PCREInfo *pcreInfo);
 int ValidateHeaderCheck(Rule *rule, HdrOptCheck *optData);
 void ContentSetup(void);
 int ByteExtractInitialize(Rule *rule, ByteExtract *extractData);
-int LoopInfoInitialize(Rule *rule, LoopInfo *loopInfo);
+struct _SnortConfig;
+int LoopInfoInitialize(struct _SnortConfig *sc, Rule *rule, LoopInfo *loopInfo);
 int ByteDataInitialize(Rule *rule, ByteData *byte);
 int CursorInfoInitialize(Rule *rule, CursorInfo *cursor);
 

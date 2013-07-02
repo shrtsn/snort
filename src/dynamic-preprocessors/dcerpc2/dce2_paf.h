@@ -27,6 +27,9 @@
 #include "stream_api.h"
 #include "dce2_utils.h"
 
-int DCE2_PafRegister(uint16_t, tSfPolicyId, DCE2_TransType);
+int DCE2_PafRegisterPort(struct _SnortConfig *, uint16_t, tSfPolicyId, DCE2_TransType);
+#ifdef TARGET_BASED
+int DCE2_PafRegisterService(struct _SnortConfig *, uint16_t, tSfPolicyId, DCE2_TransType);
+#endif
 
 #endif  /* __DCE2_PAF_H__ */

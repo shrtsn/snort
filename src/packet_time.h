@@ -22,10 +22,16 @@
 #ifndef _PACKET_TIME_H
 #define _PACKET_TIME_H
 
-#include <time.h>
+#ifdef HAVE_CONFIG_H
+#include "config.h"
+#endif
 
-void packet_time_update(time_t cur);
-time_t packet_timeofday(void);
-time_t packet_first_time(void);
+#ifndef WIN32
+#include <sys/time.h>
+#endif
+
+void packet_time_update(const struct timeval *cur_tv);
+time_t packet_time(void);
+void packet_gettimeofday(struct timeval *tv);
 
 #endif /* _PACKET_TIME_H */

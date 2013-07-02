@@ -62,8 +62,8 @@ typedef struct _TtlCheckData
     char oper;
 } TtlCheckData;
 
-void TtlCheckInit(char *, OptTreeNode *, int);
-void ParseTtl(char *, OptTreeNode *);
+void TtlCheckInit(struct _SnortConfig *, char *, OptTreeNode *, int);
+void ParseTtl(struct _SnortConfig *, char *, OptTreeNode *);
 int CheckTtl(void *option_data, Packet *p);
 
 /****************************************************************************
@@ -125,7 +125,7 @@ int TtlCheckCompare(void *l, void *r)
 
 /****************************************************************************
  *
- * Function: TtlCheckInit(char *, OptTreeNode *)
+ * Function: TtlCheckInit(struct _SnortConfig *, char *, OptTreeNode *)
  *
  * Purpose: Parse the ttl keyword arguments and link the detection module
  *          into the function list
@@ -136,7 +136,7 @@ int TtlCheckCompare(void *l, void *r)
  * Returns: void function
  *
  ****************************************************************************/
-void TtlCheckInit(char *data, OptTreeNode *otn, int protocol)
+void TtlCheckInit(struct _SnortConfig *sc, char *data, OptTreeNode *otn, int protocol)
 {
     /* multiple declaration check */
     if(otn->ds_list[PLUGIN_TTL_CHECK])
@@ -152,7 +152,7 @@ void TtlCheckInit(char *data, OptTreeNode *otn, int protocol)
 
     /* this is where the keyword arguments are processed and placed into the
        rule option's data structure */
-    ParseTtl(data, otn);
+    ParseTtl(sc, data, otn);
 
     /* NOTE: the AddOptFuncToList call is moved to the parsing function since
        the linking is best determined within that function */
@@ -162,7 +162,7 @@ void TtlCheckInit(char *data, OptTreeNode *otn, int protocol)
 
 /****************************************************************************
  *
- * Function: ParseTtl(char *, OptTreeNode *)
+ * Function: ParseTtl(struct _SnortConfig *, char *, OptTreeNode *)
  *
  * Purpose: Parse the TTL keyword's arguments
  *
@@ -172,7 +172,7 @@ void TtlCheckInit(char *data, OptTreeNode *otn, int protocol)
  * Returns: void function
  *
  ****************************************************************************/
-void ParseTtl(char *data, OptTreeNode *otn)
+void ParseTtl(struct _SnortConfig *sc, char *data, OptTreeNode *otn)
 {
     OptFpList *fpl = NULL;
     TtlCheckData *ds_ptr;  /* data struct pointer */
@@ -310,7 +310,7 @@ void ParseTtl(char *data, OptTreeNode *otn)
             break;
     }
 
-    if (add_detection_option(RULE_OPTION_TYPE_TTL, (void *)ds_ptr, &ds_ptr_dup) == DETECTION_OPTION_EQUAL)
+    if (add_detection_option(sc, RULE_OPTION_TYPE_TTL, (void *)ds_ptr, &ds_ptr_dup) == DETECTION_OPTION_EQUAL)
     {
         free(ds_ptr);
         ds_ptr = otn->ds_list[PLUGIN_TTL_CHECK] = ds_ptr_dup;

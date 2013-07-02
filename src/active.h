@@ -73,6 +73,7 @@ extern int active_drop_ssn;
 extern int active_have_rsp;
 #endif
 extern int active_tunnel_bypass;
+extern int active_suspend;
 
 static inline void Active_Reset (void)
 {
@@ -84,13 +85,34 @@ static inline void Active_Reset (void)
     active_tunnel_bypass = 0;
 }
 
+static inline void Active_Suspend (void)
+{
+    active_suspend = 1;
+}
+
+static inline void Active_Resume (void)
+{
+    active_suspend = 0;
+}
+
+static inline bool Active_Suspended (void)
+{
+    return ( active_suspend != 0 );
+}
+
 static inline void Active_ForceDropPacket (void)
 {
+    if ( Active_Suspended() )
+        return;
+
     active_drop_pkt = ACTIVE_FORCE_DROP;
 }
 
 static inline void Active_DropPacket (void)
 {
+    if ( Active_Suspended() )
+        return;
+
     if ( active_drop_pkt != ACTIVE_FORCE_DROP )
     {
         if ( ScInlineMode() )
@@ -106,8 +128,20 @@ static inline void Active_DropPacket (void)
 
 static inline void Active_DropSession (void)
 {
+    if ( Active_Suspended() )
+        return;
+
     active_drop_ssn = 1;
     Active_DropPacket();
+}
+
+static inline void Active_ForceDropSession (void)
+{
+    if ( Active_Suspended() )
+        return;
+
+    active_drop_ssn = 1;
+    Active_ForceDropPacket();
 }
 
 static inline int Active_PacketWouldBeDropped (void)

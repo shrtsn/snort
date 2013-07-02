@@ -86,6 +86,9 @@
 #define SSNFLAG_DROP_SERVER         0x00100000
 #define SSNFLAG_LOGGED_QUEUE_FULL   0x00200000
 #define SSNFLAG_STREAM_ORDER_BAD    0x00400000
+#define SSNFLAG_FORCE_BLOCK         0x00800000
+#define SSNFLAG_CLIENT_SWAP         0x01000000
+#define SSNFLAG_CLIENT_SWAPPED      0x02000000
 #define SSNFLAG_ALL                 0xFFFFFFFF /* all that and a bag of chips */
 #define SSNFLAG_NONE                0x00000000 /* nothing, an MT bag of chips */
 
@@ -179,6 +182,11 @@ typedef struct _StreamSessionLimits
     uint32_t icmp_session_limit;
     uint32_t ip_session_limit;
 } StreamSessionLimits;
+
+#ifdef ENABLE_HA
+typedef uint32_t (*StreamHAProducerFunc)(void *ssnptr, uint8_t *buf);
+typedef int (*StreamHAConsumerFunc)(void *ssnptr, const uint8_t *data, uint8_t length);
+#endif
 
 typedef struct _stream_api
 {
@@ -381,7 +389,7 @@ typedef struct _stream_api
      *     -1 failure (max alerts reached)
      *
      */
-    int (*add_session_alert)(void *, Packet *p, uint32_t, uint32_t, int);
+    int (*add_session_alert)(void *, Packet *p, uint32_t, uint32_t);
 
     /* Check session alert
      *
@@ -409,7 +417,7 @@ typedef struct _stream_api
      *      -1 failure ( no alerts )
      *
      */
-    int (*log_session_extra_data)(void *, Packet *p, uint32_t, uint32_t, uint32_t, uint32_t);
+    int (*update_session_alert)(void *, Packet *p, uint32_t, uint32_t, uint32_t, uint32_t);
 
     /* Get Flowbits data
      *
@@ -433,6 +441,7 @@ typedef struct _stream_api
      * Returns
      *     direction(s) of reassembly for session
      */
+    /* XXX Do not attempt to set flush policy to PROTOCOL or PROTOCOL_IPS. */
     char (*set_reassembly)(void *, uint8_t, char, char);
 
     /* Get reassembly direction for given session
@@ -521,7 +530,8 @@ typedef struct _stream_api
      *  If this is called during parsing a preprocessor configuration, make
      *  sure to set the parsing argument to 1.
      */
-    void (*set_service_filter_status)(int service, int status, tSfPolicyId policyId, int parsing);
+    void (*set_service_filter_status)(struct _SnortConfig *sc,
+                                      int service, int status, tSfPolicyId policyId, int parsing);
 #endif
 
     /** Get an independent bit to allow an entity to enable and
@@ -536,7 +546,8 @@ typedef struct _stream_api
      *  If this is called during parsing a preprocessor configuration, make
      *  sure to set the parsing argument to 1.
      */
-    void (*set_port_filter_status)(int protocol, uint16_t port, uint16_t status, tSfPolicyId policyId, int parsing);
+    void (*set_port_filter_status)(struct _SnortConfig *sc,
+                                   int protocol, uint16_t port, uint16_t status, tSfPolicyId policyId, int parsing);
 
     /** Unset port to maintain session state. This function can only
      *  be used with independent bits acquired from
@@ -544,7 +555,8 @@ typedef struct _stream_api
      *  parsing a preprocessor configuration, make sure to set the
      *  parsing argument to 1.
      */
-    void (*unset_port_filter_status)(int protocol, uint16_t port, uint16_t status, tSfPolicyId policyId, int parsing);
+    void (*unset_port_filter_status)(struct _SnortConfig *sc,
+                                     int protocol, uint16_t port, uint16_t status, tSfPolicyId policyId, int parsing);
 
 #ifdef ACTIVE_RESPONSE
     // initialize response count and expiration time
@@ -615,8 +627,9 @@ typedef struct _stream_api
 
     // register for stateful scanning of in-order payload to determine flush points
     // autoEnable allows PAF regardless of s5 ports config
-    bool (*register_paf_cb)(
-        tSfPolicyId, uint16_t server_port, bool toServer,
+    bool (*register_paf_port)(
+        struct _SnortConfig *, tSfPolicyId,
+        uint16_t server_port, bool toServer,
         PAF_Callback, bool autoEnable);
 
     // get any paf user data stored for this session
@@ -625,13 +638,49 @@ typedef struct _stream_api
     bool (*is_paf_active)(void* ssn, bool toServer);
     bool (*activate_paf)(void* ssn, bool toServer);
 
+#ifdef ENABLE_HA
+    /* Register a high availability producer and consumer function pair for a
+     * particular preprocessor ID and subcode combination.
+     *
+     * Parameters
+     *      Processor ID
+     *      Subcode
+     *      Maximum Message Size
+     *      Message Producer Function
+     *      Message Consumer Function
+     *
+     *  Returns
+     *      >= 0 on success
+     *          The returned value is the bit number in the HA pending bitmask and
+     *          should be stored for future calls to set_ha_pending_bit().
+     *      < 0 on failure
+     */
+    int (*register_ha_funcs)(uint32_t preproc_id, uint8_t subcode, uint8_t size,
+                             StreamHAProducerFunc produce, StreamHAConsumerFunc consume);
+
+    /* Indicate a pending high availability update for a given session.
+     *
+     * Parameters
+     *      Session Ptr
+     *      HA Pending Update Bit
+     */
+    void (*set_ha_pending_bit)(void *, int bit);
+
+    /* Attempt to process any pending HA events for the given session
+     *
+     * Parameters
+     *      Session Ptr
+     */
+    void (*process_ha)(void *);
+#endif
+
     /** Set flag to force sessions to be created on SYN packets.
      *  This function can only be used with independent bits
      *  acquired from get_preprocessor_status_bit. If this is called
      *  during parsing a preprocessor configuration, make sure to
      *  set the parsing argument to 1.
      */
-    void (*set_tcp_syn_session_status)(uint16_t status, tSfPolicyId policyId, int parsing);
+    void (*set_tcp_syn_session_status)(struct _SnortConfig *sc, uint16_t status, tSfPolicyId policyId, int parsing);
 
     /** Unset flag that forces sessions to be created on SYN
      *  packets. This function can only be used with independent
@@ -639,7 +688,7 @@ typedef struct _stream_api
      *  called during parsing a preprocessor configuration, make
      *  sure to set the parsing argument to 1.
      */
-    void (*unset_tcp_syn_session_status)(uint16_t status, tSfPolicyId policyId, int parsing);
+    void (*unset_tcp_syn_session_status)(struct _SnortConfig *sc, uint16_t status, tSfPolicyId policyId, int parsing);
 
     /** Retrieve application session data based on the lookup tuples for
      *  cases where Snort does not have an active packet that is
@@ -671,7 +720,7 @@ typedef struct _stream_api
     uint32_t (*get_xtra_data_map)(LogFunction **);
 
     //Retrieve the maximum session limits for the given policy
-    void (*get_max_session_limits)(tSfPolicyId, StreamSessionLimits*);
+    void (*get_max_session_limits)(struct _SnortConfig *sc, tSfPolicyId, StreamSessionLimits*);
 
     /* Set direction that data is being ignored.
        *
@@ -716,6 +765,45 @@ typedef struct _stream_api
      */
     void (*check_session_closed)(Packet *);
 
+    /*  Create a session key from the Packet
+     *
+     *  Parameters
+     *      Packet
+     */
+    StreamSessionKey *(*get_session_key)(Packet *);
+
+    /*  Populate a session key from the Packet
+     *
+     *  Parameters
+     *      Packet
+     *      Stream session key pointer
+     */
+    void (*populate_session_key)(Packet *, StreamSessionKey *);
+
+    /*  Get the application data from the session key
+     *
+     *  Parameters
+     *      SessionKey *
+     *      Application Protocol
+     */
+    void *(*get_application_data_from_key)(const StreamSessionKey *, uint32_t);
+
+    // register for stateful scanning of in-order payload to determine flush points
+    // autoEnable allows PAF regardless of s5 ports config
+    bool (*register_paf_service)(
+        struct _SnortConfig *, tSfPolicyId,
+        uint16_t service, bool toServer,
+        PAF_Callback, bool autoEnable);
+
+    void (*set_extra_data)(void*, Packet *, uint32_t);
+    void (*clear_extra_data)(void*, Packet *, uint32_t);
+
+    /* Time out the specified session.
+     *
+     * Parameters
+     *     Session Ptr
+     */
+    void (*expire_session)(void *);
 } StreamAPI;
 
 /* To be set by Stream5 */

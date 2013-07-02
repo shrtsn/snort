@@ -42,12 +42,14 @@
 #include "config.h"
 #endif
 
+#include "snort.h"
 #include "parser/IpAddrSet.h"
 #include "generators.h"
 #include "rules.h"
 #include "treenodes.h"
 #include "sfrf.h"
 #include "util.h"
+#include "sfPolicyData.h"
 #include "sfPolicyUserData.h"
 
 // Number of hash rows for gid 1 (rules)
@@ -227,7 +229,7 @@ static void SFRF_SidNodeFree(void* item)
  *
  * @return @retval  0 successfully added the thresholding object, !0 otherwise
 */
-int SFRF_ConfigAdd(RateFilterConfig *rf_config, tSFRFConfigNode *cfgNode)
+int SFRF_ConfigAdd(SnortConfig *sc, RateFilterConfig *rf_config, tSFRFConfigNode *cfgNode)
 {
     SFGHASH* genHash;
     int nrows;
@@ -235,7 +237,7 @@ int SFRF_ConfigAdd(RateFilterConfig *rf_config, tSFRFConfigNode *cfgNode)
     tSFRFSidNode* pSidNode;
     tSFRFConfigNode* pNewConfigNode;
     tSFRFGenHashKey key = {0,0};
-    tSfPolicyId policy_id = getParserPolicy();
+    tSfPolicyId policy_id = getParserPolicy(sc);
 
     // Auto init - memcap must be set 1st, which is not really a problem
     if ( rf_hash == NULL )
@@ -288,9 +290,6 @@ int SFRF_ConfigAdd(RateFilterConfig *rf_config, tSFRFConfigNode *cfgNode)
 
         rf_config->genHash[cfgNode->gid] = genHash;
     }
-
-    if ( !genHash )
-        return -2;
 
     key.sid = cfgNode->sid;
     key.policyId = policy_id;

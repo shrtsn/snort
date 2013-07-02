@@ -31,8 +31,8 @@
 #include "stream_api.h"
 #include <daq.h>
 
-#define OUTPUT_DATA_MAJOR_VERSION 1
-#define OUTPUT_DATA_MINOR_VERSION 2
+#define OUTPUT_DATA_MAJOR_VERSION 2
+#define OUTPUT_DATA_MINOR_VERSION 1
 
 typedef int (*OutputInitFunc)(void*);
 
@@ -52,8 +52,11 @@ typedef int (*TextLog_PutsFunc)(void*, char*);
 typedef int (*TextLog_WriteFunc)(void*, char*, int);
 typedef void* (*TextLog_InitFunc)(const char* name, unsigned int maxBuf, size_t maxFile);
 typedef void (*OutputExecFunc)(void *packet, char *msg, void *arg, void *event);
-typedef void (*AddFuncToOutputListFunc)(OutputExecFunc o_func, int type, void *arg);
+typedef void (*AddFuncToOutputListFunc)(struct _SnortConfig *, OutputExecFunc o_func, int type, void *arg);
 
+typedef void (*PluginFuncWithSnortConfig)(struct _SnortConfig *, int, void *);
+typedef void (*AddFuncWithSnortConfigToPluginListWithSnortConfigFunc)(struct _SnortConfig *, PluginFuncWithSnortConfig, void *arg);
+typedef void (*AddFuncWithSnortConfigToPluginListFunc)(PluginFuncWithSnortConfig, void *arg);
 typedef void (*PluginFunc)(int, void *);
 typedef void (*AddFuncToPluginListFunc)(PluginFunc, void *arg);
 
@@ -116,9 +119,9 @@ typedef struct _DynamicOutputData
     AddFuncToOutputListFunc addOutputModule;
     AddFuncToPluginListFunc addCleanExit;
 #ifdef SNORT_RELOAD
-    AddFuncToPluginListFunc addReload;
+    AddFuncWithSnortConfigToPluginListFunc addReload;
 #endif
-    AddFuncToPluginListFunc addPostconfig;
+    AddFuncWithSnortConfigToPluginListWithSnortConfigFunc addPostconfig;
 
     GetDAQInterfaceSpecFunc getDAQinterface;
     GetDAQBaseProtocolFunc getDAQBaseProtocol;
@@ -140,7 +143,7 @@ typedef struct _DynamicOutputData
     SnortStrdupFunc SnortStrdup;
     SnortSnprintfFunc SnortSnprintf;
     GetPolicyFunc getRuntimePolicy;
-    GetPolicyFunc getParserPolicy;
+    GetParserPolicyFunc getParserPolicy;
     GetPolicyFunc getDefaultPolicy;
     GetBasePolicyVersionFunc getBasePolicyVersion;
     GetTargetPolicyVersionFunc getTargetPolicyVersion;

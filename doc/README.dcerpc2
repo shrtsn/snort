@@ -216,8 +216,8 @@ Option explanations
     max_frag_len
         Specifies the maximum fragment size that will be added to the
         defragmention module. If a fragment is greater than this size, it is
-        truncated before being added to the defragmentation module.  Default is
-        set to -1. The allowed ranges for this option are 1514 - 65535.
+        truncated before being added to the defragmentation module. The allowed
+        ranges for this option are 1514 - 65535.
     events
         Specifies the classes of events to enable.  (See Events section for an
         enumeration and explanation of events.)
@@ -841,6 +841,15 @@ rules processing) at the beginning of the DCE/RPC stub data, regardless of
 preceding rule options. There are no arguments to this option.  This option
 matches if there is DCE/RPC stub data.
 
+The cursor is moved to the beginning of the stub data.  All ensuing rule
+options will be considered "sticky" to this buffer.  The first rule option
+following dce_stub_data should use absolute location modifiers if it is
+position-dependent.  Subsequent rule options should use a relative modifier if
+they are meant to be relative to a previous rule option match in the stub data
+buffer.  Any rule option that does not specify a relative modifier will be
+evaluated from the start of the stub data buffer.  To leave the stub data buffer
+and return to the main payload buffer, use the "pkt_data" rule option.
+
 byte_test and byte_jump
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 A DCE/RPC request can specify whether numbers are represented in big or little
@@ -892,7 +901,7 @@ Example of rule complexity reduction
 The following two rules using the new rule options replace 64 (set and isset
 flowbit) rules that are necessary if the new rule options are not used:
 
-alert tcp $EXTERNAL_NET any -> $HOME_NET [135,139,445,593,1024:] (msg:"dns R_Dnssrv funcs2 overflow attempt"; flow:established,to_server; dce_iface:50abc2a4-574d-40b3-9d66-ee4fd5fba076; dce_opnum:0-11; dce_stub_data; pcre:"/^.{12}(\x00\x00\x00\x00|.{12})/sR"; byte_jump:4,-4,relative,align,dce; byte_test:4,>,256,4,relative,dce; reference:bugtraq,23470; reference:cve,2007-1748; classtype:attempted-admin; sid:1000068;)
+alert tcp $EXTERNAL_NET any -> $HOME_NET [135,139,445,593,1024:] (msg:"dns R_Dnssrv funcs2 overflow attempt"; flow:established,to_server; dce_iface:50abc2a4-574d-40b3-9d66-ee4fd5fba076; dce_opnum:0-11; dce_stub_data; pcre:"/^.{12}(\x00\x00\x00\x00|.{12})/s"; byte_jump:4,-4,relative,align,dce; byte_test:4,>,256,4,relative,dce; reference:bugtraq,23470; reference:cve,2007-1748; classtype:attempted-admin; sid:1000068;)
 
-alert udp $EXTERNAL_NET any -> $HOME_NET [135,1024:] (msg:"dns R_Dnssrv funcs2 overflow attempt"; flow:established,to_server; dce_iface:50abc2a4-574d-40b3-9d66-ee4fd5fba076; dce_opnum:0-11; dce_stub_data; pcre:"/^.{12}(\x00\x00\x00\x00|.{12})/sR"; byte_jump:4,-4,relative,align,dce; byte_test:4,>,256,4,relative,dce; reference:bugtraq,23470; reference:cve,2007-1748; classtype:attempted-admin; sid:1000069;)
+alert udp $EXTERNAL_NET any -> $HOME_NET [135,1024:] (msg:"dns R_Dnssrv funcs2 overflow attempt"; flow:established,to_server; dce_iface:50abc2a4-574d-40b3-9d66-ee4fd5fba076; dce_opnum:0-11; dce_stub_data; pcre:"/^.{12}(\x00\x00\x00\x00|.{12})/s"; byte_jump:4,-4,relative,align,dce; byte_test:4,>,256,4,relative,dce; reference:bugtraq,23470; reference:cve,2007-1748; classtype:attempted-admin; sid:1000069;)
 

@@ -60,8 +60,8 @@ typedef struct _DsizeCheckData
     char operator;
 } DsizeCheckData;
 
-void DsizeCheckInit(char *, OptTreeNode *, int);
-void ParseDsize(char *, OptTreeNode *);
+void DsizeCheckInit(struct _SnortConfig *, char *, OptTreeNode *, int);
+void ParseDsize(struct _SnortConfig *, char *, OptTreeNode *);
 
 int CheckDsize(void *option_data, Packet *p);
 
@@ -125,7 +125,7 @@ void SetupDsizeCheck(void)
 
 /****************************************************************************
  *
- * Function: DsizeCheckInit(char *, OptTreeNode *)
+ * Function: DsizeCheckInit(struct _SnortConfig *, char *, OptTreeNode *)
  *
  * Purpose: Parse the rule argument and attach it to the rule data struct,
  *          then attach the detection function to the function list
@@ -136,7 +136,7 @@ void SetupDsizeCheck(void)
  * Returns: void function
  *
  ****************************************************************************/
-void DsizeCheckInit(char *data, OptTreeNode *otn, int protocol)
+void DsizeCheckInit(struct _SnortConfig *sc, char *data, OptTreeNode *otn, int protocol)
 {
     /* multiple declaration check */
     if(otn->ds_list[PLUGIN_DSIZE_CHECK])
@@ -153,7 +153,7 @@ void DsizeCheckInit(char *data, OptTreeNode *otn, int protocol)
 
     /* this is where the keyword arguments are processed and placed into the
        rule option's data structure */
-    ParseDsize(data, otn);
+    ParseDsize(sc, data, otn);
 
     /* NOTE: I moved the AddOptFuncToList call to the parsing function since
        the linking is best determined within that function */
@@ -163,7 +163,7 @@ void DsizeCheckInit(char *data, OptTreeNode *otn, int protocol)
 
 /****************************************************************************
  *
- * Function: ParseDsize(char *, OptTreeNode *)
+ * Function: ParseDsize(struct _SnortConfig *, char *, OptTreeNode *)
  *
  * Purpose: Parse the dsize function argument and attach the detection
  *          function to the rule list as well.
@@ -174,7 +174,7 @@ void DsizeCheckInit(char *data, OptTreeNode *otn, int protocol)
  * Returns: void function
  *
  ****************************************************************************/
-void ParseDsize(char *data, OptTreeNode *otn)
+void ParseDsize(struct _SnortConfig *sc, char *data, OptTreeNode *otn)
 {
     DsizeCheckData *ds_ptr;  /* data struct pointer */
     char *pcEnd;
@@ -238,7 +238,7 @@ void ParseDsize(char *data, OptTreeNode *otn)
         fpl = AddOptFuncToList(CheckDsize, otn);
         fpl->type = RULE_OPTION_TYPE_DSIZE;
 
-        if (add_detection_option(RULE_OPTION_TYPE_DSIZE, (void *)ds_ptr, &ds_ptr_dup) == DETECTION_OPTION_EQUAL)
+        if (add_detection_option(sc, RULE_OPTION_TYPE_DSIZE, (void *)ds_ptr, &ds_ptr_dup) == DETECTION_OPTION_EQUAL)
         {
             free(ds_ptr);
             ds_ptr = otn->ds_list[PLUGIN_DSIZE_CHECK] = ds_ptr_dup;
@@ -278,7 +278,7 @@ void ParseDsize(char *data, OptTreeNode *otn)
 
     ds_ptr->dsize = (unsigned short)iDsize;
 
-    if (add_detection_option(RULE_OPTION_TYPE_DSIZE, (void *)ds_ptr, &ds_ptr_dup) == DETECTION_OPTION_EQUAL)
+    if (add_detection_option(sc, RULE_OPTION_TYPE_DSIZE, (void *)ds_ptr, &ds_ptr_dup) == DETECTION_OPTION_EQUAL)
     {
         free(ds_ptr);
         ds_ptr = otn->ds_list[PLUGIN_DSIZE_CHECK] = ds_ptr_dup;

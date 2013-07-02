@@ -320,10 +320,8 @@ include/file_lib.h: $(top_srcdir)/src/file-process/libs/file_lib.h
 	@src_header=$?; dst_header=$@; $(copy_headers)
 INCLUDES = @INCLUDES@
 
-if HAVE_DYNAMIC_PLUGINS
 if BUILD_DYNAMIC_EXAMPLES
 SUBDIRS = dynamic-preprocessor dynamic-rule
-endif
 endif
 
 clean-local:

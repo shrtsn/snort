@@ -187,11 +187,11 @@ void IcmpSessionCleanup(Stream5LWSession *ssn)
 {
     IcmpSession *icmpssn = NULL;
 
-    if (ssn->session_flags & SSNFLAG_PRUNED)
+    if (ssn->ha_state.session_flags & SSNFLAG_PRUNED)
     {
         CloseStreamSession(&sfBase, SESSION_CLOSED_PRUNED);
     }
-    else if (ssn->session_flags & SSNFLAG_TIMEDOUT)
+    else if (ssn->ha_state.session_flags & SSNFLAG_TIMEDOUT)
     {
         CloseStreamSession(&sfBase, SESSION_CLOSED_TIMEDOUT);
     }
@@ -272,21 +272,26 @@ int Stream5VerifyIcmpConfig(Stream5IcmpConfig *config, tSfPolicyId policy_id)
 
 int Stream5ProcessIcmp(Packet *p)
 {
+    int status;
+
     switch (p->icmph->type)
     {
     case ICMP_DEST_UNREACH:
-        return ProcessIcmpUnreach(p);
+        status = ProcessIcmpUnreach(p);
         break;
+
     case ICMP_ECHO:
     case ICMP_ECHOREPLY:
-        return ProcessIcmpEcho(p);
+        status = ProcessIcmpEcho(p);
         break;
+
     default:
         /* We only handle the above ICMP messages with stream5 */
+        status = 0;
         break;
     }
 
-    return 0;
+    return status;
 }
 
 static int ProcessIcmpUnreach(Packet *p)
@@ -370,8 +375,8 @@ static int ProcessIcmpUnreach(Packet *p)
         /* Mark this session as dead. */
         DEBUG_WRAP(DebugMessage(DEBUG_STREAM_STATE,
             "Marking session as dead, per ICMP Unreachable!\n"););
-        ssn->session_flags |= SSNFLAG_DROP_CLIENT;
-        ssn->session_flags |= SSNFLAG_DROP_SERVER;
+        ssn->ha_state.session_flags |= SSNFLAG_DROP_CLIENT;
+        ssn->ha_state.session_flags |= SSNFLAG_DROP_SERVER;
         ssn->session_state |= STREAM5_STATE_UNREACH;
     }
 
@@ -400,7 +405,7 @@ void IcmpUpdateDirection(Stream5LWSession *ssn, char dir,
 
     if (IP_EQUALITY(&icmpssn->icmp_sender_ip, ip))
     {
-        if ((dir == SSN_DIR_SENDER) && (ssn->direction == SSN_DIR_SENDER))
+        if ((dir == SSN_DIR_SENDER) && (ssn->ha_state.direction == SSN_DIR_SENDER))
         {
             /* Direction already set as SENDER */
             return;
@@ -408,14 +413,14 @@ void IcmpUpdateDirection(Stream5LWSession *ssn, char dir,
     }
     else if (IP_EQUALITY(&icmpssn->icmp_responder_ip, ip))
     {
-        if ((dir == SSN_DIR_RESPONDER) && (ssn->direction == SSN_DIR_RESPONDER))
+        if ((dir == SSN_DIR_RESPONDER) && (ssn->ha_state.direction == SSN_DIR_RESPONDER))
         {
             /* Direction already set as RESPONDER */
             return;
         }
     }
 
-    /* Swap them -- leave ssn->direction the same */
+    /* Swap them -- leave ssn->ha_state.direction the same */
     tmpIp = icmpssn->icmp_sender_ip;
     icmpssn->icmp_sender_ip = icmpssn->icmp_responder_ip;
     icmpssn->icmp_responder_ip = tmpIp;

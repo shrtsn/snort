@@ -14,9 +14,9 @@
  * more details.
  *
  * You should have received a copy of the GNU General Public License along with
- * this program; if not, write to the Free Software Foundation, Inc., 
+ * this program; if not, write to the Free Software Foundation, Inc.,
  * 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA
- * 
+ *
  ****************************************************************************/
 /* Snort sp_resp3 Detection Plugin
  *
@@ -102,7 +102,7 @@ typedef struct {
 static int s_init = 1;
 
 // callback functions
-static void Resp3_Init(char* data, OptTreeNode*, int protocol);
+static void Resp3_Init(struct _SnortConfig *, char* data, OptTreeNode*, int protocol);
 static void Resp3_Cleanup(int signal, void* data);
 
 // core functions
@@ -155,7 +155,7 @@ void SetupRespond(void)
 //--------------------------------------------------------------------
 // callback functions
 
-static void Resp3_Init(char* data, OptTreeNode* otn, int protocol)
+static void Resp3_Init(struct _SnortConfig *sc, char* data, OptTreeNode* otn, int protocol)
 {
     Resp3_Data* rd = NULL;
     void* idx_dup;
@@ -175,7 +175,7 @@ static void Resp3_Init(char* data, OptTreeNode* otn, int protocol)
     rd = (Resp3_Data*)SnortAlloc(sizeof(*rd));
     rd->mask = Resp3_Parse(data);
 
-    if ( add_detection_option(RULE_OPTION_TYPE_RESPOND, rd, &idx_dup)
+    if ( add_detection_option(sc, RULE_OPTION_TYPE_RESPOND, rd, &idx_dup)
         == DETECTION_OPTION_EQUAL)
     {
         free(rd);
@@ -204,6 +204,9 @@ static int Resp3_Parse(char* type)
 
     if ( type )
         toks = mSplit(type, ",", 6, &num_toks, 0);
+    else
+        FatalError("%s: %s(%d): missing resp modifier",
+            MOD_NAME, file_name, file_line);
 
     i = 0;
     while (i < num_toks)

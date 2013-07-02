@@ -85,7 +85,7 @@ static struct sockaddr_un alertaddr;
 static struct sockaddr_in alertaddr;
 #endif
 
-static void AlertUnixSockInit(char *);
+static void AlertUnixSockInit(struct _SnortConfig *, char *);
 static void AlertUnixSock(Packet *, char *, void *, Event *);
 static void ParseAlertUnixSockArgs(char *);
 static void AlertUnixSockCleanExit(int, void *);
@@ -124,7 +124,7 @@ void AlertUnixSockSetup(void)
  * Returns: void function
  *
  */
-static void AlertUnixSockInit(char *args)
+static void AlertUnixSockInit(struct _SnortConfig *sc, char *args)
 {
     DEBUG_WRAP(DebugMessage(DEBUG_INIT,"Output: AlertUnixSock Initialized\n"););
 
@@ -134,7 +134,7 @@ static void AlertUnixSockInit(char *args)
     DEBUG_WRAP(DebugMessage(DEBUG_INIT,"Linking UnixSockAlert functions to call lists...\n"););
 
     /* Set the preprocessor function into the function list */
-    AddFuncToOutputList(AlertUnixSock, OUTPUT_TYPE__ALERT, NULL);
+    AddFuncToOutputList(sc, AlertUnixSock, OUTPUT_TYPE__ALERT, NULL);
 
     AddFuncToCleanExitList(AlertUnixSockCleanExit, NULL);
 }
@@ -175,18 +175,18 @@ static void AlertUnixSock(Packet *p, char *msg, void *arg, Event *event)
 
     DEBUG_WRAP(DebugMessage(DEBUG_LOG, "Logging Alert data!\n"););
 
-    bzero((char *)&alertpkt,sizeof(alertpkt));
+    memset((char *)&alertpkt,0,sizeof(alertpkt));
     if (event)
     {
-        bcopy((const void *)event,(void *)&alertpkt.event,sizeof(Event));
+        memmove((void *)&alertpkt.event,(const void *)event,sizeof(Event));
     }
 
     if(p && p->pkt)
     {
         uint32_t snaplen = DAQ_GetSnapLen();
-        bcopy((const void *)p->pkth,(void *)&alertpkt.pkth,
+        memmove( (void *)&alertpkt.pkth, (const void *)p->pkth,
             sizeof(alertpkt.pkth));
-        bcopy((const void *)p->pkt,alertpkt.pkt,
+        memmove( alertpkt.pkt, (const void *)p->pkt,
               alertpkt.pkth.caplen > snaplen? snaplen : alertpkt.pkth.caplen);
     }
     else
@@ -194,7 +194,7 @@ static void AlertUnixSock(Packet *p, char *msg, void *arg, Event *event)
 
     if (msg)
     {
-        bcopy((const void *)msg,(void *)alertpkt.alertmsg,
+        memmove( (void *)alertpkt.alertmsg, (const void *)msg,
                strlen(msg)>ALERTMSG_LENGTH-1 ? ALERTMSG_LENGTH - 1 : strlen(msg));
     }
 
@@ -237,7 +237,7 @@ static void AlertUnixSock(Packet *p, char *msg, void *arg, Event *event)
                        break;
 
                     default:
-                        /* alertpkt.transhdr is null due to initial bzero */
+                        /* alertpkt.transhdr is null due to initial memset */
                         alertpkt.val|=NO_TRANSHDR;
                         break;
                 }
@@ -271,6 +271,9 @@ static void AlertUnixSock(Packet *p, char *msg, void *arg, Event *event)
 static void OpenAlertSock(void)
 {
     char srv[STD_BUF];
+#ifdef FREEBSD
+    int buflen=sizeof(Alertpkt);
+#endif
 
     /* srv is our filename workspace. Set it to file UNSOCK_FILE inside the log directory. */
     SnortSnprintf(srv, STD_BUF, "%s%s/%s",
@@ -283,7 +286,7 @@ static void OpenAlertSock(void)
             srv);
     }
 
-    bzero((char *) &alertaddr, sizeof(alertaddr));
+    memset((char *) &alertaddr, 0, sizeof(alertaddr));
 
     /* copy path over and preserve a null byte at the end */
     strncpy(alertaddr.sun_path, srv, sizeof(alertaddr.sun_path)-1);
@@ -294,6 +297,13 @@ static void OpenAlertSock(void)
     {
         FatalError("socket() call failed: %s", strerror(errno));
     }
+
+#ifdef FREEBSD
+    if(setsockopt(alertsd, SOL_SOCKET, SO_SNDBUF, (char*)&buflen, sizeof(int)) < 0)
+    {
+        FatalError("setsockopt() call failed: %s", strerror(errno));
+    }
+#endif
 }
 
 static void AlertUnixSockCleanExit(int signal, void *arg)

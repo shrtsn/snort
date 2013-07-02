@@ -30,12 +30,14 @@
 
 #define CONTROL_FILE    "SNORT.sock"
 
-#define CS_TYPE_HUP_DAQ     0x0001
-#define CS_TYPE_MAX         0x1FFF
-#define CS_HEADER_VERSION   0x0001
-#define CS_HEADER_SUCCESS   0x0000
-#define CS_HEADER_ERROR     0x0001
-#define CS_HEADER_DATA      0x0009
+#define CS_TYPE_HUP_DAQ         0x0001
+#define CS_TYPE_RELOAD          0x0002
+#define CS_TYPE_IS_PROCESSING   0x0003
+#define CS_TYPE_MAX             0x1FFF
+#define CS_HEADER_VERSION       0x0001
+#define CS_HEADER_SUCCESS       0x0000
+#define CS_HEADER_ERROR         0x0001
+#define CS_HEADER_DATA          0x0009
 
 #pragma pack(1)
 typedef struct _CS_MESSAGE_DATA_HEADER

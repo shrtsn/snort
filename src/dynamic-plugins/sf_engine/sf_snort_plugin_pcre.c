@@ -40,10 +40,11 @@
 #include "sf_snort_detection_engine.h"
 
 /* Need access to the snort-isms that were passed to the engine */
+extern int checkCursorSimple(const uint8_t *cursor, int flags, const uint8_t *start, const uint8_t *end, int offset);
 extern int checkCursorInternal(void *p, int flags, int offset, const uint8_t *cursor);
 static int pcreMatchInternal(void *, PCREInfo*, const uint8_t **);
 
-int PCRESetup(Rule *rule, PCREInfo *pcreInfo)
+int PCRESetup(struct _SnortConfig *sc, Rule *rule, PCREInfo *pcreInfo)
 {
     const char *error;
     int erroffset;
@@ -74,7 +75,7 @@ int PCRESetup(Rule *rule, PCREInfo *pcreInfo)
         return -1;
     }
 
-    _ded.pcreCapture(pcreInfo->compiled_expr, pcreInfo->compiled_extra);
+    _ded.pcreCapture(sc, pcreInfo->compiled_expr, pcreInfo->compiled_extra);
 
 
     return 0;
@@ -218,7 +219,6 @@ ENGINE_LINKAGE int pcreMatch(void *p, PCREInfo* pcre_info, const uint8_t **curso
 static int pcreMatchInternal(void *p, PCREInfo* pcre_info, const uint8_t **cursor)
 {
     const uint8_t *buffer_start;
-    const uint8_t *buffer_end;
     int buffer_len;
     int pcre_offset;
     int pcre_found;
@@ -293,25 +293,21 @@ static int pcreMatchInternal(void *p, PCREInfo* pcre_info, const uint8_t **curso
                     return CONTENT_NOMATCH;
             }
 
-            if (!_ded.uriBuffers[i]->uriBuffer || (_ded.uriBuffers[i]->uriLength == 0))
+            buffer_start = _ded.uriBuffers[i]->uriBuffer;
+            buffer_len = _ded.uriBuffers[i]->uriLength;
+
+            if (!buffer_start || !buffer_len)
                 continue;
 
             if (relative)
             {
-                if (checkCursorInternal(p, pcre_info->flags, 0, *cursor) <= 0)
-                {
-                    /* Okay, cursor is NOT within this buffer... */
-                    continue;
-                }
+                if ( checkCursorSimple(*cursor, pcre_info->flags,
+                    buffer_start, buffer_start+buffer_len, 0) == CURSOR_OUT_OF_BOUNDS )
+
+                buffer_len = (buffer_start + buffer_len) - *cursor;
                 buffer_start = *cursor;
-                buffer_end = _ded.uriBuffers[i]->uriBuffer + _ded.uriBuffers[i]->uriLength;
-                buffer_len = buffer_end - buffer_start;
             }
-            else
-            {
-                buffer_start = _ded.uriBuffers[i]->uriBuffer;
-                buffer_len = _ded.uriBuffers[i]->uriLength;
-            }
+
             pcre_found = pcre_test(pcre_info, (const char *)buffer_start, buffer_len, 0, &pcre_offset);
 
             if (pcre_found)
@@ -326,61 +322,40 @@ static int pcreMatchInternal(void *p, PCREInfo* pcre_info, const uint8_t **curso
         return RULE_NOMATCH;
     }
 
-    if (relative)
+    if ((pcre_info->flags & CONTENT_BUF_NORMALIZED) && _ded.Is_DetectFlag(SF_FLAG_DETECT_ALL))
     {
-        if (checkCursorInternal(p, pcre_info->flags, pcre_info->offset, *cursor) <= 0)
+        if(_ded.Is_DetectFlag(SF_FLAG_ALT_DETECT))
         {
-            return RULE_NOMATCH;
-        }
-
-        if ((pcre_info->flags & CONTENT_BUF_NORMALIZED) && _ded.Is_DetectFlag(SF_FLAG_DETECT_ALL))
-        {
-            if(_ded.Is_DetectFlag(SF_FLAG_ALT_DETECT))
-            {
-                buffer_start = _ded.altDetect->data;
-                buffer_end = buffer_start + _ded.altDetect->len;
-            }
-            else if(_ded.Is_DetectFlag(SF_FLAG_ALT_DECODE))
-            {
-                buffer_start = _ded.altBuffer->data;
-                buffer_end = buffer_start + _ded.altBuffer->len;
-            }
+            buffer_start = _ded.altDetect->data;
+            buffer_len = _ded.altDetect->len;
         }
         else
         {
-            buffer_start = sp->payload;
-            if(sp->normalized_payload_size)
-                buffer_end = buffer_start + sp->normalized_payload_size;
-            else
-                buffer_end = buffer_start + sp->payload_size;
+            buffer_start = _ded.altBuffer->data;
+            buffer_len = _ded.altBuffer->len;
         }
-        buffer_start = *cursor;
-        buffer_len = buffer_end - buffer_start;
     }
     else
     {
-        if ((pcre_info->flags & CONTENT_BUF_NORMALIZED) && _ded.Is_DetectFlag(SF_FLAG_DETECT_ALL))
-        {
-            if(_ded.Is_DetectFlag(SF_FLAG_ALT_DETECT))
-            {
-                buffer_start = _ded.altDetect->data;
-                buffer_len = _ded.altDetect->len;
-            }
-            else if(_ded.Is_DetectFlag(SF_FLAG_ALT_DECODE))
-            {
-                buffer_start = _ded.altBuffer->data;
-                buffer_len = _ded.altBuffer->len;
-            }
-        }
+        buffer_start = sp->payload;
+
+        if(sp->normalized_payload_size)
+            buffer_len = sp->normalized_payload_size;
         else
-        {
-            buffer_start = sp->payload;
-            if(sp->normalized_payload_size)
-                buffer_len = sp->normalized_payload_size;
-            else
-                buffer_len = sp->payload_size;
-        }
-        buffer_end = buffer_start + buffer_len;
+            buffer_len = sp->payload_size;
+    }
+
+    if (!buffer_start || !buffer_len)
+        return RULE_NOMATCH;
+
+    if (relative)
+    {
+        if ( checkCursorSimple(*cursor, pcre_info->flags, buffer_start, buffer_start+buffer_len,
+            pcre_info->offset) == CURSOR_OUT_OF_BOUNDS )
+            return RULE_NOMATCH;
+
+        buffer_len = (buffer_start + buffer_len) - *cursor;
+        buffer_start = *cursor;
     }
 
     pcre_found = pcre_test(pcre_info, (const char *)buffer_start, buffer_len, pcre_info->offset, &pcre_offset);

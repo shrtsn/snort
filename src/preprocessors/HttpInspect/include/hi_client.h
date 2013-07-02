@@ -166,7 +166,7 @@ typedef struct s_HI_CLIENT_REQ
     uint16_t header_encode_type;
     uint16_t cookie_encode_type;
     uint16_t post_encode_type;
-
+    const u_char *content_type;
 
 }  HI_CLIENT_REQ;
 
@@ -188,7 +188,7 @@ typedef struct s_HI_CLIENT_HDR_ARGS
     int true_clnt_xff;
 } HI_CLIENT_HDR_ARGS;
 
-int hi_client_inspection(void *Session, const unsigned char *data, int dsize, HttpSessionData *hsd, int stream_ins);
+int hi_client_inspection(Packet *p, void *Session, HttpSessionData *hsd, int stream_ins);
 int hi_client_init(HTTPINSPECT_GLOBAL_CONF *GlobalConf);
 
 extern const u_char *proxy_start;

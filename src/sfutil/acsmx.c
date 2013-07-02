@@ -535,14 +535,51 @@ static int acsmBuildMatchStateTrees( ACSM_STRUCT * acsm,
     return cnt;
 }
 
+static int acsmBuildMatchStateTreesWithSnortConf( struct _SnortConfig *sc, ACSM_STRUCT * acsm,
+                                                  int (*build_tree)(struct _SnortConfig *, void * id, void **existing_tree),
+                                                  int (*neg_list_func)(void *id, void **list) )
+{
+    int i, cnt = 0;
+    ACSM_PATTERN * mlist;
+
+    /* Find the states that have a MatchList */
+    for (i = 0; i < acsm->acsmMaxStates; i++)
+    {
+        for ( mlist=acsm->acsmStateTable[i].MatchList;
+              mlist!=NULL;
+              mlist=mlist->next )
+        {
+            if (mlist->udata->id)
+            {
+                if (mlist->negative)
+                {
+                    neg_list_func(mlist->udata->id, &acsm->acsmStateTable[i].MatchList->neg_list);
+                }
+                else
+                {
+                    build_tree(sc, mlist->udata->id, &acsm->acsmStateTable[i].MatchList->rule_option_tree);
+                }
+            }
+
+            cnt++;
+        }
+
+        if (acsm->acsmStateTable[i].MatchList)
+        {
+            /* Last call to finalize the tree */
+            build_tree(sc, NULL, &acsm->acsmStateTable[i].MatchList->rule_option_tree);
+        }
+    }
+
+    return cnt;
+}
+
 
 /*
 *   Compile State Machine
 */
-int
-acsmCompile (ACSM_STRUCT * acsm,
-             int (*build_tree)(void * id, void **existing_tree),
-             int (*neg_list_func)(void *id, void **list))
+static inline int
+_acsmCompile (ACSM_STRUCT * acsm)
 {
     int i, k;
     ACSM_PATTERN * plist;
@@ -600,6 +637,19 @@ acsmCompile (ACSM_STRUCT * acsm,
 
     //Print_DFA( acsm );
 
+    return 0;
+}
+
+int
+acsmCompile (ACSM_STRUCT * acsm,
+             int (*build_tree)(void * id, void **existing_tree),
+             int (*neg_list_func)(void *id, void **list))
+{
+    int rval;
+
+    if ((rval = _acsmCompile (acsm)))
+        return rval;
+
     if (build_tree && neg_list_func)
     {
         acsmBuildMatchStateTrees(acsm, build_tree, neg_list_func);
@@ -608,6 +658,23 @@ acsmCompile (ACSM_STRUCT * acsm,
     return 0;
 }
 
+int
+acsmCompileWithSnortConf (struct _SnortConfig *sc, ACSM_STRUCT * acsm,
+                          int (*build_tree)(struct _SnortConfig *, void * id, void **existing_tree),
+                          int (*neg_list_func)(void *id, void **list))
+{
+    int rval;
+
+    if ((rval = _acsmCompile (acsm)))
+        return rval;
+
+    if (build_tree && neg_list_func)
+    {
+        acsmBuildMatchStateTreesWithSnortConf(sc, acsm, build_tree, neg_list_func);
+    }
+
+    return 0;
+}
 
 static unsigned char Tc[64*1024];
 

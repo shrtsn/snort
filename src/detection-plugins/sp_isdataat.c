@@ -77,7 +77,7 @@ extern char *file_name;  /* this is the file name from rules.c, generally used
 extern int file_line;    /* this is the file line number from rules.c that is
                             used to indicate file lines for error messages */
 
-void IsDataAtInit(char *, OptTreeNode *, int);
+void IsDataAtInit(struct _SnortConfig *, char *, OptTreeNode *, int);
 void IsDataAtParse(char *, IsDataAtData *, OptTreeNode *);
 int  IsDataAt(void *option_data, Packet *p);
 
@@ -142,7 +142,7 @@ void SetupIsDataAt(void)
 
 /****************************************************************************
  *
- * Function: IsDataAt(char *, OptTreeNode *, int protocol)
+ * Function: IsDataAt(struct _SnortConfig *, char *, OptTreeNode *, int protocol)
  *
  * Purpose: Generic rule configuration function.  Handles parsing the rule
  *          information and attaching the associated detection function to
@@ -155,7 +155,7 @@ void SetupIsDataAt(void)
  * Returns: void function
  *
  ****************************************************************************/
-void IsDataAtInit(char *data, OptTreeNode *otn, int protocol)
+void IsDataAtInit(struct _SnortConfig *sc, char *data, OptTreeNode *otn, int protocol)
 {
     IsDataAtData *idx;
     OptFpList *fpl;
@@ -175,7 +175,7 @@ void IsDataAtInit(char *data, OptTreeNode *otn, int protocol)
        rule option's data structure */
     IsDataAtParse(data, idx, otn);
 
-    if (add_detection_option(RULE_OPTION_TYPE_IS_DATA_AT, (void *)idx, &idx_dup) == DETECTION_OPTION_EQUAL)
+    if (add_detection_option(sc, RULE_OPTION_TYPE_IS_DATA_AT, (void *)idx, &idx_dup) == DETECTION_OPTION_EQUAL)
     {
         free(idx);
         idx = idx_dup;

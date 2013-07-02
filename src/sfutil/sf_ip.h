@@ -68,8 +68,8 @@
 #endif
 
 typedef struct _ip {
-    int family;
-    int bits;
+    int16_t family;
+    int16_t bits;
 
     /* see sfip_size(): these address bytes
      * must be the last field in this struct */
@@ -150,7 +150,7 @@ static inline unsigned int sfip_size(sfip_t* ipt)
 #define sfip_family(ip) ip->family
 
 /* Returns the number of bits used for masking "ip" */
-static inline unsigned char sfip_bits(sfip_t *ip) {
+static inline unsigned char sfip_bits(const sfip_t *ip) {
     ARG_CHECK1(ip, 0);
     return (unsigned char)ip->bits;
 }
@@ -174,12 +174,12 @@ static inline void sfip_set_bits(sfip_t *p, int bits) {
 
 /* Check if ip is contained within the network specified by net */
 /* Returns SFIP_EQUAL if so */
-SFIP_RET sfip_contains(sfip_t *net, sfip_t *ip);
+SFIP_RET sfip_contains(const sfip_t *net, const sfip_t *ip);
 
 /* Returns 1 if the IP is non-zero. 0 otherwise */
 /* XXX This is a performance critical function, \
  *  need to determine if it's safe to not check these pointers */\
-static inline int sfip_is_set(sfip_t *ip) {
+static inline int sfip_is_set(const sfip_t *ip) {
 //    ARG_CHECK1(ip, -1);
     return ip->ip32[0] ||
             ( (ip->family == AF_INET6) &&
@@ -189,10 +189,10 @@ static inline int sfip_is_set(sfip_t *ip) {
 }
 
 /* Return 1 if the IP is a loopback IP */
-int sfip_is_loopback(sfip_t *ip);
+int sfip_is_loopback(const sfip_t *ip);
 
 /* Returns 1 if the IPv6 address appears mapped. 0 otherwise. */
-int sfip_ismapped(sfip_t *ip);
+int sfip_ismapped(const sfip_t *ip);
 
 /* Support function for sfip_compare */
 static inline SFIP_RET _ip4_cmp(u_int32_t ip1, u_int32_t ip2) {
@@ -204,9 +204,9 @@ static inline SFIP_RET _ip4_cmp(u_int32_t ip1, u_int32_t ip2) {
 }
 
 /* Support function for sfip_compare */
-static inline SFIP_RET _ip6_cmp(sfip_t *ip1, sfip_t *ip2) {
+static inline SFIP_RET _ip6_cmp(const sfip_t *ip1, const sfip_t *ip2) {
     SFIP_RET ret;
-    u_int32_t *p1, *p2;
+    const u_int32_t *p1, *p2;
 
     /* XXX
      * Argument are assumed trusted!
@@ -230,7 +230,7 @@ static inline SFIP_RET _ip6_cmp(sfip_t *ip1, sfip_t *ip2) {
  * or greater than ip2 In the case of mismatched families, the IPv4 address
  * is converted to an IPv6 representation. */
 /* XXX-IPv6 Should add version of sfip_compare that just tests equality */
-static inline SFIP_RET sfip_compare(sfip_t *ip1, sfip_t *ip2) {
+static inline SFIP_RET sfip_compare(const sfip_t *ip1, const sfip_t *ip2) {
     int f1,f2;
 
     ARG_CHECK2(ip1, ip2, SFIP_ARG_ERR);
@@ -271,7 +271,7 @@ static inline SFIP_RET sfip_compare(sfip_t *ip1, sfip_t *ip2) {
  * or greater than ip2 In the case of mismatched families, the IPv4 address
  * is converted to an IPv6 representation. */
 /* XXX-IPv6 Should add version of sfip_compare that just tests equality */
-static inline SFIP_RET sfip_compare_unset(sfip_t *ip1, sfip_t *ip2) {
+static inline SFIP_RET sfip_compare_unset(const sfip_t *ip1, const sfip_t *ip2) {
     int f1,f2;
 
     ARG_CHECK2(ip1, ip2, SFIP_ARG_ERR);
@@ -308,18 +308,18 @@ static inline SFIP_RET sfip_compare_unset(sfip_t *ip1, sfip_t *ip2) {
     return SFIP_FAILURE;
 }
 
-static inline int sfip_fast_lt4(sfip_t *ip1, sfip_t *ip2) {
+static inline int sfip_fast_lt4(const sfip_t *ip1, const sfip_t *ip2) {
     return *ip1->ip32 < *ip2->ip32;
 }
-static inline int sfip_fast_gt4(sfip_t *ip1, sfip_t *ip2) {
+static inline int sfip_fast_gt4(const sfip_t *ip1, const sfip_t *ip2) {
     return *ip1->ip32 > *ip2->ip32;
 }
-static inline int sfip_fast_eq4(sfip_t *ip1, sfip_t *ip2) {
+static inline int sfip_fast_eq4(const sfip_t *ip1, const sfip_t *ip2) {
     return *ip1->ip32 == *ip2->ip32;
 }
 
-static inline int sfip_fast_lt6(sfip_t *ip1, sfip_t *ip2) {
-    u_int32_t *p1, *p2;
+static inline int sfip_fast_lt6(const sfip_t *ip1, const sfip_t *ip2) {
+    const u_int32_t *p1, *p2;
 
     p1 = ip1->ip32;
     p2 = ip2->ip32;
@@ -339,8 +339,8 @@ static inline int sfip_fast_lt6(sfip_t *ip1, sfip_t *ip2) {
     return 0;
 }
 
-static inline int sfip_fast_gt6(sfip_t *ip1, sfip_t *ip2) {
-    u_int32_t *p1, *p2;
+static inline int sfip_fast_gt6(const sfip_t *ip1, const sfip_t *ip2) {
+    const u_int32_t *p1, *p2;
 
     p1 = ip1->ip32;
     p2 = ip2->ip32;
@@ -360,8 +360,8 @@ static inline int sfip_fast_gt6(sfip_t *ip1, sfip_t *ip2) {
     return 0;
 }
 
-static inline int sfip_fast_eq6(sfip_t *ip1, sfip_t *ip2) {
-    u_int32_t *p1, *p2;
+static inline int sfip_fast_eq6(const sfip_t *ip1, const sfip_t *ip2) {
+    const u_int32_t *p1, *p2;
 
     p1 = ip1->ip32;
     p2 = ip2->ip32;
@@ -375,7 +375,7 @@ static inline int sfip_fast_eq6(sfip_t *ip1, sfip_t *ip2) {
 }
 
 /* Checks if ip2 is equal to ip1 or contained within the CIDR ip1 */
-static inline int sfip_fast_cont4(sfip_t *ip1, sfip_t *ip2) {
+static inline int sfip_fast_cont4(const sfip_t *ip1, const sfip_t *ip2) {
     u_int32_t shift = 32 - sfip_bits(ip1);
     u_int32_t ip = ntohl(*ip2->ip32);
 
@@ -386,7 +386,7 @@ static inline int sfip_fast_cont4(sfip_t *ip1, sfip_t *ip2) {
 }
 
 /* Checks if ip2 is equal to ip1 or contained within the CIDR ip1 */
-static inline int sfip_fast_cont6(sfip_t *ip1, sfip_t *ip2) {
+static inline int sfip_fast_cont6(const sfip_t *ip1, const sfip_t *ip2) {
     u_int32_t ip;
     int i, bits = sfip_bits(ip1);
     int words = bits / 32;
@@ -410,7 +410,7 @@ static inline int sfip_fast_cont6(sfip_t *ip1, sfip_t *ip2) {
 /* Compares two IPs
  * Returns 1 for equal and 0 for not equal
  */
-static inline int sfip_fast_equals_raw(sfip_t *ip1, sfip_t *ip2)
+static inline int sfip_fast_equals_raw(const sfip_t *ip1, const sfip_t *ip2)
 {
     int f1,f2;
 
@@ -449,9 +449,9 @@ static inline int sfip_fast_equals_raw(sfip_t *ip1, sfip_t *ip2)
  *  0  otherwise
  *
  ********************************************************************/
-static inline int sfip_is_private(sfip_t *ip)
+static inline int sfip_is_private(const sfip_t *ip)
 {
-    unsigned int *p;
+    const unsigned int *p;
 
     ARG_CHECK1(ip, 0);
 

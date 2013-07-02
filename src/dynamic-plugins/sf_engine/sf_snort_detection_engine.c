@@ -46,10 +46,10 @@
 #include "bmh.h"
 #include "sf_snort_detection_engine.h"
 
-#define MAJOR_VERSION   1
-#define MINOR_VERSION   17
-#define BUILD_VERSION   18
-#define DETECT_NAME     "SF_SNORT_DETECTION_ENGINE"
+#define MAJOR_VERSION   REQ_ENGINE_LIB_MAJOR
+#define MINOR_VERSION   REQ_ENGINE_LIB_MINOR
+#define BUILD_VERSION   1
+#define DETECT_NAME     REQ_ENGINE_LIB_NAME
 
 #ifdef WIN32
 #ifndef PATH_MAX
@@ -785,7 +785,7 @@ static int Base64DecodeInitialize(Rule *rule, base64DecodeData *content)
     return 0;
 }
 
-int RegisterOneRule(Rule *rule, int registerRule)
+int RegisterOneRule(struct _SnortConfig *sc, Rule *rule, int registerRule)
 {
     int i;
     int contentFlags = 0;
@@ -844,7 +844,7 @@ int RegisterOneRule(Rule *rule, int registerRule)
 
                     if (pcre->compiled_expr == NULL)
                     {
-                        if (PCRESetup(rule, pcre))
+                        if (PCRESetup(sc, rule, pcre))
                         {
                             rule->initialized = 0;
                             FreeOneRule(rule);
@@ -905,7 +905,7 @@ int RegisterOneRule(Rule *rule, int registerRule)
             case OPTION_TYPE_LOOP:
                 {
                     LoopInfo *loopInfo = option->option_u.loop;
-                    result = LoopInfoInitialize(rule, loopInfo);
+                    result = LoopInfoInitialize(sc, rule, loopInfo);
                     if (result)
                     {
                         /* Don't initialize this rule */
@@ -920,7 +920,7 @@ int RegisterOneRule(Rule *rule, int registerRule)
                 {
                     PreprocessorOption *preprocOpt = option->option_u.preprocOpt;
 
-                    if (_ded.preprocRuleOptInit((void *)preprocOpt) == -1)
+                    if (_ded.preprocRuleOptInit(sc, (void *)preprocOpt) == -1)
                     {
                         /* Don't initialize this rule */
                         rule->initialized = 0;
@@ -988,6 +988,7 @@ int RegisterOneRule(Rule *rule, int registerRule)
     {
         /* Allocate an OTN and link it in with snort */
         if (_ded.ruleRegister(
+                    sc,
                     rule->info.sigID,
                     rule->info.genID,
                     (void *)rule,
@@ -1111,7 +1112,7 @@ static void FreeOneRule(void *data)
             case OPTION_TYPE_BASE64_DECODE:
             case OPTION_TYPE_ASN1:
                 break;
-                
+
             case OPTION_TYPE_FLOWBIT:
                 {
                     FlowBitsInfo *flowbits = option->option_u.flowBit;
@@ -1249,14 +1250,14 @@ static int DumpRule(FILE *fp, Rule *rule)
     return 0;
 }
 
-ENGINE_LINKAGE int RegisterRules(Rule **rules)
+ENGINE_LINKAGE int RegisterRules(struct _SnortConfig *sc, Rule **rules)
 {
     int i;
 
     for (i=0; rules[i] != NULL; i++)
     {
         if (rules[i]->initialized == 0)
-            RegisterOneRule(rules[i], REGISTER_RULE);
+            RegisterOneRule(sc, rules[i], REGISTER_RULE);
     }
 
     return 0;

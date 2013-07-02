@@ -62,7 +62,7 @@ extern char *file_name;  /* this is the file name from rules.c, generally used
 extern int file_line;    /* this is the file line number from rules.c that is
                             used to indicate file lines for error messages */
 
-void Base64DecodeInit(char *, OptTreeNode *, int);
+void Base64DecodeInit(struct _SnortConfig *, char *, OptTreeNode *, int);
 void Base64DecodeParse(char *, Base64DecodeData *, OptTreeNode *);
 int  Base64DecodeEval(void *option_data, Packet *p);
 
@@ -128,7 +128,7 @@ void SetupBase64Decode(void)
 
 /****************************************************************************
  *
- * Function: Base64DecodeInit(char *, OptTreeNode *, int protocol)
+ * Function: Base64DecodeInit(struct _SnortConfig *, char *, OptTreeNode *, int protocol)
  *
  * Purpose: Generic rule configuration function.  Handles parsing the rule
  *          information and attaching the associated detection function to
@@ -141,7 +141,7 @@ void SetupBase64Decode(void)
  * Returns: void function
  *
  ****************************************************************************/
-void Base64DecodeInit(char *data, OptTreeNode *otn, int protocol)
+void Base64DecodeInit(struct _SnortConfig *sc, char *data, OptTreeNode *otn, int protocol)
 {
     Base64DecodeData *idx;
     OptFpList *fpl;
@@ -166,7 +166,7 @@ void Base64DecodeInit(char *data, OptTreeNode *otn, int protocol)
 
     Base64DecodeParse(data, idx, otn);
 
-    if (add_detection_option(RULE_OPTION_TYPE_BASE64_DECODE, (void *)idx, &idx_dup) == DETECTION_OPTION_EQUAL)
+    if (add_detection_option(sc, RULE_OPTION_TYPE_BASE64_DECODE, (void *)idx, &idx_dup) == DETECTION_OPTION_EQUAL)
     {
         free(idx);
         idx = otn->ds_list[PLUGIN_BASE64_DECODE] = idx_dup;

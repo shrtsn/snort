@@ -227,6 +227,11 @@
 116 || 457 || snort_decoder: WARNING: ICMPv6 packet of type 1 (destination unreachable) with non-RFC 4443 code 
 116 || 458 || snort_decoder: WARNING: bogus fragmentation packet. Possible BSD attack
 116 || 459 || snort_decoder: WARNING: zero length fragment
+116 || 460 || snort_decoder: WARNING: ICMPv6 node info query/response packet with a code greater than 2
+116 || 461 || snort_decoder: WARNING: Deprecated IPv6 Type 0 Routing Header
+116 || 462 || snort_decoder: WARNING: ERSpan Header version mismatch
+116 || 463 || snort_decoder: WARNING: captured < ERSpan Type2 Header Length
+116 || 464 || snort_decoder: WARNING: captured < ERSpan Type3 Header Length
 117 || 1 || spp_portscan2: Portscan detected
 118 || 1 || spp_conversation: Bad IP protocol
 119 || 1 || http_inspect: ASCII ENCODING
@@ -261,6 +266,8 @@
 119 || 30 || http_inspect: BOTH TRUE_CLIENT_IP AND XFF HDRS PRESENT
 119 || 31 || http_inspect: UNKNOWN METHOD
 119 || 32 || http_inspect: SIMPLE REQUEST
+119 || 33 || http_inspect: UNESCAPED SPACE IN HTTP URI 
+119 || 34 || http_inspect: TOO MANY PIPELINED REQUESTS
 120 || 1 || http_inspect: ANOMALOUS HTTP SERVER ON UNDEFINED HTTP PORT
 120 || 2 || http_inspect: INVALID STATUS CODE IN HTTP RESPONSE
 120 || 3 || http_inspect: NO CONTENT-LENGTH OR TRANSFER-ENCODING IN HTTP RESPONSE

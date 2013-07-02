@@ -43,6 +43,10 @@ typedef struct _fileConfig
     RuleInfo *FileRules[FILE_ID_MAX + 1];
     int64_t file_type_depth;
     int64_t file_signature_depth;
+    int64_t file_block_timeout;
+    int64_t file_lookup_timeout;
+    bool block_timeout_lookup;
+
 #if defined(DEBUG_MSGS) || defined (REG_TEST)
     int64_t show_data_depth;
 #endif

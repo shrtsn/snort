@@ -66,8 +66,8 @@ extern PreprocStats ruleOTNEvalPerfStats;
  */
 static int s_pcre_init = 1;
 
-void SnortPcreInit(char *, OptTreeNode *, int);
-void SnortPcreParse(char *, PcreData *, OptTreeNode *);
+void SnortPcreInit(struct _SnortConfig *, char *, OptTreeNode *, int);
+void SnortPcreParse(struct _SnortConfig *, char *, PcreData *, OptTreeNode *);
 void SnortPcreDump(PcreData *);
 int SnortPcre(void *option_data, Packet *p);
 
@@ -190,12 +190,11 @@ void SetupPcre(void)
 #endif
 }
 
-static void Ovector_Init(int unused, void *data)
+static void Ovector_Init(struct _SnortConfig *sc, int unused, void *data)
 {
     /* Since SO rules are loaded 1 time at startup, regardless of
      * configuraton, we won't pcre capture count again, so save the max.  */
     static int s_ovector_max = 0;
-    SnortConfig *sc = getWorkingConf(); 
 
     /* The pcre_fullinfo() function can be used to find out how many
      * capturing subpatterns there are in a compiled pattern. The
@@ -212,15 +211,14 @@ static void Ovector_Init(int unused, void *data)
 }
 
 #if SNORT_RELOAD
-static void Ovector_Reload(int unused, void *data)
+static void Ovector_Reload(struct _SnortConfig *sc, int unused, void *data)
 {
-    Ovector_Init(unused, data);
+    Ovector_Init(sc, unused, data);
 }
 #endif
 
-void PcreCapture(const void *code, const void *extra)
+void PcreCapture(struct _SnortConfig *sc, const void *code, const void *extra)
 {
-    SnortConfig *sc = getWorkingConf();
     int tmp_ovector_size = 0;
 
     pcre_fullinfo((const pcre *)code, (const pcre_extra *)extra,
@@ -231,7 +229,7 @@ void PcreCapture(const void *code, const void *extra)
 
     if (s_pcre_init)
     {
-        AddFuncToPostConfigList(Ovector_Init, NULL);
+        AddFuncToPostConfigList(sc, Ovector_Init, NULL);
 #if SNORT_RELOAD
         AddFuncToReloadList(Ovector_Reload, NULL);
 #endif
@@ -240,7 +238,7 @@ void PcreCapture(const void *code, const void *extra)
 
 }
 
-void SnortPcreInit(char *data, OptTreeNode *otn, int protocol)
+void SnortPcreInit(struct _SnortConfig *sc, char *data, OptTreeNode *otn, int protocol)
 {
     PcreData *pcre_data;
     OptFpList *fpl;
@@ -251,14 +249,14 @@ void SnortPcreInit(char *data, OptTreeNode *otn, int protocol)
      */
     pcre_data = (PcreData *) SnortAlloc(sizeof(PcreData));
 
-    SnortPcreParse(data, pcre_data, otn);
+    SnortPcreParse(sc, data, pcre_data, otn);
 
     otn->pcre_flag = 1;
 
     fpl = AddOptFuncToList(SnortPcre, otn);
     fpl->type = RULE_OPTION_TYPE_PCRE;
 
-    if (add_detection_option(RULE_OPTION_TYPE_PCRE, (void *)pcre_data, &pcre_dup) == DETECTION_OPTION_EQUAL)
+    if (add_detection_option(sc, RULE_OPTION_TYPE_PCRE, (void *)pcre_data, &pcre_dup) == DETECTION_OPTION_EQUAL)
     {
 #ifdef DEBUG_RULE_OPTION_TREE
         LogMessage("Duplicate PCRE:\n%d %s\n%d %s\n\n",
@@ -319,7 +317,7 @@ static inline void ValidatePcreHttpContentModifiers(PcreData *pcre_data)
                 "the same content\n", file_name, file_line);
 }
 
-void SnortPcreParse(char *data, PcreData *pcre_data, OptTreeNode *otn)
+void SnortPcreParse(struct _SnortConfig *sc, char *data, PcreData *pcre_data, OptTreeNode *otn)
 {
     const char *error;
     char *re, *free_me;
@@ -507,7 +505,7 @@ void SnortPcreParse(char *data, PcreData *pcre_data, OptTreeNode *otn)
                    file_line, error);
     }
 
-    PcreCapture(pcre_data->re, pcre_data->pe);
+    PcreCapture(sc, pcre_data->re, pcre_data->pe);
 
     PcreCheckAnchored(pcre_data);
 

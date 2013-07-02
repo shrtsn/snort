@@ -84,12 +84,11 @@ int hi_mi_mode_inspection(HI_SESSION *Session, int iInspectMode,
     */
     if(iInspectMode == HI_SI_CLIENT_MODE)
     {
-#ifdef ENABLE_PAF
         if ( ScPafEnabled() )
-            iRet = hi_client_inspection((void *)Session, p->data, p->dsize, hsd, !PacketHasStartOfPDU(p));
+            iRet = hi_client_inspection(p, (void *)Session, hsd, !PacketHasStartOfPDU(p));
         else
-#endif
-            iRet = hi_client_inspection((void *)Session, p->data, p->dsize, hsd, p->packet_flags & PKT_STREAM_INSERT);
+            iRet = hi_client_inspection(p, (void *)Session, hsd, p->packet_flags & PKT_STREAM_INSERT);
+
         if (iRet)
             return iRet;
     }

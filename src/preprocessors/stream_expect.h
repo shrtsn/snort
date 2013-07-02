@@ -49,8 +49,8 @@ int StreamExpectAddChannel(snort_ip_p cliIP, uint16_t cliPort,
                            void *appData, void (*appDataFreeFn)(void*));
 
 int StreamExpectIsExpected(Packet *p, SFXHASH_NODE **expected_hash_node);
-char SteamExpectProcessNode(Packet *p, Stream5LWSession* lws, SFXHASH_NODE *expected_hash_node);
-char SteamExpectCheck(Packet *, Stream5LWSession *);
+char StreamExpectProcessNode(Packet *p, Stream5LWSession* lws, SFXHASH_NODE *expected_hash_node);
+char StreamExpectCheck(Packet *, Stream5LWSession *);
 void StreamExpectInit(void);
 void StreamExpectCleanup(void);
 

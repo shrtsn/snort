@@ -95,7 +95,7 @@ typedef struct _SessionData
     int session_flag;
 } SessionData;
 
-void SessionInit(char *, OptTreeNode *, int);
+void SessionInit(struct _SnortConfig *, char *, OptTreeNode *, int);
 void ParseSession(char *, OptTreeNode *);
 int LogSessionData(void *option_data, Packet *p);
 void DumpSessionData(FILE *, Packet *, SessionData *);
@@ -156,7 +156,7 @@ void SetupSession(void)
 
 /**************************************************************************
  *
- * Function: SessionInit(char *, OptTreeNode *)
+ * Function: SessionInit(struct _SnortConfig *, char *, OptTreeNode *)
  *
  * Purpose: Initialize the sesion plugin, parsing the rule parameters and
  *          setting up any necessary data structures.
@@ -167,7 +167,7 @@ void SetupSession(void)
  * Returns: void function
  *
  *************************************************************************/
-void SessionInit(char *data, OptTreeNode *otn, int protocol)
+void SessionInit(struct _SnortConfig *sc, char *data, OptTreeNode *otn, int protocol)
 {
     OptFpList *fpl;
 
@@ -257,7 +257,7 @@ void ParseSession(char *data, OptTreeNode *otn)
     FatalError("%s(%d): invalid session modifier: %s\n", file_name, file_line, data);
 
 #if 0
-    if (add_detection_option(RULE_OPTION_TYPE_SESSION, (void *)ds_ptr, &ds_ptr_dup) == DETECTION_OPTION_EQUAL)
+    if (add_detection_option(sc, RULE_OPTION_TYPE_SESSION, (void *)ds_ptr, &ds_ptr_dup) == DETECTION_OPTION_EQUAL)
     {
         free(ds_ptr);
         ds_ptr = otn->ds_list[PLUGIN_SESSION] = ds_ptr_dup;

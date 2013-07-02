@@ -21,11 +21,6 @@
 #ifndef SDF_US_SSN__H
 #define SDF_US_SSN__H
 
-#include "spp_sdf.h"
-
-/* This is the maximum defined area number */
-#define MAX_AREA 772
-
 struct _SDFConfig;  /* Forward declaration of SDFConfig */
 
 int SDFSocialCheck(char *buf, uint32_t buflen, struct _SDFConfig *config);

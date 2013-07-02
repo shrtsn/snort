@@ -53,6 +53,7 @@
 #include "sf_protocols.h"
 #include "sfdaq.h"
 #include "util.h"
+#include "sf_types.h"
 
 /*  D E F I N E S  ************************************************************/
 
@@ -69,6 +70,8 @@
 #define ETHERNET_TYPE_LOOP            0x9000
 #define ETHERNET_TYPE_MPLS_UNICAST    0x8847
 #define ETHERNET_TYPE_MPLS_MULTICAST  0x8848
+#define ETHERNET_TYPE_ERSPAN_TYPE2    0x88be
+#define ETHERNET_TYPE_ERSPAN_TYPE3    0x22eb
 
 #define ETH_DSAP_SNA                  0x08    /* SNA */
 #define ETH_SSAP_SNA                  0x00    /* SNA */
@@ -332,6 +335,9 @@ struct enc_header {
 #define TCPOPT_UNASSIGNED          25  /* Unassigned (released 12/18/00) */
 #define TCPOPT_COMPRESSION         26  /* TCP Compression Filter [Bellovin] */
 /* http://www.research.att.com/~smb/papers/draft-bellovin-tcpcomp-00.txt*/
+
+#define TCPOPT_AUTH   29  /* [RFC5925] - The TCP Authentication Option
+                             Intended to replace MD5 Signature Option [RFC2385] */
 
 #define TCP_OPT_TRUNC -1
 #define TCP_OPT_BADLEN -2
@@ -608,8 +614,8 @@ struct enc_header {
                                          /* don't alert if "next layer" is invalid. */
 #define PKT_HTTP_DECODE      0x00000800  /* this packet has normalized http */
 
-#define PKT_IGNORE_PORT           0x00001000  /* this packet should be ignored, based on port */
-#define PKT_NO_DETECT             0x00002000  /* this packet should not be preprocessed */
+#define PKT_IGNORE           0x00001000  /* this packet should be ignored, based on port */
+#define PKT_TRUST            0x00002000  /* this packet should fallback to being whitelisted if no other verdict was specified */
 #define PKT_ALLOW_MULTIPLE_DETECT 0x00004000  /* packet has either pipelined mime attachements */
                                               /* or pipeline http requests */
 #define PKT_PAYLOAD_OBFUSCATE     0x00008000
@@ -713,8 +719,8 @@ typedef struct _Trh_llc
 
 #define TRH_MR_BCAST(trhmr)  ((ntohs((trhmr)->bcast_len_dir_lf_res) & 0xe000) >> 13)
 #define TRH_MR_LEN(trhmr)    ((ntohs((trhmr)->bcast_len_dir_lf_res) & 0x1F00) >> 8)
-#define TRH_MR_DIR(trhmr)    ((ntohs((trhmr)->bcast_len_dir_lf_res) & 0x0080) >> 8)
-#define TRH_MR_LF(trhmr)     ((ntohs((trhmr)->bcast_len_dir_lf_res) & 0x0070) >> 7)
+#define TRH_MR_DIR(trhmr)    ((ntohs((trhmr)->bcast_len_dir_lf_res) & 0x0080) >> 7)
+#define TRH_MR_LF(trhmr)     ((ntohs((trhmr)->bcast_len_dir_lf_res) & 0x0070) >> 4)
 #define TRH_MR_RES(trhmr)     ((ntohs((trhmr)->bcast_len_dir_lf_res) & 0x000F))
 
 typedef struct _Trh_mr
@@ -806,7 +812,7 @@ typedef struct _SLLHdr {
  * Pflog1_Hdr:  CVS = 1.3,  DLT_OLD_PFLOG = 17,  Length = 28
  * Pflog2_Hdr:  CVS = 1.8,  DLT_PFLOG     = 117, Length = 48
  * Pflog3_Hdr:  CVS = 1.12, DLT_PFLOG     = 117, Length = 64
- * Pflog3_Hdr:  CVS = 1.172, DLT_PFLOG     = 117, Length = 100 
+ * Pflog3_Hdr:  CVS = 1.172, DLT_PFLOG     = 117, Length = 100
  *
  * Since they have the same DLT, Pflog{2,3}Hdr are distinguished
  * by their actual length.  The minimum required length excludes
@@ -928,7 +934,7 @@ typedef struct _Pflog4_hdr
 #endif
 
 #define VTH_PRIORITY(vh)  ((ntohs((vh)->vth_pri_cfi_vlan) & 0xe000) >> 13)
-#define VTH_CFI(vh)       ((ntohs((vh)->vth_pri_cfi_vlan) & 0x0100) >> 12)
+#define VTH_CFI(vh)       ((ntohs((vh)->vth_pri_cfi_vlan) & 0x1000) >> 12)
 #define VTH_VLAN(vh)      ((unsigned short)(ntohs((vh)->vth_pri_cfi_vlan) & 0x0FFF))
 
 typedef struct _VlanTagHdr
@@ -1091,29 +1097,24 @@ struct in6_addr
 
 typedef struct _IP6RawHdr
 {
-    union
-    {
-        struct _IP6HdrCtl
-        {
-            uint32_t ip6_un1_flow;   /* 4 bits version, 8 bits TC,
+    uint32_t ip6_vtf;               /* 4 bits version, 8 bits TC,
                                         20 bits flow-ID */
-            uint16_t ip6_un1_plen;   /* payload length */
-            uint8_t  ip6_un1_nxt;    /* next header */
-            uint8_t  ip6_un1_hlim;   /* hop limit */
-        } IP6HdrCtl;
-        uint8_t ip6_un2_vfc;       /* 4 bits version, top 4 bits tclass */
-    } IP6Ctl;
+    uint16_t ip6_payload_len;               /* payload length */
+    uint8_t  ip6_next;                /* next header */
+    uint8_t  ip6_hoplim;               /* hop limit */
 
     struct in6_addr ip6_src;      /* source address */
     struct in6_addr ip6_dst;      /* destination address */
 } IP6RawHdr;
 
-#define ip6vfc   IP6Ctl.ip6_un2_vfc
-#define ip6flow  IP6Ctl.IP6HdrCtl.ip6_un1_flow
-#define ip6plen  IP6Ctl.IP6HdrCtl.ip6_un1_plen
-#define ip6nxt   IP6Ctl.IP6HdrCtl.ip6_un1_nxt
-#define ip6hlim  IP6Ctl.IP6HdrCtl.ip6_un1_hlim
-#define ip6hops  IP6Ctl.IP6HdrCtl.ip6_un1_hlim
+#define ip6flow  ip6_vtf
+#define ip6plen  ip6_payload_len
+#define ip6nxt   ip6_next
+#define ip6hlim  ip6_hoplim
+#define ip6hops  ip6_hoplim
+
+#define IPRAW_HDR_VER(p_rawiph) \
+   (ntohl(p_rawiph->ip6_vtf) >> 28)
 
 #define IP6_HDR_LEN 40
 
@@ -1234,6 +1235,16 @@ typedef struct _ICMP6RouterSolicitation
     uint32_t reserved;
 } ICMP6RouterSolicitation;
 
+typedef struct _ICMP6NodeInfo
+{
+    uint8_t type;
+    uint8_t code;
+    uint16_t csum;
+    uint16_t qtype;
+    uint16_t flags;
+    uint64_t nonce;
+} ICMP6NodeInfo;
+
 #define ICMP6_UNREACH 1
 #define ICMP6_BIG    2
 #define ICMP6_TIME   3
@@ -1242,6 +1253,8 @@ typedef struct _ICMP6RouterSolicitation
 #define ICMP6_REPLY  129
 #define ICMP6_SOLICITATION 133
 #define ICMP6_ADVERTISEMENT 134
+#define ICMP6_NODE_INFO_QUERY 139
+#define ICMP6_NODE_INFO_RESPONSE 140
 
 /* Minus 1 due to the 'body' field  */
 #define ICMP6_MIN_HEADER_LEN (sizeof(ICMP6Hdr) )
@@ -1387,6 +1400,29 @@ typedef struct _GREHdr
 #define GRE_V1_ACK_LEN 4
 #define GRE_V1_FLAGS(x)  (x->version & 0x78)
 #define GRE_V1_ACK(x)    (x->version & 0x80)
+
+typedef struct _ERSpanType2Hdr
+{
+    uint16_t ver_vlan;
+    uint16_t flags_spanId;
+    uint32_t pad;
+} ERSpanType2Hdr;
+
+typedef struct _ERSpanType3Hdr
+{
+    uint16_t ver_vlan;
+    uint16_t flags_spanId;
+    uint32_t timestamp;
+    uint16_t pad0;
+    uint16_t pad1;
+    uint32_t pad2;
+    uint32_t pad3;
+} ERSpanType3Hdr;
+
+#define ERSPAN_VERSION(x) ((ntohs(x->ver_vlan) & 0xf000) >> 12)
+#define ERSPAN_VLAN(x) (ntohs(x->ver_vlan) & 0x0fff)
+#define ERSPAN_SPAN_ID(x) (ntohs(x->flags_spanId) & 0x03ff)
+#define ERSPAN3_TIMESTAMP(x) (x->timestamp)
 
 #endif  /* GRE */
 
@@ -1722,11 +1758,9 @@ typedef struct _Packet
     uint32_t preprocessor_bits; /* flags for preprocessors to check */
     uint32_t preproc_reassembly_pkt_bits;
 
-    uint32_t http_pipeline_count; /* Counter for HTTP pipelined requests */
     uint32_t packet_flags;      /* special flags for the packet */
 
     uint32_t xtradata_mask;
-    uint32_t per_packet_xtradata;
 
     uint16_t proto_bits;
 
@@ -1821,6 +1855,8 @@ typedef struct _Packet
 
     uint32_t iplist_id;
     unsigned char iprep_layer;
+
+    uint8_t ps_proto;  // Used for portscan and unified2 logging
 
 } Packet;
 
@@ -1955,6 +1991,7 @@ void DecodeICMPEmbeddedIP6(const uint8_t *, const uint32_t, Packet *);
 void DecodeIPOptions(const uint8_t *, uint32_t, Packet *);
 void DecodeTCPOptions(const uint8_t *, uint32_t, Packet *);
 void DecodeTeredo(const uint8_t *, uint32_t, Packet *);
+void DecodeAH(const uint8_t *, uint32_t, Packet *);
 void DecodeESP(const uint8_t *, uint32_t, Packet *);
 void DecodeGTP(const uint8_t *, uint32_t, Packet *);
 
@@ -2015,7 +2052,7 @@ typedef struct _PortList
 
 } PortList;
 
-void InitSynToMulticastDstIp( void );
+void InitSynToMulticastDstIp( struct _SnortConfig * );
 void SynToMulticastDstIpDestroy( void );
 
 #define SFTARGET_UNKNOWN_PROTOCOL -1
@@ -2025,7 +2062,18 @@ static inline int PacketWasCooked(Packet* p)
     return ( p->packet_flags & PKT_PSEUDO ) != 0;
 }
 
-#ifdef ENABLE_PAF
+static inline bool IsPortscanPacket(const Packet *p)
+{
+    return ((p->packet_flags & PKT_PSEUDO) && (p->pseudo_type == PSEUDO_PKT_PS));
+}
+
+static inline uint8_t GetEventProto(const Packet *p)
+{
+    if (IsPortscanPacket(p))
+        return p->ps_proto;
+    return IPH_IS_VALID(p) ? GET_IPH_PROTO(p) : 0;
+}
+
 static inline bool PacketHasFullPDU (const Packet* p)
 {
     return ( (p->packet_flags & PKT_PDU_FULL) == PKT_PDU_FULL );
@@ -2040,16 +2088,15 @@ static inline bool PacketHasPAFPayload (const Packet* p)
 {
     return ( (p->packet_flags & PKT_REBUILT_STREAM) || PacketHasFullPDU(p) );
 }
-#endif
 
-static inline void SetLogFuncs(Packet *p, uint32_t id, uint8_t per_packet)
+static inline bool PacketIsRebuilt (const Packet* p)
 {
-    if(!id)
-        return;
-    if(per_packet)
-        p->per_packet_xtradata |= BIT(id);
-    else
-        p->xtradata_mask |= BIT(id);
+    return ( (p->packet_flags & (PKT_REBUILT_STREAM|PKT_REBUILT_FRAG)) != 0 );
+}
+
+static inline void SetExtraData (Packet* p, uint32_t xid)
+{
+    p->xtradata_mask |= BIT(xid);
 }
 
 #endif  /* __DECODE_H__ */

@@ -82,4 +82,6 @@
 #define OUTPUT_ERROR_INVAL     -5  /* Invalid argument/request error */
 #define OUTPUT_ERROR_EXISTS    -6  /* Argument or device already exists */
 
+struct _SnortConfig;
+
 #endif /* _OUTPUT_COMMON_H */

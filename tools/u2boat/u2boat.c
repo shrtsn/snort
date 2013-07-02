@@ -69,6 +69,12 @@ static int ConvertLog(FILE *input, FILE *output, char *format)
         ConvertRecord = PcapConversion;
     }
 
+    if (ConvertRecord == NULL)
+    {
+        fprintf(stderr, "Error setting conversion routine, aborting...\n");
+        return FAILURE;
+    }
+
     /* Initialize the record's data pointer */
     tmp_record.data = malloc(MAX_U2RECORD_DATA_LENGTH * sizeof(uint8_t));
     if (tmp_record.data == NULL)

@@ -306,7 +306,7 @@ int SFAT_SetOSPolicy(char *policy_name, int attribute)
     switch (attribute)
     {
         case HOST_INFO_FRAG_POLICY:
-            SnortStrncpy(current_host->hostInfo.fragPolicyName, policy_name, 
+            SnortStrncpy(current_host->hostInfo.fragPolicyName, policy_name,
                 sizeof(current_host->hostInfo.fragPolicyName));
             break;
         case HOST_INFO_STREAM_POLICY:
@@ -395,16 +395,23 @@ int SFAT_SetApplicationAttribute(AttributeData *data, int attribute)
                 char *endPtr = NULL;
                 unsigned long value = SnortStrtoul(data->value.s_value, &endPtr, 10);
                 if ((endPtr == &data->value.s_value[0]) ||
-                    (errno == ERANGE))
+                    (errno == ERANGE) || value > UINT16_MAX)
                 {
                     current_app->port = 0;
                     return SFAT_ERROR;
                 }
-                current_app->port = value;
+
+                current_app->port = (uint16_t)value;
             }
             else
             {
-                current_app->port = data->value.l_value;
+                if (data->value.l_value > UINT16_MAX)
+                {
+                    current_app->port = 0;
+                    return SFAT_ERROR;
+                }
+
+                current_app->port = (uint16_t)data->value.l_value;
             }
             break;
         case APPLICATION_ENTRY_IPPROTO:
@@ -735,7 +742,7 @@ void *SFAT_ReloadAttributeTableThread(void *arg)
     pConfig = &targetBasedPolicyConfig;
 
     sigemptyset(&mtmask);
-    attribute_reload_thread_pid = getpid();
+    attribute_reload_thread_pid = gettid();
 
     /* Get the current set of signals inherited from main thread.*/
     pthread_sigmask(SIG_UNBLOCK, &mtmask, &oldmask);
@@ -1013,7 +1020,7 @@ int SFAT_ParseAttributeTable(char *args)
 void SFAT_StartReloadThread(void)
 {
 #ifndef WIN32
-    if (!IsAdaptiveConfigured(getDefaultPolicy(), 0) || ScDisableAttrReload())
+    if (!IsAdaptiveConfigured(getDefaultPolicy()) || ScDisableAttrReload())
         return;
 
     LogMessage("Attribute Table Reload Thread Starting...\n");
@@ -1032,19 +1039,32 @@ void SFAT_StartReloadThread(void)
 #endif
 }
 
-int IsAdaptiveConfigured(tSfPolicyId id, int parsing)
+int IsAdaptiveConfigured(tSfPolicyId id)
 {
     SnortConfig *sc = snort_conf;
 
-    if (parsing)
+    if (id >= sc->num_policies_allocated)
     {
-        if (snort_conf_for_parsing == NULL)
-        {
-            FatalError("%s(%d) Snort conf for parsing is NULL.\n",
-                       __FILE__, __LINE__);
-        }
+        ErrorMessage("%s(%d) Policy id is greater than the number of policies "
+                     "allocated.\n", __FILE__, __LINE__);
+        return 0;
+    }
 
-        sc = snort_conf_for_parsing;
+    if ((sc->targeted_policies[id] == NULL) ||
+        (sc->targeted_policies[id]->target_based_config.args == NULL))
+    {
+        return 0;
+    }
+
+    return 1;
+}
+
+int IsAdaptiveConfiguredForSnortConfig(struct _SnortConfig *sc, tSfPolicyId id)
+{
+    if (sc == NULL)
+    {
+        FatalError("%s(%d) Snort conf for parsing is NULL.\n",
+                   __FILE__, __LINE__);
     }
 
     if (id >= sc->num_policies_allocated)

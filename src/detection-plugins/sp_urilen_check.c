@@ -16,7 +16,7 @@
  ** You should have received a copy of the GNU General Public License
  ** along with this program; if nto, write to the Free Software
  ** Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301,
- ** USA 
+ ** USA
  */
 
 /*
@@ -56,8 +56,8 @@ extern PreprocStats ruleOTNEvalPerfStats;
 #include "detection_options.h"
 #include "detection_util.h"
 
-void UriLenCheckInit( char*, OptTreeNode*, int );
-void ParseUriLen( char*, OptTreeNode* );
+void UriLenCheckInit( struct _SnortConfig *, char*, OptTreeNode*, int );
+void ParseUriLen( struct _SnortConfig *, char*, OptTreeNode* );
 int CheckUriLen(void *option_data, Packet*p);
 
 uint32_t UriLenCheckHash(void *d)
@@ -125,7 +125,7 @@ void SetupUriLenCheck(void)
  *
  * RETURNS:	Nothing.
  */
-void UriLenCheckInit( char* argp, OptTreeNode* otnp, int protocol )
+void UriLenCheckInit( struct _SnortConfig *sc, char* argp, OptTreeNode* otnp, int protocol )
 {
     /* Sanity check(s) */
     if ( !otnp )
@@ -142,7 +142,7 @@ void UriLenCheckInit( char* argp, OptTreeNode* otnp, int protocol )
 
     otnp->ds_list[PLUGIN_URILEN_CHECK] = SnortAlloc(sizeof(UriLenCheckData));
 
-    ParseUriLen( argp, otnp );
+    ParseUriLen( sc, argp, otnp );
 }
 
 /* Parses the urilen rule arguments and attaches the resulting
@@ -158,7 +158,7 @@ void UriLenCheckInit( char* argp, OptTreeNode* otnp, int protocol )
  *
  * RETURNS:	Nothing.
  */
-void ParseUriLen( char* argp, OptTreeNode* otnp )
+void ParseUriLen( struct _SnortConfig *sc, char* argp, OptTreeNode* otnp )
 {
     OptFpList *fpl;
     UriLenCheckData* datap = (UriLenCheckData*)otnp->ds_list[PLUGIN_URILEN_CHECK];
@@ -290,7 +290,7 @@ void ParseUriLen( char* argp, OptTreeNode* otnp )
     fpl = AddOptFuncToList(CheckUriLen, otnp);
     fpl->type = RULE_OPTION_TYPE_URILEN;
 
-    if (add_detection_option(RULE_OPTION_TYPE_URILEN, (void *)datap, &datap_dup) == DETECTION_OPTION_EQUAL)
+    if (add_detection_option(sc, RULE_OPTION_TYPE_URILEN, (void *)datap, &datap_dup) == DETECTION_OPTION_EQUAL)
     {
         otnp->ds_list[PLUGIN_URILEN_CHECK] = datap_dup;
         free(datap);

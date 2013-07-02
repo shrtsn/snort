@@ -45,6 +45,7 @@
 #include "sfPolicyUserData.h"
 #include "stream5_common.h"
 #include "stream5_paf.h"
+#include "sftarget_protocol_reference.h"
 
 //--------------------------------------------------------------------
 // private state
@@ -68,7 +69,8 @@ typedef struct {
     uint32_t prep_calls;
     uint32_t prep_bytes;
 
-    PAF_Map map[MAXPORTS][2];
+    PAF_Map port_map[MAXPORTS][2];
+    PAF_Map service_map[MAX_PROTOCOL_ORDINAL][2];
 } PAF_Config;
 
 // for cb registration
@@ -143,7 +145,7 @@ static uint32_t s5_paf_flush (
 
 static bool s5_paf_callback (
     PAF_State* ps, void* ssn,
-    const uint8_t* data, uint32_t len, uint32_t flags) 
+    const uint8_t* data, uint32_t len, uint32_t flags)
 {
     PAF_Status paf;
     uint8_t mask = ps->cb_mask;
@@ -203,7 +205,7 @@ static bool s5_paf_callback (
 //--------------------------------------------------------------------
 
 static inline bool s5_paf_eval (
-    PAF_Config* pc, PAF_State* ps, void* ssn, 
+    PAF_Config* pc, PAF_State* ps, void* ssn,
     uint16_t port, uint32_t flags, uint32_t fuzz,
     const uint8_t* data, uint32_t len, FlushType* ft)
 {
@@ -260,16 +262,63 @@ static inline bool s5_paf_eval (
 }
 
 //--------------------------------------------------------------------
+// helper functions
+
+static PAF_Config* get_config (struct _SnortConfig *sc, tSfPolicyId pid)
+{
+    tSfPolicyUserContextId context;
+    Stream5Config* config;
+
+#ifdef SNORT_RELOAD
+    tSfPolicyUserContextId s5_swap_config;
+    s5_swap_config = (tSfPolicyUserContextId)GetReloadStreamConfig(sc);
+    context = s5_swap_config ? s5_swap_config : s5_config;
+#else
+    context = s5_config;
+#endif
+
+#ifdef POLICY_BY_ID_ONLY
+    pid = sfGetDefaultPolicy(NULL);
+#endif
+
+    config = sfPolicyUserDataGet(context, pid);
+
+    if ( !config || !config->tcp_config )
+        return NULL;
+
+    return config->tcp_config->paf_config;
+}
+
+static int install_callback (PAF_Callback cb)
+{
+    int i;
+
+    for ( i = 0; i < s5_cb_idx; i++ )
+    {
+        if ( s5_cb[i] == cb )
+            break;
+    }
+    if ( i == MAX_CB )
+        return -1;
+
+    if ( i == s5_cb_idx )
+    {
+        s5_cb[i] = cb;
+        s5_cb_idx++;
+    }
+    return i;
+}
+
+//--------------------------------------------------------------------
 // public stuff
 //--------------------------------------------------------------------
 
-void s5_paf_setup (void* pv, PAF_State* ps, uint16_t port, bool c2s)
+void s5_paf_setup (PAF_State* ps, uint8_t mask)
 {
-    PAF_Config* pc = pv;
-    PAF_Map* pm = pc->map[port] + (c2s?1:0);
-    memset(ps, 0, sizeof(*ps));
+    // this is already cleared when instantiated
+    //memset(ps, 0, sizeof(*ps));
     ps->paf = PAF_START;
-    ps->cb_mask = pm->cb_mask;
+    ps->cb_mask = mask;
 }
 
 void s5_paf_clear (PAF_State* ps)
@@ -369,56 +418,31 @@ uint32_t s5_paf_check (
 }
 
 //--------------------------------------------------------------------
+// port registration foo
 
-bool s5_paf_register (
+bool s5_paf_register_port (struct _SnortConfig *sc,
     tSfPolicyId pid, uint16_t port, bool c2s, PAF_Callback cb, bool auto_on)
 {
-    tSfPolicyUserContextId context;
-    Stream5Config* config;
+    PAF_Config* pc = get_config(sc, pid);
     int i, dir = c2s ? 1 : 0;
 
-#ifdef SNORT_RELOAD
-	context = s5_swap_config ? s5_swap_config : s5_config;
-#else
-	context = s5_config;
-#endif
-	config = sfPolicyUserDataGet(context, pid);
-
-    if ( !config || !config->tcp_config || !config->tcp_config->paf_config )
+    if ( !pc )
         return false;
 
-    //DEBUG_WRAP(DebugMessage(DEBUG_STREAM_PAF,
-    //    "%s: port=%u, dir=%d\n",  __FUNCTION__, port, c2s);)
+    i = install_callback(cb);
 
-    for ( i = 0; i < s5_cb_idx; i++ )
-    {
-        if ( s5_cb[i] == cb )
-            break;
-    }
-    if ( i == MAX_CB )
+    if ( i < 0 )
         return false;
 
-    if ( i == s5_cb_idx )
-    {
-        s5_cb[i] = cb;
-        s5_cb_idx++;
-    }
-    {
-        PAF_Config* pc = config->tcp_config->paf_config;
+    pc->port_map[port][dir].cb_mask |= (1<<i);
 
-        pc->map[port][dir].cb_mask |= (1<<i);
+    if ( !pc->port_map[port][dir].auto_on )
+        pc->port_map[port][dir].auto_on = (uint8_t)auto_on;
 
-        if ( !pc->map[port][dir].auto_on )
-            pc->map[port][dir].auto_on = (uint8_t)auto_on;
-
-        //printf("%d %s %c %c\n", port, dir?"c2s":"s2c", auto_on?'T':'F',
-        //    pc->map[port][dir].auto_on?'T':'F');
-
-    }
     return true;
 }
 
-bool s5_paf_enabled (void* pv, uint16_t port, bool c2s, bool flush)
+uint8_t s5_paf_port_registration (void* pv, uint16_t port, bool c2s, bool flush)
 {
     PAF_Config* pc = pv;
     PAF_Map* pm;
@@ -426,36 +450,59 @@ bool s5_paf_enabled (void* pv, uint16_t port, bool c2s, bool flush)
     if ( !pc )
         return false;
 
-    pm = pc->map[port] + (c2s?1:0);
+    pm = pc->port_map[port] + (c2s?1:0);
 
     if ( !pm->cb_mask )
-        return false;
+        return 0;
 
-    return ( pm->auto_on ? true : flush );
+    if ( pm->auto_on || flush )
+        return pm->cb_mask;
+
+    return 0;
 }
 
-void s5_paf_print (tSfPolicyId pid, void* pv)
+//--------------------------------------------------------------------
+// service registration foo
+
+bool s5_paf_register_service (struct _SnortConfig *sc,
+    tSfPolicyId pid, uint16_t service, bool c2s, PAF_Callback cb, bool auto_on)
 {
-#if 0
-    PAF_Config* pc = pv;
-    unsigned i;
-    char* t[2] = { "conf", "auto" };
+    PAF_Config* pc = get_config(sc, pid);
+    int i, dir = c2s ? 1 : 0;
 
     if ( !pc )
-        return;
+        return false;
 
-    for ( i = 0; i < MAXPORTS; i++ )
-    {
-        PAF_Map* pm = pc->map[i];
+    i = install_callback(cb);
 
-        if ( pm[0].cb_mask || pm[1].cb_mask )
-        {
-            DebugMessage(DEBUG_STREAM_PAF,
-                "PAF policy=%u, port=%u, c2s=%s, s2c=%s\n",
-                pid, i, t[pm[1].auto_on], t[pm[0].auto_on]);
-        }
-    }
-#endif
+    if ( i < 0 )
+        return false;
+
+    pc->service_map[service][dir].cb_mask |= (1<<i);
+
+    if ( !pc->service_map[service][dir].auto_on )
+        pc->service_map[service][dir].auto_on = (uint8_t)auto_on;
+
+    return true;
+}
+
+uint8_t s5_paf_service_registration (void* pv, uint16_t service, bool c2s, bool flush)
+{
+    PAF_Config* pc = pv;
+    PAF_Map* pm;
+
+    if ( !pc )
+        return false;
+
+    pm = pc->service_map[service] + (c2s?1:0);
+
+    if ( !pm->cb_mask )
+        return 0;
+
+    if ( pm->auto_on || flush )
+        return pm->cb_mask;
+
+    return 0;
 }
 
 //--------------------------------------------------------------------

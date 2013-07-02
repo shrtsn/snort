@@ -291,12 +291,13 @@ static inline void _dir_fill_less_specific(int index, int fill,
     }
 }
 
-static inline void _dir_update_info(int index, int fill,
+static inline int64_t _dir_update_info(int index, int fill,
         word length, uint32_t val, SUB_TABLE_PTR sub_ptr, updateEntryInfoFunc updateEntry, INFO *data)
 {
 
     dir_sub_table_flat_t *subtable;
     uint8_t *base;
+    int64_t bytesAllocatedTotal = 0;
 
     base = (uint8_t *)segment_basePtr();
     subtable = (dir_sub_table_flat_t *)(&base[sub_ptr]);
@@ -318,15 +319,26 @@ static inline void _dir_update_info(int index, int fill,
         DIR_Entry *entry = (DIR_Entry *)(&base[subtable->entries]);
         if( entry[index].value && !entry[index].length)
         {
-
+            int64_t bytesAllocated;
             dir_sub_table_flat_t *next = (dir_sub_table_flat_t*)(&base[entry[index].value]);
-            _dir_update_info(0, 1 << next->width, length, val, entry[index].value, updateEntry, data);
+            bytesAllocated = _dir_update_info(0, 1 << next->width, length, val,
+                    entry[index].value, updateEntry, data);
+            if (bytesAllocated < 0)
+                return bytesAllocated;
+            else
+                bytesAllocatedTotal += bytesAllocated;
         }
-        else if(length >= (unsigned)entry[index].length)
+        else if(length > (unsigned)entry[index].length)
         {
            if (entry[index].value)
            {
-               updateEntry(&data[entry[index].value], data[val], SAVE_TO_NEW, base);
+               int64_t bytesAllocated;
+               bytesAllocated =  updateEntry(&data[entry[index].value], data[val],
+                       SAVE_TO_NEW, base);
+               if (bytesAllocated < 0)
+                   return bytesAllocated;
+               else
+                   bytesAllocatedTotal += bytesAllocated;
            }
 
            entry[index].value = val;
@@ -334,9 +346,17 @@ static inline void _dir_update_info(int index, int fill,
         }
         else if(entry[index].value)
         {
-            updateEntry(&data[entry[index].value], data[val], SAVE_TO_CURRENT,  base);
+            int64_t bytesAllocated;
+            bytesAllocated = updateEntry(&data[entry[index].value], data[val],
+                    SAVE_TO_CURRENT,  base);
+            if (bytesAllocated < 0)
+                return bytesAllocated;
+            else
+                bytesAllocatedTotal += bytesAllocated;
         }
     }
+
+    return bytesAllocatedTotal;
 }
 /* Sub table insertion
  * This is called by dir_insert and recursively to find the the sub table
@@ -416,15 +436,24 @@ static int _dir_sub_insert(IPLOOKUP *ip, int length, int cur_len, INFO ptr,
         }
         else if (behavior == RT_FAVOR_ALL)
         {
-            _dir_update_info(index, fill, length, (word)ptr, sub_ptr, updateEntry, data);
+            int64_t bytesAllocated;
+
+            bytesAllocated = _dir_update_info(index, fill, length, (word)ptr,
+                    sub_ptr, updateEntry, data);
+
+            if (bytesAllocated < 0)
+                return MEM_ALLOC_FAILURE;
+
+            root_table->allocated += (uint32_t)bytesAllocated;
+
+            if( root_table->mem_cap < root_table->allocated)
+                return MEM_ALLOC_FAILURE;
         }
     }
     /* Need to traverse to a sub-table */
     else
     {
-        dir_sub_table_flat_t *next_sub;
         DIR_Entry *entry = (DIR_Entry *)(&base[sub_table->entries]);
-        next_sub = (dir_sub_table_flat_t *)(&base[entry[index].value]);
 
         /* Check if we need to alloc a new sub table.
          * If next_sub was 0/NULL, there's no entry at this index
@@ -443,8 +472,6 @@ static int _dir_sub_insert(IPLOOKUP *ip, int length, int cur_len, INFO ptr,
             sub_table->cur_num++;
 
             entry[index].length = 0;
-
-            next_sub = (dir_sub_table_flat_t *)(&base[entry[index].value]);
 
             if(!entry[index].value)
             {

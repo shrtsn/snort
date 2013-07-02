@@ -289,4 +289,6 @@ extern tSfPolicyUserContextId sip_config;
 /* Prototypes for public interface */
 void SetupSIP(void);
 
+SIPConfig *getParsingSIPConfig(struct _SnortConfig *);
+
 #endif /* SPP_SIP_H */

@@ -36,25 +36,19 @@
 
 #include "packet_time.h"
 
-static time_t s_first_packet  = 0;
-static time_t s_recent_packet = 0;
+static struct timeval s_recent_packet = { 0, 0 };
 
-void packet_time_update(time_t cur)
+void packet_time_update(const struct timeval *cur_tv)
 {
-    if(s_first_packet == 0)
-    {
-        s_first_packet = cur;
-    }
-
-    s_recent_packet = cur;
+    s_recent_packet = *cur_tv;
 }
 
-time_t packet_timeofday(void)
+time_t packet_time(void)
 {
-    return s_recent_packet;
+    return s_recent_packet.tv_sec;
 }
 
-time_t packet_first_time(void)
+void packet_gettimeofday(struct timeval *tv)
 {
-    return s_first_packet;
+    *tv = s_recent_packet;
 }

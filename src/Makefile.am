@@ -84,3 +84,10 @@ endif
 SUBDIRS = sfutil win32 output-plugins detection-plugins dynamic-plugins preprocessors parser dynamic-preprocessors dynamic-output target-based control file-process $(EXAMPLES_DIR)
 
 INCLUDES = @INCLUDES@
+
+if BUILD_SIDE_CHANNEL
+snort_LDADD += \
+side-channel/libsidechannel.a \
+side-channel/plugins/libsscm.a
+SUBDIRS += side-channel
+endif

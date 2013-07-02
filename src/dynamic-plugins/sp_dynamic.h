@@ -49,6 +49,7 @@ typedef struct _DynamicData
 void SetupDynamic(void);
 
 int RegisterDynamicRule(
+    SnortConfig *,
     uint32_t gid,
     uint32_t sid,
     void *info,
@@ -80,7 +81,7 @@ void DynamicRuleListFree(DynamicRuleNode *);
 int ReloadDynamicRules(SnortConfig *);
 #endif
 
-int DynamicPreprocRuleOptInit(void *);
+int DynamicPreprocRuleOptInit(struct _SnortConfig *, void *);
 void* DynamicFlowbitRegister(void *);
 void DynamicFlowbitUnregister(void *);
 int DynamicFlowbitCheck(void *pkt, void *);

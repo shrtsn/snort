@@ -92,8 +92,8 @@ typedef struct s_Email_DecodeState
 
 } Email_DecodeState;
 
-
-int EmailDecode(const uint8_t *, const uint8_t *, Email_DecodeState *);
+// end :: start + length
+int EmailDecode(const uint8_t *start, const uint8_t *end, Email_DecodeState *);
 
 
 static inline int getCodeDepth(int code_depth, int64_t file_depth)

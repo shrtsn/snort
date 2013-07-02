@@ -94,7 +94,7 @@ void segment_free ( MEM_OFFSET ptr )
 MEM_OFFSET segment_calloc ( size_t num, size_t size )
 {
     MEM_OFFSET current_ptr;
-    uint64_t total;
+    size_t total;
 
     if ((0 == size)||(0 == num))
         return 0;
@@ -102,9 +102,9 @@ MEM_OFFSET segment_calloc ( size_t num, size_t size )
     if (num > SIZE_MAX/size)
         return 0;
     total = num * size;
-    current_ptr = segment_malloc((size_t)total);
+    current_ptr = segment_malloc(total);
     if (0 != current_ptr)
-        memset((uint8_t *)base_ptr + current_ptr, 0, (size_t)total);
+        memset((uint8_t *)base_ptr + current_ptr, 0, total);
 
     return current_ptr;
 }

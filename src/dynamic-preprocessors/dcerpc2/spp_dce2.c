@@ -108,9 +108,9 @@ const char *PREPROC_NAME = "SF_DCERPC2";
 /********************************************************************
  * Private function prototypes
  ********************************************************************/
-static void DCE2_InitGlobal(char *);
-static void DCE2_InitServer(char *);
-static void DCE2_CheckConfig(void);
+static void DCE2_InitGlobal(struct _SnortConfig *, char *);
+static void DCE2_InitServer(struct _SnortConfig *, char *);
+static int DCE2_CheckConfig(struct _SnortConfig *);
 static void DCE2_Main(void *, void *);
 static void DCE2_PrintStats(int);
 static void DCE2_Reset(int, void *);
@@ -118,17 +118,15 @@ static void DCE2_ResetStats(int, void *);
 static void DCE2_CleanExit(int, void *);
 
 #ifdef SNORT_RELOAD
-static void DCE2_ReloadGlobal(char *);
-static void DCE2_ReloadServer(char *);
-static int DCE2_ReloadVerify(void);
-static void * DCE2_ReloadSwap(void);
+static void DCE2_ReloadGlobal(struct _SnortConfig *, char *, void **);
+static void DCE2_ReloadServer(struct _SnortConfig *, char *, void **);
+static int DCE2_ReloadVerify(struct _SnortConfig *, void *);
+static void * DCE2_ReloadSwap(struct _SnortConfig *, void *);
 static void DCE2_ReloadSwapFree(void *);
 #endif
 
-#ifdef ENABLE_PAF
-static void DCE2_AddPortsToPaf(DCE2_Config *, tSfPolicyId);
-static void DCE2_ScAddPortsToPaf(void *);
-#endif
+static void DCE2_AddPortsToPaf(struct _SnortConfig *, DCE2_Config *, tSfPolicyId);
+static void DCE2_ScAddPortsToPaf(struct _SnortConfig *, void *);
 
 /********************************************************************
  * Function: DCE2_RegisterPreprocessor()
@@ -147,9 +145,10 @@ void DCE2_RegisterPreprocessor(void)
     _dpd.registerPreproc(DCE2_SNAME, DCE2_InitServer);
 #else
     _dpd.registerPreproc(DCE2_GNAME, DCE2_InitGlobal, DCE2_ReloadGlobal,
-                         DCE2_ReloadSwap, DCE2_ReloadSwapFree);
+                         DCE2_ReloadVerify, DCE2_ReloadSwap,
+                         DCE2_ReloadSwapFree);
     _dpd.registerPreproc(DCE2_SNAME, DCE2_InitServer,
-                         DCE2_ReloadServer, NULL, NULL);
+                         DCE2_ReloadServer, NULL, NULL, NULL);
 #endif
 }
 
@@ -163,9 +162,9 @@ void DCE2_RegisterPreprocessor(void)
  * Returns: None
  *
  *********************************************************************/
-static void DCE2_InitGlobal(char *args)
+static void DCE2_InitGlobal(struct _SnortConfig *sc, char *args)
 {
-    tSfPolicyId policy_id = _dpd.getParserPolicy();
+    tSfPolicyId policy_id = _dpd.getParserPolicy(sc);
     DCE2_Config *pDefaultPolicyConfig = NULL;
     DCE2_Config *pCurrentPolicyConfig = NULL;
 
@@ -195,7 +194,7 @@ static void DCE2_InitGlobal(char *args)
 
         DCE2_SmbInitGlobals();
 
-        _dpd.addPreprocConfCheck(DCE2_CheckConfig);
+        _dpd.addPreprocConfCheck(sc, DCE2_CheckConfig);
         _dpd.registerPreprocStats(DCE2_GNAME, DCE2_PrintStats);
         _dpd.addPreprocReset(DCE2_Reset, NULL, PRIORITY_LAST, PP_DCE2);
         _dpd.addPreprocResetStats(DCE2_ResetStats, NULL, PRIORITY_LAST, PP_DCE2);
@@ -254,7 +253,7 @@ static void DCE2_InitGlobal(char *args)
                  *_dpd.config_file, *_dpd.config_line, DCE2_GNAME);
     }
 
-    DCE2_RegRuleOptions();
+    DCE2_RegRuleOptions(sc);
 
     pCurrentPolicyConfig = (DCE2_Config *)DCE2_Alloc(sizeof(DCE2_Config), DCE2_MEM_TYPE__CONFIG);
     sfPolicyUserDataSetCurrent(dce2_config, pCurrentPolicyConfig);
@@ -270,15 +269,15 @@ static void DCE2_InitGlobal(char *args)
 
 
     /* Register callbacks */
-    _dpd.addPreproc(DCE2_Main, PRIORITY_APPLICATION,
+    _dpd.addPreproc(sc, DCE2_Main, PRIORITY_APPLICATION,
         PP_DCE2, PROTO_BIT__TCP | PROTO_BIT__UDP);
 
 #ifdef TARGET_BASED
     _dpd.streamAPI->set_service_filter_status
-        (dce2_proto_ids.dcerpc, PORT_MONITOR_SESSION, policy_id, 1);
+        (sc, dce2_proto_ids.dcerpc, PORT_MONITOR_SESSION, policy_id, 1);
 
     _dpd.streamAPI->set_service_filter_status
-        (dce2_proto_ids.nbss, PORT_MONITOR_SESSION, policy_id, 1);
+        (sc, dce2_proto_ids.nbss, PORT_MONITOR_SESSION, policy_id, 1);
 #endif
 }
 
@@ -292,9 +291,9 @@ static void DCE2_InitGlobal(char *args)
  * Returns: None
  *
  *********************************************************************/
-static void DCE2_InitServer(char *args)
+static void DCE2_InitServer(struct _SnortConfig *sc, char *args)
 {
-    tSfPolicyId policy_id = _dpd.getParserPolicy();
+    tSfPolicyId policy_id = _dpd.getParserPolicy(sc);
     DCE2_Config *pPolicyConfig = NULL;
 
     sfPolicyUserPolicySet (dce2_config, policy_id);
@@ -309,42 +308,51 @@ static void DCE2_InitServer(char *args)
     }
 
     /* Parse configuration args */
-    DCE2_ServerConfigure(pPolicyConfig, args);
+    DCE2_ServerConfigure(sc, pPolicyConfig, args);
 }
 
 static int DCE2_CheckConfigPolicy(
+        struct _SnortConfig *sc,
         tSfPolicyUserContextId config,
         tSfPolicyId policyId,
         void* pData
         )
 {
+    int rval;
     DCE2_Config *pPolicyConfig = (DCE2_Config *)pData;
     DCE2_ServerConfig *dconfig;
 
     if ( pPolicyConfig->gconfig->disabled )
         return 0;
 
-    _dpd.setParserPolicy(policyId);
+    _dpd.setParserPolicy(sc, policyId);
     // config_file/config_line are not set here
-    if (!_dpd.isPreprocEnabled(PP_STREAM5))
+    if (!_dpd.isPreprocEnabled(sc, PP_STREAM5))
     {
-        DCE2_Die("Stream5 must be enabled with TCP and UDP tracking.");
+        DCE2_Log(DCE2_LOG_TYPE__WARN, "Stream5 must be enabled with TCP and UDP tracking.");
+        return -1;
     }
 
     dconfig = pPolicyConfig->dconfig;
 
     if (dconfig == NULL)
-        DCE2_CreateDefaultServerConfig(pPolicyConfig, policyId);
-
-#ifdef TARGET_BASED
-    if (!_dpd.isAdaptiveConfigured(policyId, 1))
-#endif
     {
-        DCE2_ScCheckTransports(pPolicyConfig);
+        if ((rval = DCE2_CreateDefaultServerConfig(sc, pPolicyConfig, policyId)))
+            return rval;
     }
 
-#ifdef ENABLE_PAF
-    DCE2_AddPortsToPaf(pPolicyConfig, policyId);
+#ifdef TARGET_BASED
+    if (!_dpd.isAdaptiveConfiguredForSnortConfig(sc, policyId))
+#endif
+    {
+        if ((rval = DCE2_ScCheckTransports(pPolicyConfig)))
+            return rval;
+    }
+
+    DCE2_AddPortsToPaf(sc, pPolicyConfig, policyId);
+#ifdef TARGET_BASED
+    DCE2_PafRegisterService(sc, dce2_proto_ids.nbss, policyId, DCE2_TRANS_TYPE__SMB);
+    DCE2_PafRegisterService(sc, dce2_proto_ids.dcerpc, policyId, DCE2_TRANS_TYPE__TCP);
 #endif
 
     /* Register routing table memory */
@@ -364,9 +372,15 @@ static int DCE2_CheckConfigPolicy(
  * Returns: None
  *
  *********************************************************************/
-static void DCE2_CheckConfig(void)
+static int DCE2_CheckConfig(struct _SnortConfig *sc)
 {
-    sfPolicyUserDataIterate (dce2_config, DCE2_CheckConfigPolicy);
+    int rval;
+
+    if ((rval = sfPolicyUserDataIterate (sc, dce2_config, DCE2_CheckConfigPolicy)))
+    {
+        return rval;
+    }
+    return 0;
 }
 
 /*********************************************************************
@@ -900,9 +914,10 @@ static void DCE2_CleanExit(int signal, void *data)
  * Returns: None
  *
  *********************************************************************/
-static void DCE2_ReloadGlobal(char *args)
+static void DCE2_ReloadGlobal(struct _SnortConfig *sc, char *args, void **new_config)
 {
-    tSfPolicyId policy_id = _dpd.getParserPolicy();
+    tSfPolicyUserContextId dce2_swap_config = (tSfPolicyUserContextId)*new_config;
+    tSfPolicyId policy_id = _dpd.getParserPolicy(sc);
     DCE2_Config *pDefaultPolicyConfig = NULL;
     DCE2_Config *pCurrentPolicyConfig = NULL;
 
@@ -924,7 +939,7 @@ static void DCE2_ReloadGlobal(char *args)
                      "configuration.\n",
                      *_dpd.config_file, *_dpd.config_line, DCE2_GNAME);
         }
-        _dpd.addPreprocReloadVerify(DCE2_ReloadVerify);
+        *new_config = (void *)dce2_swap_config;
     }
 
     sfPolicyUserPolicySet(dce2_swap_config, policy_id);
@@ -945,7 +960,7 @@ static void DCE2_ReloadGlobal(char *args)
                  *_dpd.config_file, *_dpd.config_line, DCE2_GNAME);
     }
 
-    DCE2_RegRuleOptions();
+    DCE2_RegRuleOptions(sc);
 
     pCurrentPolicyConfig = (DCE2_Config *)DCE2_Alloc(sizeof(DCE2_Config),
         DCE2_MEM_TYPE__CONFIG);
@@ -958,15 +973,15 @@ static void DCE2_ReloadGlobal(char *args)
     if ( pCurrentPolicyConfig->gconfig->disabled )
         return;
 
-    _dpd.addPreproc(DCE2_Main, PRIORITY_APPLICATION, PP_DCE2,
+    _dpd.addPreproc(sc, DCE2_Main, PRIORITY_APPLICATION, PP_DCE2,
         PROTO_BIT__TCP | PROTO_BIT__UDP);
 
 #ifdef TARGET_BASED
     _dpd.streamAPI->set_service_filter_status
-        (dce2_proto_ids.dcerpc, PORT_MONITOR_SESSION, policy_id, 1);
+        (sc, dce2_proto_ids.dcerpc, PORT_MONITOR_SESSION, policy_id, 1);
 
     _dpd.streamAPI->set_service_filter_status
-        (dce2_proto_ids.nbss, PORT_MONITOR_SESSION, policy_id, 1);
+        (sc, dce2_proto_ids.nbss, PORT_MONITOR_SESSION, policy_id, 1);
 #endif
 
     if (policy_id != 0)
@@ -983,11 +998,13 @@ static void DCE2_ReloadGlobal(char *args)
  * Returns: None
  *
  *********************************************************************/
-static void DCE2_ReloadServer(char *args)
+static void DCE2_ReloadServer(struct _SnortConfig *sc, char *args, void **new_config)
 {
-    tSfPolicyId policy_id = _dpd.getParserPolicy();
+    tSfPolicyUserContextId dce2_swap_config;
+    tSfPolicyId policy_id = _dpd.getParserPolicy(sc);
     DCE2_Config *pPolicyConfig = NULL;
 
+    dce2_swap_config = (tSfPolicyUserContextId)_dpd.getRelatedReloadData(sc, DCE2_GNAME);
     sfPolicyUserPolicySet (dce2_swap_config, policy_id);
 
     pPolicyConfig = (DCE2_Config *)sfPolicyUserDataGetCurrent(dce2_swap_config);
@@ -1000,15 +1017,17 @@ static void DCE2_ReloadServer(char *args)
     }
 
     /* Parse configuration args */
-    DCE2_ServerConfigure(pPolicyConfig, args);
+    DCE2_ServerConfigure(sc, pPolicyConfig, args);
 }
 
 static int DCE2_ReloadVerifyPolicy(
+        struct _SnortConfig *sc,
         tSfPolicyUserContextId config,
         tSfPolicyId policyId,
         void* pData
         )
 {
+    int rval;
     DCE2_Config *swap_config = (DCE2_Config *)pData;
     DCE2_Config *current_config = (DCE2_Config *)sfPolicyUserDataGet(dce2_config, policyId);
     DCE2_ServerConfig *dconfig;
@@ -1018,27 +1037,34 @@ static int DCE2_ReloadVerifyPolicy(
     if ( swap_config == NULL || swap_config->gconfig->disabled )
         return 0;
 
-    if (!_dpd.isPreprocEnabled(PP_STREAM5))
+    if (!_dpd.isPreprocEnabled(sc, PP_STREAM5))
     {
-        DCE2_Die("%s(%d) \"%s\" configuration: "
+        DCE2_Log(DCE2_LOG_TYPE__WARN, "%s(%d) \"%s\" configuration: "
             "Stream5 must be enabled with TCP and UDP tracking.",
             *_dpd.config_file, *_dpd.config_line, DCE2_GNAME);
+        return -1;
     }
 
     dconfig = swap_config->dconfig;
 
     if (dconfig == NULL)
-        DCE2_CreateDefaultServerConfig(swap_config, policyId);
-
-#ifdef TARGET_BASED
-    if (!_dpd.isAdaptiveConfigured(policyId, 1))
-#endif
     {
-        DCE2_ScCheckTransports(swap_config);
+        if ((rval = DCE2_CreateDefaultServerConfig(sc, swap_config, policyId)))
+            return rval;
     }
 
-#ifdef ENABLE_PAF
-    DCE2_AddPortsToPaf(swap_config, policyId);
+#ifdef TARGET_BASED
+    if (!_dpd.isAdaptiveConfiguredForSnortConfig(sc, policyId))
+#endif
+    {
+        if ((rval = DCE2_ScCheckTransports(swap_config)))
+            return rval;
+    }
+
+    DCE2_AddPortsToPaf(sc, swap_config, policyId);
+#ifdef TARGET_BASED
+    DCE2_PafRegisterService(sc, dce2_proto_ids.nbss, policyId, DCE2_TRANS_TYPE__SMB);
+    DCE2_PafRegisterService(sc, dce2_proto_ids.dcerpc, policyId, DCE2_TRANS_TYPE__TCP);
 #endif
 
     /* Register routing table memory */
@@ -1051,8 +1077,6 @@ static int DCE2_ReloadVerifyPolicy(
     if (swap_config->gconfig->memcap != current_config->gconfig->memcap)
     {
         _dpd.errMsg("dcerpc2 reload:  Changing the memcap requires a restart.\n");
-        DCE2_FreeConfigs(dce2_swap_config);
-        dce2_swap_config = NULL;
         return -1;
     }
 
@@ -1071,13 +1095,17 @@ static int DCE2_ReloadVerifyPolicy(
  *       0 if configuration is ok
  *
  *********************************************************************/
-static int DCE2_ReloadVerify(void)
+static int DCE2_ReloadVerify(struct _SnortConfig *sc, void *swap_config)
 {
+    tSfPolicyUserContextId dce2_swap_config = (tSfPolicyUserContextId)swap_config;
+
     if ((dce2_swap_config == NULL) || (dce2_config == NULL))
         return 0;
 
-    if (sfPolicyUserDataIterate(dce2_swap_config, DCE2_ReloadVerifyPolicy) != 0)
+    if (sfPolicyUserDataIterate(sc, dce2_swap_config, DCE2_ReloadVerifyPolicy) != 0)
+    {
         return -1;
+    }
 
     return 0;
 }
@@ -1109,17 +1137,17 @@ static int DCE2_ReloadSwapPolicy(
  * Returns: None
  *
  *********************************************************************/
-static void * DCE2_ReloadSwap(void)
+static void * DCE2_ReloadSwap(struct _SnortConfig *sc, void *swap_config)
 {
+    tSfPolicyUserContextId dce2_swap_config = (tSfPolicyUserContextId)swap_config;
     tSfPolicyUserContextId old_config = dce2_config;
 
     if (dce2_swap_config == NULL)
         return NULL;
 
     dce2_config = dce2_swap_config;
-    dce2_swap_config = NULL;
 
-    sfPolicyUserDataIterate (old_config, DCE2_ReloadSwapPolicy);
+    sfPolicyUserDataFreeIterate (old_config, DCE2_ReloadSwapPolicy);
 
     if (sfPolicyUserPolicyGetActive(old_config) == 0)
         return (void *)old_config;
@@ -1136,15 +1164,13 @@ static void DCE2_ReloadSwapFree(void *data)
 }
 #endif
 
-#ifdef ENABLE_PAF
-
 // Used for iterate function below since we can't pass it
 static tSfPolicyId dce2_paf_tmp_policy_id = 0;
 
 /*********************************************************************
  * Function: DCE2_AddPortsToPaf()
  *
- * Add detect and autodetect ports to stream5 paf 
+ * Add detect and autodetect ports to stream5 paf
  *
  * Arguments:
  *  DCE2_Config *
@@ -1153,22 +1179,22 @@ static tSfPolicyId dce2_paf_tmp_policy_id = 0;
  * Returns: None
  *
  *********************************************************************/
-static void DCE2_AddPortsToPaf(DCE2_Config *config, tSfPolicyId policy_id)
+static void DCE2_AddPortsToPaf(struct _SnortConfig *sc, DCE2_Config *config, tSfPolicyId policy_id)
 {
     if (config == NULL)
         return;
 
     dce2_paf_tmp_policy_id = policy_id;
 
-    DCE2_ScAddPortsToPaf(config->dconfig);
+    DCE2_ScAddPortsToPaf(sc, config->dconfig);
 
     if (config->sconfigs != NULL)
-        sfrt_iterate(config->sconfigs, DCE2_ScAddPortsToPaf);
+        sfrt_iterate_with_snort_config(sc, config->sconfigs, DCE2_ScAddPortsToPaf);
 
     dce2_paf_tmp_policy_id = 0;
 }
 
-static void DCE2_ScAddPortsToPaf(void *data)
+static void DCE2_ScAddPortsToPaf(struct _SnortConfig *snortConf, void *data)
 {
     DCE2_ServerConfig *sc = (DCE2_ServerConfig *)data;
     unsigned int port;
@@ -1181,22 +1207,22 @@ static void DCE2_ScAddPortsToPaf(void *data)
     {
         if (DCE2_IsPortSet(sc->smb_ports, (uint16_t)port))
         {
-            DCE2_PafRegister((uint16_t)port, policy_id, DCE2_TRANS_TYPE__SMB);
+            DCE2_PafRegisterPort(snortConf, (uint16_t)port, policy_id, DCE2_TRANS_TYPE__SMB);
         }
 
         if (DCE2_IsPortSet(sc->auto_smb_ports, (uint16_t)port))
         {
-            DCE2_PafRegister((uint16_t)port, policy_id, DCE2_TRANS_TYPE__SMB);
+            DCE2_PafRegisterPort(snortConf, (uint16_t)port, policy_id, DCE2_TRANS_TYPE__SMB);
         }
 
         if (DCE2_IsPortSet(sc->tcp_ports, (uint16_t)port))
         {
-            DCE2_PafRegister((uint16_t)port, policy_id, DCE2_TRANS_TYPE__TCP);
+            DCE2_PafRegisterPort(snortConf, (uint16_t)port, policy_id, DCE2_TRANS_TYPE__TCP);
         }
 
         if (DCE2_IsPortSet(sc->auto_tcp_ports, (uint16_t)port))
         {
-            DCE2_PafRegister((uint16_t)port, policy_id, DCE2_TRANS_TYPE__TCP);
+            DCE2_PafRegisterPort(snortConf, (uint16_t)port, policy_id, DCE2_TRANS_TYPE__TCP);
         }
 
 #if 0
@@ -1212,5 +1238,4 @@ static void DCE2_ScAddPortsToPaf(void *data)
 #endif
     }
 }
-#endif
 

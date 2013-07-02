@@ -501,12 +501,12 @@ You might also want to have a look at Phil Wood's patches to libpcap for Linux:
     
 \subsection{Where do I get the latest version of Winpcap?}
 
-	\htmladdnormallink{http://winpcap.polito.it/}{http://winpcap.polito.it/}
+    \htmladdnormallink{http://winpcap.org/}{http://winpcap.org/}
 
 \subsection{What version of Winpcap do I need?\label{winpcap}}
 
 It depends. If you only have one processor, you can use the most current
-version (3.x). If you have a SMP box, you'll have to use either an older
+version (4.x). If you have a SMP box, you'll have to use either an older
 version ($<$ 2.3) or the 3.x version plus a patch from \htmladdnormallink{http://www.ntop.org/winpcap.html}{http://www.ntop.org/winpcap.html}.
 
 \subsection{Why does building Snort complain about missing references? }
@@ -2534,11 +2534,11 @@ at a time to run, unlike Linux (from snort.c).
 You may run out of free inodes, which basically also means you can not create
 more files on the partition. The obvious solution is to rm some. ;-)
 
-\subsection{I am using Snort on Windows and receive an ``OpenPcap() error upon startup: ERROR: OpenPcap() device open: Error opening adapter'' message. What's wrong? }
+\subsection{I am using Snort on Windows and receive an ``Can't start DAQ error...'' message upon startup.  What's wrong?}
 
 Either winpcap is not installed, or you are using an incompatible version.
-Try upgrading to the latest version (2.3 as of 01/17/03).  It is available 
-from \htmladdnormallink{http://netgroup-serv.polito.it/winpcap/}{http://netgroup-serv.polito.it/winpcap/}.
+Try upgrading to the latest version.  It is available from
+\htmladdnormallink{http://winpcap.org/}{http://winpcap.org/}.
 It might also be an issue with SMP machines \myref{winpcap}.
 
 \subsection{Snort is not logging to syslog}

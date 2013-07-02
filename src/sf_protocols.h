@@ -45,6 +45,7 @@ typedef enum {
 #ifdef GRE
     PROTO_GRE,        // DecodeGRE
                       // DecodeTransBridging - basically same as DecodeEthPkt
+    PROTO_ERSPAN,     // DecodeERSPANType2 and DecodeERSPANType3
 #endif
     PROTO_PPPOE,      // DecodePPPoEPkt
     PROTO_PPP_ENCAP,  // DecodePppPktEncapsulated
@@ -52,6 +53,7 @@ typedef enum {
                       // DecodeEthOverMPLS - basically same as straight eth
     PROTO_ARP,        // DecodeARP
     PROTO_GTP,        // DecodeGTP
+    PROTO_AH,         // DecodeAH - Authentication Header (IPSec stuff)
 
 #ifndef NO_NON_ETHER_DECODER
     PROTO_TR,         // DecodeTRPkt

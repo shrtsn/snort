@@ -49,6 +49,7 @@
 #include "sfghash.h"
 #include "sfxhash.h"
 
+#include "snort.h"
 #include "sfthd.h"
 #include "util.h"
 #include "sfPolicy.h"
@@ -207,7 +208,7 @@ void sfthd_objs_free(ThresholdObjects *thd_objs)
             /* Free any individuals */
             for (i = 0; i < THD_MAX_GENID; i++)
             {
-                if (thd_objs->sfthd_garray[policyId][i] != 
+                if (thd_objs->sfthd_garray[policyId][i] !=
                     thd_objs->sfthd_garray[policyId][0])
                 {
                     sfthd_node_free(
@@ -307,7 +308,7 @@ the current event should be logged or dropped.
 @retval !0 failed
 
 */
-static int sfthd_create_threshold_local(ThresholdObjects *thd_objs,
+static int sfthd_create_threshold_local(SnortConfig *sc, ThresholdObjects *thd_objs,
                                         THD_NODE* config)
 {
     SFGHASH  * sfthd_hash;
@@ -316,7 +317,7 @@ static int sfthd_create_threshold_local(ThresholdObjects *thd_objs,
     tThdItemKey key;
     int nrows;
     int hstatus;
-    tSfPolicyId policy_id = getParserPolicy();
+    tSfPolicyId policy_id = getParserPolicy(sc);
 
     if (thd_objs == NULL )
         return -1;
@@ -515,11 +516,11 @@ static int sfthd_create_threshold_local(ThresholdObjects *thd_objs,
 
 /*
  */
-static int sfthd_create_threshold_global(ThresholdObjects *thd_objs,
+static int sfthd_create_threshold_global(SnortConfig *sc, ThresholdObjects *thd_objs,
                                          THD_NODE* config)
 {
     THD_NODE *sfthd_node;
-    tSfPolicyId policy_id = getParserPolicy();
+    tSfPolicyId policy_id = getParserPolicy(sc);
 
     if (thd_objs == NULL)
         return -1;
@@ -626,7 +627,8 @@ the current event should be logged or dropped.
  --- Local and Global Thresholding is setup here  ---
 
 */
-int sfthd_create_threshold(ThresholdObjects *thd_objs,
+int sfthd_create_threshold(SnortConfig *sc,
+                           ThresholdObjects *thd_objs,
                            unsigned gen_id,
                            unsigned sig_id,
                            int tracking,
@@ -637,7 +639,7 @@ int sfthd_create_threshold(ThresholdObjects *thd_objs,
                            IpAddrSet* ip_address)
 {
     //allocate memory fpr sfthd_array if needed.
-    tSfPolicyId policyId = getParserPolicy();
+    tSfPolicyId policyId = getParserPolicy(sc);
     THD_NODE sfthd_node;
     memset(&sfthd_node, 0, sizeof(sfthd_node));
 
@@ -665,13 +667,13 @@ int sfthd_create_threshold(ThresholdObjects *thd_objs,
 
     if( sig_id == 0 )
     {
-        return sfthd_create_threshold_global(thd_objs, &sfthd_node);
+        return sfthd_create_threshold_global(sc, thd_objs, &sfthd_node);
     }
 
     if( gen_id == 0 )
         return -1;
 
-    return sfthd_create_threshold_local(thd_objs, &sfthd_node);
+    return sfthd_create_threshold_local(sc, thd_objs, &sfthd_node);
 }
 
 #ifdef THD_DEBUG

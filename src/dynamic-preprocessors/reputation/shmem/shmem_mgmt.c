@@ -347,7 +347,7 @@ static int InitSharedMemDataSegmentForWriter(uint32_t size, uint32_t disk_versio
     {
         if ((rval = dmfunc_ptr->LoadShmemData((void *)(
             mgmt_ptr->instance[shmusr_ptr->instance_num].shmemSegmentPtr[segment_num]),
-            filelist_ptr,file_count)) != SF_SUCCESS)
+            filelist_ptr, filelist_count)) != SF_SUCCESS)
         {
             DEBUG_WRAP(DebugMessage(DEBUG_REPUTATION,
                 "Loading file into shared memory failed\n"););
@@ -374,9 +374,10 @@ exit:
 
 int LoadSharedMemDataSegmentForWriter(int startup)
 {
-    int segment_num = NO_DATASEG, retval = -1;
-    uint32_t size = 0;
-    uint32_t disk_version = 0, shmem_version = 0;
+    int segment_num = NO_DATASEG;
+    int rval;
+    uint32_t size;
+    uint32_t disk_version, shmem_version;
 
     if ( !mgmt_ptr )
         return NO_DATASEG;
@@ -384,7 +385,7 @@ int LoadSharedMemDataSegmentForWriter(int startup)
     shmem_version = FindActiveSharedMemDataSegmentVersion();
 
     //if version file is not present(open source user), increment version and reload.
-    if ((retval = GetLatestShmemDataSetVersionOnDisk(&disk_version)) == SF_SUCCESS)
+    if (GetLatestShmemDataSetVersionOnDisk(&disk_version) == SF_SUCCESS)
     {
         if (disk_version > 0)
         {
@@ -402,13 +403,14 @@ int LoadSharedMemDataSegmentForWriter(int startup)
         if (disk_version == 0) disk_version++;
     }
 
-    if (GetSortedListOfShmemDataFiles())
+    if ( GetSortedListOfShmemDataFiles( ) != SF_SUCCESS )
         goto exit;
 
 #ifdef DEBUG_MSGS
     PrintDataFiles();
 #endif
-    if ((size = dmfunc_ptr->GetSegmentSize(filelist_ptr, file_count)) != ZEROSEG)
+
+    if ((size = dmfunc_ptr->GetSegmentSize(filelist_ptr, filelist_count)) != ZEROSEG)
     {
         segment_num = InitSharedMemDataSegmentForWriter(size,disk_version);
         goto exit;
@@ -539,7 +541,7 @@ static void ExpireTimedoutInstances()
     time_t current_time = time(NULL);
 
     /*timeout will be at least 60 seconds*/
-    max_timeout =  UNUSED_TIMEOUT * shmusr_ptr->instance_polltime + 60;
+    max_timeout =  UNUSED_TIMEOUT * (int64_t) shmusr_ptr->instance_polltime + 60;
     if (max_timeout > UINT32_MAX)
         max_timeout = UINT32_MAX;
 

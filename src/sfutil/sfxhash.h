@@ -117,7 +117,7 @@ void            sfxhash_delete( SFXHASH * h );
 int             sfxhash_make_empty(SFXHASH *);
 
 int             sfxhash_add ( SFXHASH * h, void * key, void * data );
-SFXHASH_NODE * sfxhash_get_node( SFXHASH * t, void * key );
+SFXHASH_NODE * sfxhash_get_node( SFXHASH * t, const void * key );
 int             sfxhash_remove( SFXHASH * h, void * key );
 
 /*!
@@ -202,7 +202,7 @@ void          * sfxhash_lru( SFXHASH * t );
 SFXHASH_NODE  * sfxhash_mru_node( SFXHASH * t );
 SFXHASH_NODE  * sfxhash_lru_node( SFXHASH * t );
 void          * sfxhash_find( SFXHASH * h, void * key );
-SFXHASH_NODE  * sfxhash_find_node( SFXHASH * t, void * key);
+SFXHASH_NODE  * sfxhash_find_node( SFXHASH * t, const void * key);
 
 SFXHASH_NODE  * sfxhash_findfirst( SFXHASH * h );
 SFXHASH_NODE  * sfxhash_findnext ( SFXHASH * h );

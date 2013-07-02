@@ -80,7 +80,11 @@ void file_type_id( FileContext* context, uint8_t* file_data, int data_size, File
     data_size = get_data_size_from_depth_limit(context,SNORT_FILE_TYPE_ID,data_size);
 
     if (data_size < 0)
+    {
+        context->file_type_id = SNORT_FILE_TYPE_UNKNOWN;
         return;
+    }
+
 
     switch (position)
     {
@@ -251,7 +255,10 @@ char* file_info_from_ID(void* conf, uint32_t id)
     else if (SNORT_FILE_TYPE_CONTINUE == id)
         return ("Undecided file type, continue...");
     info = get_rule_from_id(conf,id);
-    return info->type;
+    if (info != NULL)
+        return info->type;
+    else
+        return NULL;
 }
 #if defined(DEBUG_MSGS) || defined (REG_TEST)
 /*

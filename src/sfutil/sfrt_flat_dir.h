@@ -23,7 +23,6 @@
 #ifndef SFRT_DIR_FLAT_H_
 #define SFRT_DIR_FLAT_H_
 
-#include "sfrt_flat.h"
 #include "sfrt.h"
 
 typedef MEM_OFFSET SUB_TABLE_PTR;

@@ -59,7 +59,6 @@ extern const POPToken pop_known_cmds[];
 
 /* Private functions */
 static int  ProcessPorts(POPConfig *, char *, int);
-static int  ProcessPopMemcap(POPConfig *, char *, int);
 static int  ProcessDecodeDepth(POPConfig *, char *, int, char *, DecodeType);
 
 /*
@@ -86,12 +85,18 @@ void POP_ParseArgs(POPConfig *config, char *args)
         return;
 
     config->ports[POP_DEFAULT_SERVER_PORT / 8]     |= 1 << (POP_DEFAULT_SERVER_PORT % 8);
+    config->max_mime_mem = DEFAULT_POP_MEMCAP;
     config->memcap = DEFAULT_POP_MEMCAP;
     config->b64_depth = DEFAULT_DEPTH;
     config->qp_depth = DEFAULT_DEPTH;
     config->uu_depth = DEFAULT_DEPTH;
     config->bitenc_depth = DEFAULT_DEPTH;
     config->max_depth = MIN_DEPTH;
+    config->log_config.log_filename = 0;
+    config->log_config.log_mailfrom = 0;
+    config->log_config.log_rcptto = 0;
+    config->log_config.log_email_hdrs = 0;
+    config->log_config.email_hdrs_log_depth = 0;
 
     *errStr = '\0';
 
@@ -99,13 +104,23 @@ void POP_ParseArgs(POPConfig *config, char *args)
 
     while ( arg != NULL )
     {
+        unsigned long value = 0;
+
         if ( !strcasecmp(CONF_PORTS, arg) )
         {
             ret = ProcessPorts(config, errStr, errStrLen);
         }
         else if ( !strcasecmp(CONF_POP_MEMCAP, arg) )
         {
-            ret = ProcessPopMemcap(config, errStr, errStrLen);
+            ret = _dpd.checkValueInRange(strtok(NULL, CONF_SEPARATORS), CONF_POP_MEMCAP,
+                    MIN_POP_MEMCAP, MAX_POP_MEMCAP, &value);
+            config->memcap = (uint32_t)value;
+        }
+        else if ( !strcasecmp(CONF_MAX_MIME_MEM, arg) )
+        {
+            ret = _dpd.checkValueInRange(strtok(NULL, CONF_SEPARATORS), CONF_MAX_MIME_MEM,
+                    MIN_MIME_MEM, MAX_MIME_MEM, &value);
+            config->max_mime_mem = (int)value;
         }
         else if ( !strcasecmp(CONF_B64_DECODE, arg) )
         {
@@ -177,8 +192,8 @@ void POP_CheckConfig(POPConfig *pPolicyConfig, tSfPolicyUserContextId context)
 
     if (pPolicyConfig == defaultConfig)
     {
-        if (!pPolicyConfig->memcap)
-            pPolicyConfig->memcap = DEFAULT_POP_MEMCAP;
+        if (!pPolicyConfig->max_mime_mem)
+            pPolicyConfig->max_mime_mem = DEFAULT_MAX_MIME_MEM;
 
         if(!pPolicyConfig->b64_depth || !pPolicyConfig->qp_depth
                 || !pPolicyConfig->uu_depth || !pPolicyConfig->bitenc_depth)
@@ -203,12 +218,15 @@ void POP_CheckConfig(POPConfig *pPolicyConfig, tSfPolicyUserContextId context)
             pPolicyConfig->max_depth = max;
         }
 
+        if (!pPolicyConfig->memcap)
+            pPolicyConfig->memcap = DEFAULT_POP_MEMCAP;
+
     }
     else if (defaultConfig == NULL)
     {
-        if (pPolicyConfig->memcap)
+        if (pPolicyConfig->max_mime_mem)
         {
-            DynamicPreprocessorFatalMessage("%s(%d) => POP: memcap must be "
+            DynamicPreprocessorFatalMessage("%s(%d) => POP: max_mime_mem must be "
                    "configured in the default config.\n",
                     *(_dpd.config_file), *(_dpd.config_line));
         }
@@ -244,6 +262,7 @@ void POP_CheckConfig(POPConfig *pPolicyConfig, tSfPolicyUserContextId context)
     }
     else
     {
+        pPolicyConfig->max_mime_mem = defaultConfig->max_mime_mem;
         pPolicyConfig->memcap = defaultConfig->memcap;
         pPolicyConfig->max_depth = defaultConfig->max_depth;
 
@@ -311,8 +330,6 @@ void POP_CheckConfig(POPConfig *pPolicyConfig, tSfPolicyUserContextId context)
                     *(_dpd.config_file), *(_dpd.config_line), pPolicyConfig->bitenc_depth, defaultConfig->bitenc_depth);
         }
 
-        pPolicyConfig->memcap = defaultConfig->memcap;
-        pPolicyConfig->max_depth = defaultConfig->max_depth;
     }
 }
 
@@ -350,6 +367,9 @@ void POP_PrintConfig(POPConfig *config)
 
     _dpd.logMsg("    POP Memcap: %u\n",
             config->memcap);
+
+    _dpd.logMsg("    MIME Max Mem: %d\n",
+            config->max_mime_mem);
 
     if(config->b64_depth > -1)
     {
@@ -519,47 +539,6 @@ static int ProcessPorts(POPConfig *config, char *ErrorString, int ErrStrLen)
 
     return 0;
 }
-
-static int ProcessPopMemcap(POPConfig *config, char *ErrorString, int ErrStrLen)
-{
-    char *endptr;
-    char *value;
-    uint32_t pop_memcap = 0;
-    if (config == NULL)
-    {
-        snprintf(ErrorString, ErrStrLen, "POP config is NULL.\n");
-        return -1;
-    }
-
-    value = strtok(NULL, CONF_SEPARATORS);
-    if ( value == NULL )
-    {
-        snprintf(ErrorString, ErrStrLen,
-                "Invalid format for POP config option 'memcap'.");
-        return -1;
-    }
-    pop_memcap = strtoul(value, &endptr, 10);
-
-    if((value[0] == '-') || (*endptr != '\0'))
-    {
-        snprintf(ErrorString, ErrStrLen,
-            "Invalid format for POP config option 'memcap'.");
-        return -1;
-    }
-
-    if (pop_memcap < MIN_POP_MEMCAP || pop_memcap > MAX_POP_MEMCAP)
-    {
-        snprintf(ErrorString, ErrStrLen,
-                "Invalid value for memcap."
-                "It should range between %d and %d.",
-                MIN_POP_MEMCAP, MAX_POP_MEMCAP);
-        return -1;
-    }
-
-    config->memcap = pop_memcap;
-    return 0;
-}
-
 
 static int ProcessDecodeDepth(POPConfig *config, char *ErrorString, int ErrStrLen, char *decode_type, DecodeType type)
 {

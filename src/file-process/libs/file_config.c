@@ -44,7 +44,8 @@
 #define DEFAULT_FILE_TYPE_DEPTH 1460
 #define DEFAULT_FILE_SIGNATURE_DEPTH 10485760 /*10 Mbytes*/
 #define DEFAULT_FILE_SHOW_DATA_DEPTH 100
-
+#define DEFAULT_FILE_BLOCK_TIMEOUT 86400 /*1 day*/
+#define DEFAULT_FILE_LOOKUP_TIMEOUT 2 /*2 seconds*/
 
 typedef void (*ParseFileOptFunc)(RuleInfo*, char *);
 
@@ -374,7 +375,7 @@ static void ParseFileContent(RuleInfo *rule, char *args)
 
     size = end_ptr - start_ptr;
 
-    if ((rule) && (rule->magics))
+    if (rule->magics)
     {
         for (predata = rule->magics; predata->next != NULL; predata = predata->next);
     }
@@ -504,6 +505,9 @@ FileConfig *get_file_config(void **conf)
         *conf = file_config;
         file_config->file_type_depth = DEFAULT_FILE_TYPE_DEPTH;
         file_config->file_signature_depth = DEFAULT_FILE_SIGNATURE_DEPTH;
+        file_config->file_block_timeout = DEFAULT_FILE_BLOCK_TIMEOUT;
+        file_config->file_lookup_timeout = DEFAULT_FILE_LOOKUP_TIMEOUT;
+        file_config->block_timeout_lookup = false;
 #if defined(DEBUG_MSGS) || defined (REG_TEST)
         file_config->show_data_depth = DEFAULT_FILE_SHOW_DATA_DEPTH;
 #endif

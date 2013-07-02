@@ -37,11 +37,10 @@
 #include "sfprocpidstats.h"
 #include "sf_types.h"
 #include "snort_debug.h"
+#include "decode.h"
 
 #include <time.h>
 #include <stdio.h>
-
-#define MAX_PERF_STATS 1
 
 typedef struct _PKTSTATS
 {
@@ -167,6 +166,7 @@ typedef struct _SFBASE
 
     uint64_t   frag3_mem_in_use;
     uint64_t   stream5_mem_in_use;
+    uint64_t   total_iAlerts;
 }  SFBASE;
 
 typedef struct _SYSTIMES {
@@ -272,11 +272,12 @@ typedef struct _SFBASE_STATS {
 
     uint64_t   frag3_mem_in_use;
     uint64_t   stream5_mem_in_use;
+    double     total_alerts_per_second;
 }  SFBASE_STATS;
 
 int InitBaseStats(SFBASE *sfBase);
-int UpdateBaseStats(SFBASE *sfBase, uint32_t len, int iRebuiltPkt);
-int ProcessBaseStats(SFBASE *sfBase,int console, int file, FILE * fh);
+void UpdateBaseStats(SFBASE *, Packet *, bool);
+void ProcessBaseStats(SFBASE *, FILE *, int, int);
 int AddStreamSession(SFBASE *sfBase, uint32_t flags);
 #define SESSION_CLOSED_NORMALLY 0x01
 #define SESSION_CLOSED_TIMEDOUT 0x02
@@ -291,6 +292,7 @@ void UpdateWireStats(SFBASE *sfBase, int len, int dropped, int injected);
 void UpdateMPLSStats(SFBASE *sfBase, int len, int dropped);
 void UpdateIPFragStats(SFBASE *sfBase, int len);
 void UpdateIPReassStats(SFBASE *sfBase, int len);
+void UpdateStreamReassStats(SFBASE *sfBase, int len);
 void UpdateFilteredPacketStats(SFBASE *sfBase, unsigned int proto);
 
 void LogBasePerfHeader(FILE*);

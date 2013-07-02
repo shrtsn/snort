@@ -92,7 +92,10 @@ int numLinesInFile(char *fname)
         {
             numlines++;
             if (numlines == INT_MAX)
+            {
+                fclose(fp);
                 return INT_MAX;
+            }
         }
     }
 

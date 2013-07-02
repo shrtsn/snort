@@ -54,7 +54,7 @@ void FlowbitResetCounts(void);
 */
 typedef struct _FLOWBITS_OBJECT
 {
-    uint32_t id;
+    uint16_t id;
     uint8_t  types;
     int toggle;
     int set;

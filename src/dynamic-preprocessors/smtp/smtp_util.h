@@ -37,7 +37,6 @@ void SMTP_GetEOL(const uint8_t *, const uint8_t *, const uint8_t **, const uint8
 int SMTP_CopyToAltBuffer(SFSnortPacket *, const uint8_t *, int);
 int SMTP_CopyEmailHdrs(const uint8_t *, int );
 int SMTP_CopyEmailID(const uint8_t *, int , int );
-int SMTP_CopyFileName(const uint8_t *, int );
 void SMTP_LogFuncs(SMTPConfig *config, SFSnortPacket *p);
 void SMTP_DecodeType(const char *, int, bool );
 

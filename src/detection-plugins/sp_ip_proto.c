@@ -85,7 +85,7 @@ typedef struct _IpProtoData
 } IpProtoData;
 
 
-void IpProtoInit(char *, OptTreeNode *, int);
+void IpProtoInit(struct _SnortConfig *, char *, OptTreeNode *, int);
 void IpProtoRuleParseFunction(char *, IpProtoData *);
 int IpProtoDetectorFunction(void *option_data, Packet *p);
 
@@ -147,7 +147,7 @@ void SetupIpProto(void)
 
 /****************************************************************************
  *
- * Function: IpProtoInit(char *, OptTreeNode *)
+ * Function: IpProtoInit(struct _SnortConfig *, char *, OptTreeNode *)
  *
  * Purpose: Generic rule configuration function.  Handles parsing the rule
  *          information and attaching the associated detection function to
@@ -159,7 +159,7 @@ void SetupIpProto(void)
  * Returns: void function
  *
  ****************************************************************************/
-void IpProtoInit(char *data, OptTreeNode *otn, int protocol)
+void IpProtoInit(struct _SnortConfig *sc, char *data, OptTreeNode *otn, int protocol)
 {
     OptFpList *ofl;
     IpProtoData *ipd;
@@ -201,7 +201,7 @@ void IpProtoInit(char *data, OptTreeNode *otn, int protocol)
     if(!otn->ds_list[PLUGIN_IP_PROTO_CHECK])
         otn->ds_list[PLUGIN_IP_PROTO_CHECK] = ipd;
 
-    if (add_detection_option(RULE_OPTION_TYPE_IP_PROTO, (void *)ipd, &ds_ptr_dup) == DETECTION_OPTION_EQUAL)
+    if (add_detection_option(sc, RULE_OPTION_TYPE_IP_PROTO, (void *)ipd, &ds_ptr_dup) == DETECTION_OPTION_EQUAL)
     {
         free(ipd);
         ipd = otn->ds_list[PLUGIN_IP_PROTO_CHECK] = ds_ptr_dup;

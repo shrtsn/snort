@@ -51,9 +51,9 @@ typedef struct _modbus_func_map_t
     uint8_t func;
 } modbus_func_map_t;
 
-int ModbusFuncInit(char *name, char *params, void **data);
-int ModbusUnitInit(char *name, char *params, void **data);
-int ModbusDataInit(char *name, char *params, void **data);
+int ModbusFuncInit(struct _SnortConfig *sc, char *name, char *params, void **data);
+int ModbusUnitInit(struct _SnortConfig *sc, char *name, char *params, void **data);
+int ModbusDataInit(struct _SnortConfig *sc, char *name, char *params, void **data);
 
 int ModbusRuleEval(void *raw_packet, const uint8_t **cursor, void *data);
 

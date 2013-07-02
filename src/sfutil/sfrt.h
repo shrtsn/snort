@@ -170,7 +170,7 @@ typedef struct
     GENERIC *data;      /* data table. Each IP points to an entry here */
     uint32_t num_ent;  /* Number of entries in the policy table */
     uint32_t max_size; /* Max size of policies array */
-    uint32_t lastAllocatedIndex; /* Index allocated last. Search for unused index 
+    uint32_t lastAllocatedIndex; /* Index allocated last. Search for unused index
                                     starts from this value and then wraps around at max_size.*/
     char ip_type;       /* Only IPs of this family will be used */
     char table_type;
@@ -194,10 +194,15 @@ void      sfrt_free(table_t *table);
 GENERIC sfrt_lookup(void *adr, table_t* table);
 GENERIC sfrt_search(void *adr, unsigned char len, table_t *table);
 typedef void (*sfrt_iterator_callback)(void *);
+struct _SnortConfig;
+typedef void (*sfrt_sc_iterator_callback)(struct _SnortConfig *, void *);
+typedef int (*sfrt_sc_iterator_callback3)(struct _SnortConfig *, void *);
 typedef void (*sfrt_iterator_callback2)(void *, void *);
 typedef int  (*sfrt_iterator_callback3)(void *);
 void    sfrt_iterate(table_t* table, sfrt_iterator_callback userfunc);
+void    sfrt_iterate_with_snort_config(struct _SnortConfig *sc, table_t* table, sfrt_sc_iterator_callback userfunc);
 int     sfrt_iterate2(table_t* table, sfrt_iterator_callback3 userfunc);
+int     sfrt_iterate2_with_snort_config(struct _SnortConfig *sc, table_t* table, sfrt_sc_iterator_callback3 userfunc);
 void    sfrt_cleanup(table_t* table, sfrt_iterator_callback userfunc);
 void    sfrt_cleanup2(table_t*, sfrt_iterator_callback2, void *);
 int     sfrt_insert(void *adr, unsigned char len, GENERIC ptr,
@@ -247,7 +252,7 @@ static inline GENERIC sfrt_dir8x_lookup(void *adr, table_t* table)
             return table->data[subtable->entries[index]];
         }
         subtable = (dir_sub_table_t *) subtable->entries[index];
-        
+
         /* 4 bits */
         index = ip->ip8[3] & 0xF;
         if( !subtable->entries[index] || subtable->lengths[index] )

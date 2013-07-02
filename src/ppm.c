@@ -317,6 +317,7 @@ void ppm_init(ppm_cfg_t *ppm_cfg)
 
 void ppm_pkt_log(ppm_cfg_t *ppm_cfg, Packet* p)
 {
+    int filterEvent = 0;
     if (!ppm_cfg->max_pkt_ticks)
         return;
 
@@ -353,7 +354,30 @@ void ppm_pkt_log(ppm_cfg_t *ppm_cfg, Packet* p)
                  potn->sigInfo.priority, /* priority (low) */
                  0);
 
-        AlertAction(p, potn, &ev);
+        if ( IPH_IS_VALID(p) )
+        {
+            filterEvent = sfthreshold_test(
+                        potn->event_data.sig_generator,
+                        potn->event_data.sig_id,
+                        GET_SRC_IP(p), GET_DST_IP(p),
+                        p->pkth->ts.tv_sec);
+        }
+        else
+        {
+            snort_ip cleared;
+            IP_CLEAR(cleared);
+
+            filterEvent = sfthreshold_test(
+                        potn->event_data.sig_generator,
+                        potn->event_data.sig_id,
+                        IP_ARG(cleared), IP_ARG(cleared),
+                        p->pkth->ts.tv_sec);
+        }
+
+        if(filterEvent < 0)
+            filterEvent = 0;
+        else
+            AlertAction(p, potn, &ev);
     }
 
     if (ppm_cfg->pkt_log & PPM_LOG_MESSAGE)
@@ -419,6 +443,7 @@ void ppm_rule_log(ppm_cfg_t *ppm_cfg, uint64_t pktcnt, Packet *p)
     detection_option_tree_root_t *proot;
     OptTreeNode *otn;
     char timestamp[TIMEBUF_SIZE];
+    int filterEvent = 0;
     *timestamp = '\0';
 
     if (!ppm_cfg->max_rule_ticks)
@@ -446,7 +471,31 @@ void ppm_rule_log(ppm_cfg_t *ppm_cfg, uint64_t pktcnt, Packet *p)
                         0);
 
                 otn->sigInfo.message = PPM_EVENT_RULE_TREE_ENABLED_STR;
-                AlertAction(p, otn, &ev);
+                if ( IPH_IS_VALID(p) )
+                {
+                    filterEvent = sfthreshold_test(
+                                otn->event_data.sig_generator,
+                                otn->event_data.sig_id,
+                                GET_SRC_IP(p), GET_DST_IP(p),
+                                p->pkth->ts.tv_sec);
+                }
+                else
+                {
+                    snort_ip cleared;
+                    IP_CLEAR(cleared);
+
+                    filterEvent = sfthreshold_test(
+                                otn->event_data.sig_generator,
+                                otn->event_data.sig_id,
+                                IP_ARG(cleared), IP_ARG(cleared),
+                                p->pkth->ts.tv_sec);
+                }
+
+                if(filterEvent < 0)
+                    filterEvent = 0;
+                else
+                    AlertAction(p, otn, &ev);
+
                 otn->sigInfo.message = tmp;
             }
         }
@@ -492,7 +541,30 @@ void ppm_rule_log(ppm_cfg_t *ppm_cfg, uint64_t pktcnt, Packet *p)
                         0);
 
                 otn->sigInfo.message = PPM_EVENT_RULE_TREE_DISABLED_STR;
-                AlertAction(p, otn, &ev);
+                if ( IPH_IS_VALID(p) )
+                {
+                    filterEvent = sfthreshold_test(
+                                otn->event_data.sig_generator,
+                                otn->event_data.sig_id,
+                                GET_SRC_IP(p), GET_DST_IP(p),
+                                p->pkth->ts.tv_sec);
+                }
+                else
+                {
+                    snort_ip cleared;
+                    IP_CLEAR(cleared);
+
+                    filterEvent = sfthreshold_test(
+                                otn->event_data.sig_generator,
+                                otn->event_data.sig_id,
+                                IP_ARG(cleared), IP_ARG(cleared),
+                                p->pkth->ts.tv_sec);
+                }
+
+                if(filterEvent < 0)
+                    filterEvent = 0;
+                else
+                    AlertAction(p, otn, &ev);
                 otn->sigInfo.message = tmp;
             }
         }

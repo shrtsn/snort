@@ -55,7 +55,7 @@ static modbus_func_map_t func_map[] =
     {"encapsulated_interface_transport", 43}
 };
 
-int ModbusFuncInit(char *name, char *params, void **data)
+int ModbusFuncInit(struct _SnortConfig *sc, char *name, char *params, void **data)
 {
     char *endptr;
     modbus_option_data_t *modbus_data;
@@ -124,7 +124,7 @@ int ModbusFuncInit(char *name, char *params, void **data)
     return 1;
 }
 
-int ModbusUnitInit(char *name, char *params, void **data)
+int ModbusUnitInit(struct _SnortConfig *sc, char *name, char *params, void **data)
 {
     char *endptr;
     modbus_option_data_t *modbus_data;
@@ -167,7 +167,7 @@ int ModbusUnitInit(char *name, char *params, void **data)
     return 1;
 }
 
-int ModbusDataInit(char *name, char *params, void **data)
+int ModbusDataInit(struct _SnortConfig *sc, char *name, char *params, void **data)
 {
     modbus_option_data_t *modbus_data;
 

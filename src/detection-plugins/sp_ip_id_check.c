@@ -54,8 +54,8 @@ typedef struct _IpIdCheckData
 
 } IpIdCheckData;
 
-void IpIdCheckInit(char *, OptTreeNode *, int);
-void ParseIpId(char *, OptTreeNode *);
+void IpIdCheckInit(struct _SnortConfig *, char *, OptTreeNode *, int);
+void ParseIpId(struct _SnortConfig *, char *, OptTreeNode *);
 int IpIdCheckEq(void *option_data, Packet *p);
 
 uint32_t IpIdCheckHash(void *d)
@@ -113,7 +113,7 @@ void SetupIpIdCheck(void)
 
 /****************************************************************************
  *
- * Function: IpIdCheckInit(char *, OptTreeNode *)
+ * Function: IpIdCheckInit(struct _SnortConfig *, char *, OptTreeNode *)
  *
  * Purpose: Setup the id data struct and link the function into option
  *          function pointer list
@@ -124,7 +124,7 @@ void SetupIpIdCheck(void)
  * Returns: void function
  *
  ****************************************************************************/
-void IpIdCheckInit(char *data, OptTreeNode *otn, int protocol)
+void IpIdCheckInit(struct _SnortConfig *sc, char *data, OptTreeNode *otn, int protocol)
 {
     OptFpList *fpl;
     /* multiple declaration check */
@@ -141,7 +141,7 @@ void IpIdCheckInit(char *data, OptTreeNode *otn, int protocol)
 
     /* this is where the keyword arguments are processed and placed into the
        rule option's data structure */
-    ParseIpId(data, otn);
+    ParseIpId(sc, data, otn);
 
     /* finally, attach the option's detection function to the rule's
        detect function pointer list */
@@ -154,7 +154,7 @@ void IpIdCheckInit(char *data, OptTreeNode *otn, int protocol)
 
 /****************************************************************************
  *
- * Function: ParseIpId(char *, OptTreeNode *)
+ * Function: ParseIpId(struct _SnortConfig *, char *, OptTreeNode *)
  *
  * Purpose: Convert the id option argument to data and plug it into the
  *          data structure
@@ -165,7 +165,7 @@ void IpIdCheckInit(char *data, OptTreeNode *otn, int protocol)
  * Returns: void function
  *
  ****************************************************************************/
-void ParseIpId(char *data, OptTreeNode *otn)
+void ParseIpId(struct _SnortConfig *sc, char *data, OptTreeNode *otn)
 {
     IpIdCheckData *ds_ptr;  /* data struct pointer */
     void *ds_ptr_dup;
@@ -190,7 +190,7 @@ void ParseIpId(char *data, OptTreeNode *otn)
     }
     ds_ptr->ip_id = htons( (u_short) ip_id);
 
-    if (add_detection_option(RULE_OPTION_TYPE_IP_ID, (void *)ds_ptr, &ds_ptr_dup) == DETECTION_OPTION_EQUAL)
+    if (add_detection_option(sc, RULE_OPTION_TYPE_IP_ID, (void *)ds_ptr, &ds_ptr_dup) == DETECTION_OPTION_EQUAL)
     {
         free(ds_ptr);
         ds_ptr = otn->ds_list[PLUGIN_IP_ID_CHECK] = ds_ptr_dup;

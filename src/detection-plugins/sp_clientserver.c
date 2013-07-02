@@ -81,8 +81,8 @@ extern PreprocStats ruleOTNEvalPerfStats;
 #include "sfhashfcn.h"
 #include "detection_options.h"
 
-void FlowInit(char *, OptTreeNode *, int);
-void ParseFlowArgs(char *, OptTreeNode *);
+void FlowInit(struct _SnortConfig *, char *, OptTreeNode *, int);
+void ParseFlowArgs(struct _SnortConfig *, char *, OptTreeNode *);
 void InitFlowData(OptTreeNode *);
 int CheckFlow(void *option_data, Packet *p);
 
@@ -201,7 +201,7 @@ void SetupClientServer(void)
 
 /****************************************************************************
  *
- * Function: FlowInit(char *, OptTreeNode *)
+ * Function: FlowInit(struct _SnortConfig *, char *, OptTreeNode *)
  *
  * Purpose: Configure the flow init option to register the appropriate checks
  *
@@ -211,7 +211,7 @@ void SetupClientServer(void)
  * Returns: void function
  *
  ****************************************************************************/
-void FlowInit(char *data, OptTreeNode *otn, int protocol)
+void FlowInit(struct _SnortConfig *sc, char *data, OptTreeNode *otn, int protocol)
 {
     ClientServerData *csd;
     /* multiple declaration check */
@@ -223,7 +223,7 @@ void FlowInit(char *data, OptTreeNode *otn, int protocol)
 
 
     InitFlowData(otn);
-    ParseFlowArgs(data, otn);
+    ParseFlowArgs(sc, data, otn);
     csd = (ClientServerData *)otn->ds_list[PLUGIN_CLIENTSERVER];
 
     if(protocol == IPPROTO_UDP)
@@ -257,7 +257,7 @@ static inline void CheckStream(char *token)
 
 /****************************************************************************
  *
- * Function: ParseFlowArgs(char *, OptTreeNode *)
+ * Function: ParseFlowArgs(struct _SnortConfig *, char *, OptTreeNode *)
  *
  * Purpose: parse the arguments to the flow plugin and alter the otn
  *          accordingly
@@ -267,7 +267,7 @@ static inline void CheckStream(char *token)
  * Returns: void function
  *
  ****************************************************************************/
-void ParseFlowArgs(char *data, OptTreeNode *otn)
+void ParseFlowArgs(struct _SnortConfig *sc, char *data, OptTreeNode *otn)
 {
     char *token, *str, *p;
     ClientServerData *csd;
@@ -401,7 +401,7 @@ void ParseFlowArgs(char *data, OptTreeNode *otn)
                    "options in same rule\n", file_name, file_line);
     }
 
-    if (add_detection_option(RULE_OPTION_TYPE_FLOW, (void *)csd, &idx_dup) == DETECTION_OPTION_EQUAL)
+    if (add_detection_option(sc, RULE_OPTION_TYPE_FLOW, (void *)csd, &idx_dup) == DETECTION_OPTION_EQUAL)
     {
 #ifdef DEBUG_RULE_OPTION_TREE
         LogMessage("Duplicate Flow:\n%c %c %c %c\n%c %c %c %c\n\n",
@@ -536,9 +536,7 @@ int CheckFlow(void *option_data, Packet *p)
     if (csd->only_reassembled & ONLY_STREAM)
     {
         if ( !(p->packet_flags & PKT_REBUILT_STREAM)
-#ifdef ENABLE_PAF
             && !PacketHasFullPDU(p)
-#endif
         ) {
             PREPROC_PROFILE_END(flowCheckPerfStats);
             return DETECTION_OPTION_NO_MATCH;

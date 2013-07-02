@@ -78,9 +78,11 @@ const int MAJOR_VERSION = 1;
 const int MINOR_VERSION = 0;
 const int BUILD_VERSION = 1;
 const char *PREPROC_NAME = "SF_POP";
+const char *PROTOCOL_NAME = "POP";
 
 #define SetupPOP DYNAMIC_PREPROC_SETUP
 
+MemPool *pop_mime_mempool = NULL;
 MemPool *pop_mempool = NULL;
 
 tSfPolicyUserContextId pop_config = NULL;
@@ -89,22 +91,21 @@ POPConfig *pop_eval_config = NULL;
 extern POP pop_no_session;
 extern int16_t pop_proto_id;
 
-static void POPInit(char *);
+static void POPInit(struct _SnortConfig *, char *);
 static void POPDetect(void *, void *context);
 static void POPCleanExitFunction(int, void *);
 static void POPResetFunction(int, void *);
 static void POPResetStatsFunction(int, void *);
-static void _addPortsToStream5Filter(POPConfig *, tSfPolicyId);
+static void _addPortsToStream5Filter(struct _SnortConfig *, POPConfig *, tSfPolicyId);
 #ifdef TARGET_BASED
-static void _addServicesToStream5Filter(tSfPolicyId);
+static void _addServicesToStream5Filter(struct _SnortConfig *, tSfPolicyId);
 #endif
-static void POPCheckConfig(void);
+static int POPCheckConfig(struct _SnortConfig *);
 
 #ifdef SNORT_RELOAD
-tSfPolicyUserContextId pop_swap_config = NULL;
-static void POPReload(char *);
-static int POPReloadVerify(void);
-static void * POPReloadSwap(void);
+static void POPReload(struct _SnortConfig *, char *, void **);
+static int POPReloadVerify(struct _SnortConfig *, void *);
+static void * POPReloadSwap(struct _SnortConfig *, void *);
 static void POPReloadSwapFree(void *);
 #endif
 
@@ -128,7 +129,7 @@ void SetupPOP(void)
     _dpd.registerPreproc("pop", POPInit);
 #else
     _dpd.registerPreproc("pop", POPInit, POPReload,
-                         POPReloadSwap, POPReloadSwapFree);
+                         POPReloadVerify, POPReloadSwap, POPReloadSwapFree);
 #endif
 }
 
@@ -144,10 +145,10 @@ void SetupPOP(void)
  * Returns: void function
  *
  */
-static void POPInit(char *args)
+static void POPInit(struct _SnortConfig *sc, char *args)
 {
     POPToken *tmp;
-    tSfPolicyId policy_id = _dpd.getParserPolicy();
+    tSfPolicyId policy_id = _dpd.getParserPolicy(sc);
     POPConfig * pPolicyConfig = NULL;
 
     if (pop_config == NULL)
@@ -173,7 +174,7 @@ static void POPInit(char *args)
         _dpd.addPreprocExit(POPCleanExitFunction, NULL, PRIORITY_LAST, PP_POP);
         _dpd.addPreprocReset(POPResetFunction, NULL, PRIORITY_LAST, PP_POP);
         _dpd.addPreprocResetStats(POPResetStatsFunction, NULL, PRIORITY_LAST, PP_POP);
-        _dpd.addPreprocConfCheck(POPCheckConfig);
+        _dpd.addPreprocConfCheck(sc, POPCheckConfig);
 
 #ifdef TARGET_BASED
         pop_proto_id = _dpd.findProtocolReference(POP_PROTO_REF_STR);
@@ -214,7 +215,7 @@ static void POPInit(char *args)
     if(pPolicyConfig->disabled)
         return;
 
-    _dpd.addPreproc(POPDetect, PRIORITY_APPLICATION, PP_POP, PROTO_BIT__TCP);
+    _dpd.addPreproc(sc, POPDetect, PRIORITY_APPLICATION, PP_POP, PROTO_BIT__TCP);
 
     if (_dpd.streamAPI == NULL)
     {
@@ -241,10 +242,10 @@ static void POPInit(char *args)
 
     _dpd.searchAPI->search_instance_prep(pPolicyConfig->cmd_search_mpse);
 
-    _addPortsToStream5Filter(pPolicyConfig, policy_id);
+    _addPortsToStream5Filter(sc, pPolicyConfig, policy_id);
 
 #ifdef TARGET_BASED
-    _addServicesToStream5Filter(policy_id);
+    _addServicesToStream5Filter(sc, policy_id);
 #endif
 }
 
@@ -311,6 +312,11 @@ static void POPDetect(void *pkt, void *context)
 static void POPCleanExitFunction(int signal, void *data)
 {
     POP_Free();
+    if (mempool_destroy(pop_mime_mempool) == 0)
+    {
+        free(pop_mime_mempool);
+        pop_mime_mempool = NULL;
+    }
     if (mempool_destroy(pop_mempool) == 0)
     {
         free(pop_mempool);
@@ -330,7 +336,7 @@ static void POPResetStatsFunction(int signal, void *data)
     return;
 }
 
-static void _addPortsToStream5Filter(POPConfig *config, tSfPolicyId policy_id)
+static void _addPortsToStream5Filter(struct _SnortConfig *sc, POPConfig *config, tSfPolicyId policy_id)
 {
     unsigned int portNum;
 
@@ -342,20 +348,21 @@ static void _addPortsToStream5Filter(POPConfig *config, tSfPolicyId policy_id)
         if(config->ports[(portNum/8)] & (1<<(portNum%8)))
         {
             //Add port the port
-            _dpd.streamAPI->set_port_filter_status(IPPROTO_TCP, (uint16_t)portNum,
+            _dpd.streamAPI->set_port_filter_status(sc, IPPROTO_TCP, (uint16_t)portNum,
                                                    PORT_MONITOR_SESSION, policy_id, 1);
         }
     }
 }
 
 #ifdef TARGET_BASED
-static void _addServicesToStream5Filter(tSfPolicyId policy_id)
+static void _addServicesToStream5Filter(struct _SnortConfig *sc, tSfPolicyId policy_id)
 {
-    _dpd.streamAPI->set_service_filter_status(pop_proto_id, PORT_MONITOR_SESSION, policy_id, 1);
+    _dpd.streamAPI->set_service_filter_status(sc, pop_proto_id, PORT_MONITOR_SESSION, policy_id, 1);
 }
 #endif
 
 static int CheckFilePolicyConfig(
+        struct _SnortConfig *sc,
         tSfPolicyUserContextId config,
         tSfPolicyId policyId,
         void* pData
@@ -364,12 +371,14 @@ static int CheckFilePolicyConfig(
     POPConfig *context = (POPConfig *)pData;
 
     context->file_depth = _dpd.fileAPI->get_max_file_depth();
+    if (context->file_depth > -1)
+        context->log_config.log_filename = 1;
     updateMaxDepth(context->file_depth, &context->max_depth);
 
     return 0;
 }
 
-static int POPEnableDecoding(tSfPolicyUserContextId config,
+static int POPEnableDecoding(struct _SnortConfig *sc, tSfPolicyUserContextId config,
             tSfPolicyId policyId, void *pData)
 {
     POPConfig *context = (POPConfig *)pData;
@@ -386,7 +395,25 @@ static int POPEnableDecoding(tSfPolicyUserContextId config,
     return 0;
 }
 
+static int POPLogExtraData(struct _SnortConfig *sc, tSfPolicyUserContextId config,
+        tSfPolicyId policyId, void *pData)
+{
+    POPConfig *context = (POPConfig *)pData;
+
+    if (pData == NULL)
+        return 0;
+
+    if(context->disabled)
+        return 0;
+
+    if(context->log_config.log_filename)
+        return 1;
+
+    return 0;
+}
+
 static int POPCheckPolicyConfig(
+        struct _SnortConfig *sc,
         tSfPolicyUserContextId config,
         tSfPolicyId policyId,
         void* pData
@@ -394,73 +421,61 @@ static int POPCheckPolicyConfig(
 {
     POPConfig *context = (POPConfig *)pData;
 
-    _dpd.setParserPolicy(policyId);
+    _dpd.setParserPolicy(sc, policyId);
 
     /* In a multiple-policy setting, the POP preproc can be turned on in a
        "disabled" state. In this case, we don't require Stream5. */
     if (context->disabled)
         return 0;
 
-    if (!_dpd.isPreprocEnabled(PP_STREAM5))
+    if (!_dpd.isPreprocEnabled(sc, PP_STREAM5))
     {
-        DynamicPreprocessorFatalMessage("Streaming & reassembly must be enabled "
-                                        "for POP preprocessor\n");
+        _dpd.errMsg("Streaming & reassembly must be enabled for POP preprocessor\n");
+        return -1;
     }
 
     return 0;
 }
 
-static void POPCheckConfig(void)
+static int POPCheckConfig(struct _SnortConfig *sc)
 {
-
+    int rval;
     POPConfig *defaultConfig =
             (POPConfig *)sfPolicyUserDataGetDefault(pop_config);
 
-    sfPolicyUserDataIterate (pop_config, POPCheckPolicyConfig);
+    if ((rval = sfPolicyUserDataIterate (sc, pop_config, POPCheckPolicyConfig)))
+        return rval;
 
-    sfPolicyUserDataIterate (pop_config, CheckFilePolicyConfig);
+    if ((rval = sfPolicyUserDataIterate (sc, pop_config, CheckFilePolicyConfig)))
+        return rval;
 
-    if (sfPolicyUserDataIterate(pop_config, POPEnableDecoding) != 0)
+    if (sfPolicyUserDataIterate(sc, pop_config, POPEnableDecoding) != 0)
     {
-        int encode_depth;
-        int max_sessions;
-
         if (defaultConfig == NULL)
         {
             /*error message */
-            DynamicPreprocessorFatalMessage("POP: Must configure a default "
+            _dpd.errMsg("POP: Must configure a default "
                     "configuration if you want to pop decoding.\n");
+            return -1;
         }
 
-        encode_depth = defaultConfig->max_depth;
-        
-        if (encode_depth <= 0)
-            return;        
-
-        if (encode_depth & 7)
-        {
-            encode_depth += (8 - (encode_depth & 7));
-        }
-
-        max_sessions = defaultConfig->memcap / (2 * encode_depth );
-
-        pop_mempool = (MemPool *)calloc(1, sizeof(MemPool));
-
-        if (mempool_init(pop_mempool, max_sessions,
-                    (2 * encode_depth )) != 0)
-        {
-            DynamicPreprocessorFatalMessage("POP:  Could not allocate POP mempool.\n");
-        }
+        pop_mime_mempool = (MemPool *)_dpd.fileAPI->init_mime_mempool(defaultConfig->max_mime_mem,
+                defaultConfig->max_depth, pop_mime_mempool, PROTOCOL_NAME);
     }
 
-
+    if (sfPolicyUserDataIterate(sc, pop_config, POPLogExtraData) != 0)
+    {
+        pop_mempool = (MemPool *)_dpd.fileAPI->init_log_mempool(0,  defaultConfig->memcap, pop_mempool, PROTOCOL_NAME);
+    }
+    return 0;
 }
 
 #ifdef SNORT_RELOAD
-static void POPReload(char *args)
+static void POPReload(struct _SnortConfig *sc, char *args, void **new_config)
 {
+    tSfPolicyUserContextId pop_swap_config = (tSfPolicyUserContextId)*new_config;
     POPToken *tmp;
-    tSfPolicyId policy_id = _dpd.getParserPolicy();
+    tSfPolicyId policy_id = _dpd.getParserPolicy(sc);
     POPConfig *pPolicyConfig = NULL;
 
     if (pop_swap_config == NULL)
@@ -472,8 +487,7 @@ static void POPReload(char *args)
             DynamicPreprocessorFatalMessage("Not enough memory to create POP "
                                             "configuration.\n");
         }
-
-        _dpd.addPreprocReloadVerify(POPReloadVerify);
+        *new_config = (void *)pop_swap_config;
     }
 
     sfPolicyUserPolicySet (pop_swap_config, policy_id);
@@ -525,17 +539,19 @@ static void POPReload(char *args)
 
     _dpd.searchAPI->search_instance_prep(pPolicyConfig->cmd_search_mpse);
 
-    _dpd.addPreproc(POPDetect, PRIORITY_APPLICATION, PP_POP, PROTO_BIT__TCP);
+    _dpd.addPreproc(sc, POPDetect, PRIORITY_APPLICATION, PP_POP, PROTO_BIT__TCP);
 
-    _addPortsToStream5Filter(pPolicyConfig, policy_id);
+    _addPortsToStream5Filter(sc, pPolicyConfig, policy_id);
 
 #ifdef TARGET_BASED
-    _addServicesToStream5Filter(policy_id);
+    _addServicesToStream5Filter(sc, policy_id);
 #endif
 }
 
-static int POPReloadVerify(void)
+static int POPReloadVerify(struct _SnortConfig *sc, void *swap_config)
 {
+    int rval;
+    tSfPolicyUserContextId pop_swap_config = (tSfPolicyUserContextId)swap_config;
     POPConfig *config = NULL;
     POPConfig *configNext = NULL;
 
@@ -553,102 +569,90 @@ static int POPReloadVerify(void)
     {
         return 0;
     }
+    if ((rval = sfPolicyUserDataIterate (sc, pop_swap_config, CheckFilePolicyConfig)))
+    {
+        return rval;
+    }
 
-    sfPolicyUserDataIterate (pop_swap_config, CheckFilePolicyConfig);
-
-    if (pop_mempool != NULL)
+    if (pop_mime_mempool != NULL)
     {
         if (configNext == NULL)
         {
             _dpd.errMsg("POP reload: Changing the POP configuration requires a restart.\n");
-            POP_FreeConfigs(pop_swap_config);
-            pop_swap_config = NULL;
             return -1;
         }
-        if (configNext->memcap != config->memcap)
+        if (configNext->max_mime_mem != config->max_mime_mem)
         {
             _dpd.errMsg("POP reload: Changing the memcap requires a restart.\n");
-            POP_FreeConfigs(pop_swap_config);
-            pop_swap_config = NULL;
             return -1;
         }
         if(configNext->b64_depth != config->b64_depth)
         {
             _dpd.errMsg("POP reload: Changing the b64_decode_depth requires a restart.\n");
-            POP_FreeConfigs(pop_swap_config);
-            pop_swap_config = NULL;
             return -1;
         }
         if(configNext->qp_depth != config->qp_depth)
         {
             _dpd.errMsg("POP reload: Changing the qp_decode_depth requires a restart.\n");
-            POP_FreeConfigs(pop_swap_config);
-            pop_swap_config = NULL;
             return -1;
         }
         if(configNext->bitenc_depth != config->bitenc_depth)
         {
             _dpd.errMsg("POP reload: Changing the bitenc_decode_depth requires a restart.\n");
-            POP_FreeConfigs(pop_swap_config);
-            pop_swap_config = NULL;
             return -1;
         }
         if(configNext->uu_depth != config->uu_depth)
         {
             _dpd.errMsg("POP reload: Changing the uu_decode_depth requires a restart.\n");
-            POP_FreeConfigs(pop_swap_config);
-            pop_swap_config = NULL;
             return -1;
         }
         if(configNext->file_depth != config->file_depth)
         {
             _dpd.errMsg("POP reload: Changing the file_depth requires a restart.\n");
-            POP_FreeConfigs(pop_swap_config);
-            pop_swap_config = NULL;
+            return -1;
+        }
+
+    }
+
+    if (pop_mempool != NULL)
+    {
+        if (configNext == NULL)
+        {
+            _dpd.errMsg("POP reload: Changing the memcap requires a restart.\n");
+            return -1;
+        }
+        if (configNext->memcap != config->memcap)
+        {
+            _dpd.errMsg("POP reload: Changing the memcap requires a restart.\n");
             return -1;
         }
 
     }
     else if(configNext != NULL)
     {
-        if (sfPolicyUserDataIterate(pop_swap_config, POPEnableDecoding) != 0)
+        if (sfPolicyUserDataIterate(sc, pop_swap_config, POPEnableDecoding) != 0)
         {
-            int encode_depth;
-            int max_sessions;
-
-
-            encode_depth = configNext->max_depth;
-
-            if (encode_depth <= 0)
-                return 0;
-
-            if (encode_depth & 7)
-            {
-                encode_depth += (8 - (encode_depth & 7));
-            }
-
-            max_sessions = configNext->memcap / ( 2 * encode_depth);
-
-            pop_mempool = (MemPool *)calloc(1, sizeof(MemPool));
-
-            if (mempool_init(pop_mempool, max_sessions,
-                            (2 * encode_depth)) != 0)
-            {
-                DynamicPreprocessorFatalMessage("POP:  Could not allocate POP mempool.\n");
-            }
+            pop_mime_mempool =  (MemPool *)_dpd.fileAPI->init_mime_mempool(configNext->max_mime_mem,
+                    configNext->max_depth, pop_mime_mempool, PREPROC_NAME);
         }
+
+        if (sfPolicyUserDataIterate(sc, pop_swap_config, POPLogExtraData) != 0)
+        {
+            pop_mempool = (MemPool *)_dpd.fileAPI->init_log_mempool(0,  configNext->memcap,
+                    pop_mempool, PREPROC_NAME);
+
+        }
+
         if ( configNext->disabled )
             return 0;
 
     }
 
-
-
-
-    if (!_dpd.isPreprocEnabled(PP_STREAM5))
+    if (!_dpd.isPreprocEnabled(sc, PP_STREAM5))
     {
-        DynamicPreprocessorFatalMessage("Streaming & reassembly must be enabled "
+        _dpd.errMsg("Streaming & reassembly must be enabled "
                                         "for POP preprocessor\n");
+        return -1;
     }
 
     return 0;
@@ -671,20 +675,20 @@ static int POPReloadSwapPolicy(
     return 0;
 }
 
-static void * POPReloadSwap(void)
+static void * POPReloadSwap(struct _SnortConfig *sc, void *swap_config)
 {
+    tSfPolicyUserContextId pop_swap_config = (tSfPolicyUserContextId)swap_config;
     tSfPolicyUserContextId old_config = pop_config;
 
     if (pop_swap_config == NULL)
         return NULL;
 
     pop_config = pop_swap_config;
-    pop_swap_config = NULL;
 
-    sfPolicyUserDataIterate (old_config, POPReloadSwapPolicy);
+    sfPolicyUserDataFreeIterate (old_config, POPReloadSwapPolicy);
 
     if (sfPolicyUserPolicyGetActive(old_config) == 0)
-        POP_FreeConfigs(old_config);
+        return old_config;
 
     return NULL;
 }

@@ -30,24 +30,27 @@ void Stream5CleanUdp(void);
 void Stream5ResetUdp(void);
 void Stream5InitUdp(Stream5GlobalConfig *);
 void Stream5UdpPolicyInit(Stream5UdpConfig *, char *);
-int Stream5VerifyUdpConfig(Stream5UdpConfig *, tSfPolicyId);
+int Stream5VerifyUdpConfig(struct _SnortConfig *, Stream5UdpConfig *, tSfPolicyId);
 int Stream5ProcessUdp(Packet *, Stream5LWSession *, Stream5UdpPolicy *, SessionKey *);
 void UdpUpdateDirection(Stream5LWSession *ssn, char dir,
                         snort_ip_p ip, uint16_t port);
-Stream5LWSession *GetLWUdpSession(SessionKey *key);
+Stream5LWSession *GetLWUdpSession(const SessionKey *key);
 void s5UdpSetPortFilterStatus(
+        struct _SnortConfig *sc,
         unsigned short port,
         uint16_t status,
         tSfPolicyId policyId,
         int parsing
         );
 void s5UdpUnsetPortFilterStatus(
+        struct _SnortConfig *sc,
         unsigned short port,
         uint16_t status,
         tSfPolicyId policyId,
         int parsing
         );
 int s5UdpGetPortFilterStatus(
+        struct _SnortConfig *sc,
         unsigned short port,
         tSfPolicyId policyId,
         int parsing
@@ -57,4 +60,5 @@ void Stream5UdpConfigFree(Stream5UdpConfig *);
 uint32_t Stream5GetUdpPrunes(void);
 void Stream5ResetUdpPrunes(void);
 void UdpSessionCleanup(Stream5LWSession *lwssn);
+
 #endif /* STREAM5_UDP_H_ */

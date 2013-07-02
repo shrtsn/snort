@@ -43,6 +43,7 @@ libsfutil_a_SOURCES = \
     sf_textlog.c sf_textlog.h \
     sfPolicy.c sfPolicy.h \
     sfPolicyUserData.c sfPolicyUserData.h \
+    sfPolicyData.h \
     sfActionQueue.c sfActionQueue.h \
     sfrf.c sfrf.h \
     strvec.c strvec.h \

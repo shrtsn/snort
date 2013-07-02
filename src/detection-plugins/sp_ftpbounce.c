@@ -83,7 +83,7 @@ extern PreprocStats ruleOTNEvalPerfStats;
 #include "detection_options.h"
 #include "detection_util.h"
 
-void FTPBounceInit(char *, OptTreeNode *, int);
+void FTPBounceInit(struct _SnortConfig *, char *, OptTreeNode *, int);
 void FTPBounceParse(char *, OptTreeNode *);
 int FTPBounce(void *option_data, Packet *p);
 
@@ -134,7 +134,7 @@ void SetupFTPBounce(void)
 
 /****************************************************************************
  *
- * Function: FTPBounceInit(char *, OptTreeNode *)
+ * Function: FTPBounceInit(struct _SnortConfig *, char *, OptTreeNode *)
  *
  * Purpose: Generic rule configuration function.  Handles parsing the rule
  *          information and attaching the associated detection function to
@@ -147,7 +147,7 @@ void SetupFTPBounce(void)
  * Returns: void function
  *
  ****************************************************************************/
-void FTPBounceInit(char *data, OptTreeNode *otn, int protocol)
+void FTPBounceInit(struct _SnortConfig *sc, char *data, OptTreeNode *otn, int protocol)
 {
     OptFpList *fpl;
     void *ds_ptr_dup;
@@ -164,7 +164,7 @@ void FTPBounceInit(char *data, OptTreeNode *otn, int protocol)
      */
     fpl->context = (void *) NULL;
 
-    if (add_detection_option(RULE_OPTION_TYPE_FTPBOUNCE, (void *)NULL, &ds_ptr_dup) == DETECTION_OPTION_EQUAL)
+    if (add_detection_option(sc, RULE_OPTION_TYPE_FTPBOUNCE, (void *)NULL, &ds_ptr_dup) == DETECTION_OPTION_EQUAL)
     {
         //otn->ds_list[PLUGIN_FTPBOUNCE] = ds_ptr_dup;
     }

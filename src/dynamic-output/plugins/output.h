@@ -36,6 +36,11 @@ typedef struct {
     uint32_t type;      /* Module capabilities */
 } Output_Module_Info_t;
 
+/* Iterate through each of the output modules */
+void * GetNextOutputModule(void *);
+const char * GetOutputModuleName(void *);
+uint32_t GetOutputModuleVersion(void *);
+
 /* Functions for loading, handling, and unloading output modules. */
 
 /*Load, unload output modules from directory*/

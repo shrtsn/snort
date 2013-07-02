@@ -48,8 +48,14 @@
 #include "sf_dynamic_preproc_lib.h"
 #include "sf_dynamic_preprocessor.h"
 #include "snort_debug.h"
+
 #include "sfPolicy.h"
 #include "sfPolicyUserData.h"
+
+#include "profiler.h"
+#ifdef PERF_PROFILING
+PreprocStats examplePerfStats;
+#endif
 
 #define GENERATOR_EXAMPLE 256
 #define SRC_PORT_MATCH  1
@@ -65,17 +71,15 @@ typedef struct _ExampleConfig
 
 tSfPolicyUserContextId ex_config = NULL;
 ExampleConfig *ex_eval_config = NULL;
-#ifdef SNORT_RELOAD
-tSfPolicyUserContextId ex_swap_config = NULL;
-#endif
 
-static void ExampleInit(char *);
+static void ExampleInit(struct _SnortConfig *, char *);
 static void ExampleProcess(void *, void *);
 static ExampleConfig * ExampleParse(char *);
 #ifdef SNORT_RELOAD
-static void ExampleReload(char *);
+static void ExampleReload(struct _SnortConfig *, char *, void **);
+static int ExampleReloadVerify(struct _SnortConfig *, void *);
 static int ExampleReloadSwapPolicyFree(tSfPolicyUserContextId, tSfPolicyId, void *);
-static void * ExampleReloadSwap(void);
+static void * ExampleReloadSwap(struct _SnortConfig *, void *);
 static void ExampleReloadSwapFree(void *);
 #endif
 
@@ -85,16 +89,16 @@ void ExampleSetup(void)
     _dpd.registerPreproc("dynamic_example", ExampleInit);
 #else
     _dpd.registerPreproc("dynamic_example", ExampleInit, ExampleReload,
-            ExampleReloadSwap, ExampleReloadSwapFree);
+            ExampleReloadVerify, ExampleReloadSwap, ExampleReloadSwapFree);
 #endif
 
     DEBUG_WRAP(DebugMessage(DEBUG_PLUGIN, "Preprocessor: Example is setup\n"););
 }
 
-static void ExampleInit(char *args)
+static void ExampleInit(struct _SnortConfig *sc, char *args)
 {
     ExampleConfig *config;
-    tSfPolicyId policy_id = _dpd.getParserPolicy();
+    tSfPolicyId policy_id = _dpd.getParserPolicy(sc);
 
     _dpd.logMsg("Example dynamic preprocessor configuration\n");
 
@@ -110,7 +114,11 @@ static void ExampleInit(char *args)
     sfPolicyUserDataSetCurrent(ex_config, config);
 
     /* Register the preprocessor function, Transport layer, ID 10000 */
-    _dpd.addPreproc(ExampleProcess, PRIORITY_TRANSPORT, 10000, PROTO_BIT__TCP | PROTO_BIT__UDP);
+    _dpd.addPreproc(sc, ExampleProcess, PRIORITY_TRANSPORT, 10000, PROTO_BIT__TCP | PROTO_BIT__UDP);
+
+#ifdef PERF_PROFILING
+    _dpd.addPreprocProfileFunc("example", (void *)&examplePerfStats, 0, _dpd.totalPerfStats);
+#endif
 
     DEBUG_WRAP(DebugMessage(DEBUG_PLUGIN, "Preprocessor: Example is initialized\n"););
 }
@@ -156,6 +164,7 @@ void ExampleProcess(void *pkt, void *context)
 {
     SFSnortPacket *p = (SFSnortPacket *)pkt;
     ExampleConfig *config;
+    PROFILE_VARS;
 
     sfPolicyUserPolicySet(ex_config, _dpd.getRuntimePolicy());
     config = (ExampleConfig *)sfPolicyUserDataGetCurrent(ex_config);
@@ -168,11 +177,15 @@ void ExampleProcess(void *pkt, void *context)
         return;
     }
 
+    PREPROC_PROFILE_START(examplePerfStats);
+
     if (p->src_port == config->portToCheck)
     {
         /* Source port matched, log alert */
         _dpd.alertAdd(GENERATOR_EXAMPLE, SRC_PORT_MATCH,
                       1, 0, 3, SRC_PORT_MATCH_STR, 0);
+
+        PREPROC_PROFILE_END(examplePerfStats);
         return;
     }
 
@@ -181,33 +194,46 @@ void ExampleProcess(void *pkt, void *context)
         /* Destination port matched, log alert */
         _dpd.alertAdd(GENERATOR_EXAMPLE, DST_PORT_MATCH,
                       1, 0, 3, DST_PORT_MATCH_STR, 0);
+        PREPROC_PROFILE_END(examplePerfStats);
         return;
     }
+    
+    PREPROC_PROFILE_END(examplePerfStats);
 }
 
 #ifdef SNORT_RELOAD
-static void ExampleReload(char *args)
+static void ExampleReload(struct _SnortConfig *sc, char *args, void **new_config)
 {
+    tSfPolicyUserContextId ex_swap_config;
     ExampleConfig *config;
-    tSfPolicyId policy_id = _dpd.getParserPolicy();
+    tSfPolicyId policy_id = _dpd.getParserPolicy(sc);
 
     _dpd.logMsg("Example dynamic preprocessor configuration\n");
 
+    ex_swap_config = sfPolicyConfigCreate();
     if (ex_swap_config == NULL)
-    {
-        ex_swap_config = sfPolicyConfigCreate();
-        if (ex_swap_config == NULL)
-            _dpd.fatalMsg("Could not allocate configuration struct.\n");
-    }
+        _dpd.fatalMsg("Could not allocate configuration struct.\n");
 
     config = ExampleParse(args);
     sfPolicyUserPolicySet(ex_swap_config, policy_id);
     sfPolicyUserDataSetCurrent(ex_swap_config, config);
 
     /* Register the preprocessor function, Transport layer, ID 10000 */
-    _dpd.addPreproc(ExampleProcess, PRIORITY_TRANSPORT, 10000, PROTO_BIT__TCP | PROTO_BIT__UDP);
+    _dpd.addPreproc(sc, ExampleProcess, PRIORITY_TRANSPORT, 10000, PROTO_BIT__TCP | PROTO_BIT__UDP);
 
+    *new_config = (void *)ex_swap_config;
     DEBUG_WRAP(DebugMessage(DEBUG_PLUGIN, "Preprocessor: Example is initialized\n"););
+}
+
+static int ExampleReloadVerify(struct _SnortConfig *sc, void *swap_config)
+{
+    if (!_dpd.isPreprocEnabled(sc, PP_STREAM5))
+    {
+        _dpd.errMsg("Streaming & reassembly must be enabled for example preprocessor\n");
+        return -1;
+    }
+
+    return 0;
 }
 
 static int ExampleReloadSwapPolicyFree(tSfPolicyUserContextId config, tSfPolicyId policyId, void *data)
@@ -219,15 +245,15 @@ static int ExampleReloadSwapPolicyFree(tSfPolicyUserContextId config, tSfPolicyI
     return 0;
 }
 
-static void * ExampleReloadSwap(void)
+static void * ExampleReloadSwap(struct _SnortConfig *sc, void *swap_config)
 {
+    tSfPolicyUserContextId ex_swap_config = (tSfPolicyUserContextId)swap_config;
     tSfPolicyUserContextId old_config = ex_config;
 
     if (ex_swap_config == NULL)
         return NULL;
 
     ex_config = ex_swap_config;
-    ex_swap_config = NULL;
 
     return (void *)old_config;
 }
@@ -239,7 +265,7 @@ static void ExampleReloadSwapFree(void *data)
     if (data == NULL)
         return;
 
-    sfPolicyUserDataIterate(config, ExampleReloadSwapPolicyFree);
+    sfPolicyUserDataFreeIterate(config, ExampleReloadSwapPolicyFree);
     sfPolicyConfigDelete(config);
 }
 #endif

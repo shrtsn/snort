@@ -393,10 +393,10 @@ void sfip_obfuscate(sfip_t *ob, sfip_t *ip) {
  * XXX sfip_contains assumes that "ip" is
  *      not less-specific than "net" XXX
 */
-SFIP_RET sfip_contains(sfip_t *net, sfip_t *ip) {
+SFIP_RET sfip_contains(const sfip_t *net, const sfip_t *ip) {
     unsigned int bits, mask, temp, i;
     int net_fam, ip_fam;
-    unsigned int *p1, *p2;
+    const unsigned int *p1, *p2;
 
     /* SFIP_CONTAINS is returned here due to how IpAddrSetContains
      * handles zero'ed IPs" */
@@ -543,8 +543,8 @@ void sfip_free(sfip_t *ip) {
 }
 
 /* Returns 1 if the IP is non-zero. 0 otherwise */
-int sfip_is_loopback(sfip_t *ip) {
-    unsigned int *p;
+int sfip_is_loopback(const sfip_t *ip) {
+    const unsigned int *p;
 
     ARG_CHECK1(ip, 0);
 
@@ -573,8 +573,8 @@ int sfip_is_loopback(sfip_t *ip) {
     return 0;
 }
 
-int sfip_ismapped(sfip_t *ip) {
-    unsigned int *p;
+int sfip_ismapped(const sfip_t *ip) {
+    const unsigned int *p;
 
     ARG_CHECK1(ip, 0);
 

@@ -42,6 +42,7 @@
 #include "sf_ip.h"
 #include "sfPolicy.h"
 #include "hi_util_kmap.h"
+#include "file_api.h"
 
 /*
 **  Defines
@@ -279,7 +280,8 @@ typedef struct s_HTTPINSPECT_GLOBAL_CONF
     uint32_t xtra_hname_id;
     uint32_t xtra_gzip_id;
     uint32_t xtra_jsnorm_id;
-
+    DecodeConfig decode_conf;
+    MAIL_LogConfig mime_conf;
 }  HTTPINSPECT_GLOBAL_CONF;
 
 #define INVALID_HEX_VAL -1

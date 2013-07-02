@@ -82,6 +82,7 @@ extern int imapDetectCalled;
 extern tSfPolicyUserContextId imap_config;
 extern IMAPConfig *imap_eval_config;
 extern MemPool *imap_mempool;
+extern MemPool *imap_mime_mempool;
 
 #ifdef DEBUG_MSGS
 extern char imap_print_buffer[];
@@ -168,6 +169,7 @@ const IMAPToken imap_hdrs[] =
 {
     {"Content-type:", 13, HDR_CONTENT_TYPE},
     {"Content-Transfer-Encoding:", 26, HDR_CONT_TRANS_ENC},
+    {"Content-Disposition:", 20, HDR_CONT_DISP},
     {NULL,             0, 0}
 };
 
@@ -236,7 +238,7 @@ static void SetImapBuffers(IMAP *ssn)
 {
     if ((ssn != NULL) && (ssn->decode_state == NULL))
     {
-        MemBucket *bkt = mempool_alloc(imap_mempool);
+        MemBucket *bkt = mempool_alloc(imap_mime_mempool);
 
         if (bkt != NULL)
         {
@@ -252,7 +254,7 @@ static void SetImapBuffers(IMAP *ssn)
             else
             {
                 /*free mempool if calloc fails*/
-                mempool_free(imap_mempool, bkt);
+                mempool_free(imap_mime_mempool, bkt);
             }
         }
         else
@@ -485,6 +487,12 @@ static IMAP * IMAP_GetNewSession(SFSnortPacket *p, tSfPolicyId policy_id)
 
     imap_ssn = ssn;
 
+    if (_dpd.fileAPI->set_log_buffers(&(imap_ssn->log_state), &(pPolicyConfig->log_config), imap_mempool) < 0)
+    {
+        free(ssn);
+        return NULL;
+    }
+
     _dpd.streamAPI->set_application_data(p->stream_session_ptr, PP_IMAP,
                                          ssn, &IMAP_SessionFree);
 
@@ -688,8 +696,13 @@ static void IMAP_SessionFree(void *session_data)
 
     if(imap->decode_state != NULL)
     {
-        mempool_free(imap_mempool, imap->decode_bkt);
+        mempool_free(imap_mime_mempool, imap->decode_bkt);
         free(imap->decode_state);
+    }
+    if(imap->log_state != NULL)
+    {
+        mempool_free(imap_mempool, imap->log_state->log_hdrs_bkt);
+        free(imap->log_state);
     }
 
     free(imap);
@@ -725,7 +738,7 @@ void IMAP_FreeConfigs(tSfPolicyUserContextId config)
     if (config == NULL)
         return;
 
-    sfPolicyUserDataIterate (config, IMAP_FreeConfigsPolicy);
+    sfPolicyUserDataFreeIterate (config, IMAP_FreeConfigsPolicy);
     sfPolicyConfigDelete(config);
 }
 
@@ -1030,15 +1043,18 @@ static const uint8_t * IMAP_HandleData(SFSnortPacket *p, const uint8_t *ptr, con
                     imap_eval_config->uu_depth, imap_eval_config->bitenc_depth,imap_ssn->decode_state );
             _dpd.setFileDataPtr(imap_ssn->decode_state->decodePtr, (uint16_t)detection_size);
             /*Download*/
-            _dpd.fileAPI->file_process(p,(uint8_t *)imap_ssn->decode_state->decodePtr,
-                    (uint16_t)imap_ssn->decode_state->decoded_bytes, position, 0);
+            if (_dpd.fileAPI->file_process(p,(uint8_t *)imap_ssn->decode_state->decodePtr,
+                    (uint16_t)imap_ssn->decode_state->decoded_bytes, position, 0)
+                    && (isFileStart(position)) && imap_ssn->log_state)
+            {
+                _dpd.fileAPI->set_file_name_from_log(&(imap_ssn->log_state->file_log), p->stream_session_ptr);
+            }
+            updateFilePosition(&position, _dpd.fileAPI->get_file_processed_size(p->stream_session_ptr));
             _dpd.detect(p);
             imap_ssn->state_flags &= ~IMAP_FLAG_MULTIPLE_EMAIL_ATTACH;
             ResetEmailDecodeState(imap_ssn->decode_state);
             p->flags |=FLAG_ALLOW_MULTIPLE_DETECT;
             /* Reset the log count when a packet goes through detection multiple times */
-            p->xtradata_mask = 0;
-            p->per_packet_xtradata = 0;
             _dpd.DetectReset((uint8_t *)p->payload, p->payload_size);
         }
         switch (imap_ssn->data_state)
@@ -1046,12 +1062,12 @@ static const uint8_t * IMAP_HandleData(SFSnortPacket *p, const uint8_t *ptr, con
             case STATE_MIME_HEADER:
                 DEBUG_WRAP(DebugMessage(DEBUG_IMAP, "MIME HEADER STATE ~~~~~~~~~~~~~~~~~~~~~~\n"););
                 ptr = IMAP_HandleHeader(p, ptr, data_end_marker);
-                finalFilePosition(&position);
+                _dpd.fileAPI->finalize_mime_position(p->stream_session_ptr,
+                        imap_ssn->decode_state, &position);
                 break;
             case STATE_DATA_BODY:
                 DEBUG_WRAP(DebugMessage(DEBUG_IMAP, "DATA BODY STATE ~~~~~~~~~~~~~~~~~~~~~~~~\n"););
                 ptr = IMAP_HandleDataBody(p, ptr, data_end_marker);
-                updateFilePosition(&position, _dpd.fileAPI->get_file_processed_size(p->stream_session_ptr));
                 break;
         }
     }
@@ -1075,8 +1091,12 @@ static const uint8_t * IMAP_HandleData(SFSnortPacket *p, const uint8_t *ptr, con
             finalFilePosition(&position);
         }
         /*Download*/
-        _dpd.fileAPI->file_process(p,(uint8_t *)imap_ssn->decode_state->decodePtr,
-                (uint16_t)imap_ssn->decode_state->decoded_bytes, position, 0);
+        if (_dpd.fileAPI->file_process(p,(uint8_t *)imap_ssn->decode_state->decodePtr,
+                (uint16_t)imap_ssn->decode_state->decoded_bytes, position, 0)
+                && (isFileStart(position)) && imap_ssn->log_state)
+        {
+            _dpd.fileAPI->set_file_name_from_log(&(imap_ssn->log_state->file_log), p->stream_session_ptr);
+        }
         ResetDecodedBytes(imap_ssn->decode_state);
     }
 
@@ -1108,6 +1128,7 @@ static const uint8_t * IMAP_HandleHeader(SFSnortPacket *p, const uint8_t *ptr,
     const uint8_t *colon;
     const uint8_t *content_type_ptr = NULL;
     const uint8_t *cont_trans_enc = NULL;
+    const uint8_t *cont_disp = NULL;
     int header_found;
     int ret;
     const uint8_t *start_hdr;
@@ -1121,6 +1142,9 @@ static const uint8_t * IMAP_HandleHeader(SFSnortPacket *p, const uint8_t *ptr,
 
     if (imap_ssn->state_flags & IMAP_FLAG_IN_CONT_TRANS_ENC)
         cont_trans_enc = ptr;
+
+    if (imap_ssn->state_flags & IMAP_FLAG_IN_CONT_DISP)
+        cont_disp = ptr;
 
     while (ptr < data_end_marker)
     {
@@ -1205,7 +1229,10 @@ static const uint8_t * IMAP_HandleHeader(SFSnortPacket *p, const uint8_t *ptr,
                             cont_trans_enc = ptr + imap_search_info.length;
                             imap_ssn->state_flags |= IMAP_FLAG_IN_CONT_TRANS_ENC;
                             break;
-
+                        case HDR_CONT_DISP:
+                            cont_disp = ptr + imap_search_info.length;
+                            imap_ssn->state_flags |= IMAP_FLAG_IN_CONT_DISP;
+                            break;
                         default:
                             break;
                     }
@@ -1270,7 +1297,7 @@ static const uint8_t * IMAP_HandleHeader(SFSnortPacket *p, const uint8_t *ptr,
                         imap_ssn->state_flags |= IMAP_FLAG_GOT_BOUNDARY;
                     }
                 }
-            } 
+            }
             else if (!(imap_ssn->state_flags & IMAP_FLAG_EMAIL_ATTACH))
             {
                 /* Check for Encoding Type */
@@ -1312,6 +1339,28 @@ static const uint8_t * IMAP_HandleHeader(SFSnortPacket *p, const uint8_t *ptr,
             imap_ssn->state_flags &= ~IMAP_FLAG_IN_CONT_TRANS_ENC;
 
             cont_trans_enc = NULL;
+        }
+        else if (((imap_ssn->state_flags &
+                (IMAP_FLAG_IN_CONT_DISP | IMAP_FLAG_FOLDING)) == IMAP_FLAG_IN_CONT_DISP) && cont_disp)
+        {
+            bool disp_cont = (imap_ssn->state_flags & IMAP_FLAG_IN_CONT_DISP_CONT)? true: false;
+            if( imap_eval_config->log_config.log_filename && imap_ssn->log_state )
+            {
+                if(! _dpd.fileAPI->log_file_name(cont_disp, eolm - cont_disp,
+                        &(imap_ssn->log_state->file_log), &disp_cont) )
+                    imap_ssn->log_flags |= IMAP_FLAG_FILENAME_PRESENT;
+            }
+            if (disp_cont)
+            {
+                imap_ssn->state_flags |= IMAP_FLAG_IN_CONT_DISP_CONT;
+            }
+            else
+            {
+                imap_ssn->state_flags &= ~IMAP_FLAG_IN_CONT_DISP;
+                imap_ssn->state_flags &= ~IMAP_FLAG_IN_CONT_DISP_CONT;
+            }
+
+            cont_disp = NULL;
         }
 
         /* if state was unknown, at this point assume we know */
@@ -1770,4 +1819,24 @@ static void IMAP_DisableDetect(SFSnortPacket *p)
     _dpd.setPreprocBit(p, PP_SDF);
 }
 
+static inline IMAP *IMAP_GetSession(void *data)
+{
+    if(data)
+        return (IMAP *)_dpd.streamAPI->get_application_data(data, PP_IMAP);
 
+    return NULL;
+}
+
+/* Callback to return the MIME attachment filenames accumulated */
+int IMAP_GetFilename(void *data, uint8_t **buf, uint32_t *len, uint32_t *type)
+{
+    IMAP *ssn = IMAP_GetSession(data);
+
+    if(ssn == NULL)
+        return 0;
+
+    *buf = ssn->log_state->file_log.filenames;
+    *len = ssn->log_state->file_log.file_logged;
+
+    return 1;
+}

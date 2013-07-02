@@ -412,7 +412,7 @@ copy_treenode_header = \
 		$(sed_treenode_header); \
 	fi
 
-@BUILD_DYNAMIC_EXAMPLES_TRUE@@HAVE_DYNAMIC_PLUGINS_TRUE@SUBDIRS = dynamic-preprocessor dynamic-rule
+@BUILD_DYNAMIC_EXAMPLES_TRUE@SUBDIRS = dynamic-preprocessor dynamic-rule
 all: $(BUILT_SOURCES)
 	$(MAKE) $(AM_MAKEFLAGS) all-recursive
 

@@ -437,17 +437,14 @@ uint32_t EXTRACT_32BITS (u_char *p)
 }
 #endif /* WORDS_MUSTALIGN && !__GNUC__ */
 
-void InitSynToMulticastDstIp( void )
+void InitSynToMulticastDstIp( struct _SnortConfig *sc )
 {
-    extern SnortConfig *snort_conf_for_parsing;
-    snort_conf_for_parsing = snort_conf;
-    SynToMulticastDstIp = IpAddrSetParse("[232.0.0.0/8,233.0.0.0/8,239.0.0.0/8]");
+    SynToMulticastDstIp = IpAddrSetParse(sc, "[232.0.0.0/8,233.0.0.0/8,239.0.0.0/8]");
 
     if( SynToMulticastDstIp == NULL )
     {
         FatalError("Could not initialize SynToMulticastDstIp\n");
     }
-    snort_conf_for_parsing = NULL;
 }
 
 void SynToMulticastDstIpDestroy( void )
@@ -542,13 +539,16 @@ void DecodePolicySpecific(Packet *p)
 void UpdateDecodeRulesArray(uint32_t sid, int value, int all_rules)
 {
     int i;
-    if(all_rules)
+
+    if ( all_rules )
     {
-        for(i=0; i<DECODE_INDEX_MAX ; i++)
+        for( i = 0; i < DECODE_INDEX_MAX; i++ )
             decodeRulesArray[i] = ( value != 0 );
     }
-    else
+    else if ( sid < DECODE_INDEX_MAX )
+    {
         decodeRulesArray[sid] = ( value != 0 );
+    }
 }
 
 // this must be called iff the layer is successfully decoded because, when
@@ -1014,6 +1014,7 @@ void DecodeMPLS(const uint8_t* pkt, const uint32_t len, Packet* p)
     uint8_t bos = 0;
     uint8_t ttl;
     uint8_t chainLen = 0;
+    uint32_t stack_len = len;
 
     int iRet = 0;
 
@@ -1024,7 +1025,7 @@ void DecodeMPLS(const uint8_t* pkt, const uint32_t len, Packet* p)
 
     while (!bos)
     {
-        if(len < MPLS_HEADER_LEN)
+        if(stack_len < MPLS_HEADER_LEN)
         {
             DecoderEvent(p, DECODE_BAD_MPLS, DECODE_BAD_MPLS_STR, 1, 1);
 
@@ -1060,6 +1061,7 @@ void DecodeMPLS(const uint8_t* pkt, const uint32_t len, Packet* p)
             }
         }
         tmpMplsHdr++;
+        stack_len -= MPLS_HEADER_LEN;
 
         if ((ScMplsStackDepth() != -1) && (chainLen++ >= ScMplsStackDepth()))
         {
@@ -1341,6 +1343,7 @@ void DecodeVlan(const uint8_t * pkt, const uint32_t len, Packet * p)
                         DecoderEvent(p, DECODE_BAD_MPLS,
                                         DECODE_MULTICAST_MPLS_STR, 1, 1);
                     }
+                /* Fall through */
                 case ETHERNET_TYPE_MPLS_UNICAST:
                     DecodeMPLS(p->pkt + LEN_VLAN_LLC_OTHER,
                         len - LEN_VLAN_LLC_OTHER, p);
@@ -2222,6 +2225,115 @@ static inline void CheckIGMPVuln(Packet *p)
 // decode.c::IP4 decoder
 //--------------------------------------------------------------------
 
+/* Function: DecodeIPv4Proto
+ *
+ * Gernalized IPv4 next protocol decoder dispatching.
+ *
+ * Arguments: proto => IPPROTO value of the next protocol
+ *            pkt => ptr to the packet data
+ *            len => length from here to the end of the packet
+ *            p   => pointer to the packet decode struct
+ *
+ */
+static inline void DecodeIPv4Proto(const uint8_t proto,
+    const uint8_t *pkt, const uint32_t len, Packet *p)
+{
+    switch(proto)
+    {
+        case IPPROTO_TCP:
+            pc.tcp++;
+            DecodeTCP(pkt, len, p);
+            return;
+
+        case IPPROTO_UDP:
+            pc.udp++;
+            DecodeUDP(pkt, len, p);
+            return;
+
+        case IPPROTO_ICMP:
+            pc.icmp++;
+            DecodeICMP(pkt, len, p);
+            return;
+
+#ifdef GRE
+        case IPPROTO_IPV6:
+            if (len < 40)
+            {
+                /* Insufficient size for IPv6 Header. */
+                /* This could be an attempt to exploit Linux kernel
+                 * vulnerability, so log an alert */
+                DecoderEvent(p, DECODE_IPV6_TUNNELED_IPV4_TRUNCATED,
+                            DECODE_IPV6_TUNNELED_IPV4_TRUNCATED_STR,
+                            1, 1);
+            }
+            pc.ip4ip6++;
+            if ( ScTunnelBypassEnabled(TUNNEL_6IN4) )
+                Active_SetTunnelBypass();
+            DecodeIPV6(pkt, len, p);
+            return;
+
+        case IPPROTO_GRE:
+            pc.gre++;
+            DecodeGRE(pkt, len, p);
+            return;
+
+        case IPPROTO_IPIP:
+            pc.ip4ip4++;
+            DecodeIP(pkt, len, p);
+            return;
+#endif
+
+        case IPPROTO_ESP:
+            if (ScESPDecoding())
+                DecodeESP(pkt, len, p);
+            return;
+
+        case IPPROTO_AH:
+            DecodeAH(pkt, len, p);
+            return;
+
+        case IPPROTO_SWIPE:
+        case IPPROTO_IP_MOBILITY:
+        case IPPROTO_SUN_ND:
+        case IPPROTO_PIM:
+            if ( Event_Enabled(DECODE_IP_BAD_PROTO) )
+                DecoderEvent(p, EVARGS(IP_BAD_PROTO), 1, 1);
+            pc.other++;
+            p->data = pkt;
+            p->dsize = (uint16_t)len;
+            return;
+
+        case IPPROTO_PGM:
+            pc.other++;
+            p->data = pkt;
+            p->dsize = (uint16_t)len;
+
+            if ( Event_Enabled(DECODE_PGM_NAK_OVERFLOW) )
+                CheckPGMVuln(p);
+            return;
+
+        case IPPROTO_IGMP:
+            pc.other++;
+            p->data = pkt;
+            p->dsize = (uint16_t)len;
+
+            if ( Event_Enabled(DECODE_IGMP_OPTIONS_DOS) )
+                CheckIGMPVuln(p);
+            return;
+
+        default:
+            if ( Event_Enabled(DECODE_IP_UNASSIGNED_PROTO) )
+            {
+                if (GET_IPH_PROTO(p) >= MIN_UNASSIGNED_IP_PROTO)
+                    DecoderEvent(p, EVARGS(IP_UNASSIGNED_PROTO), 1, 1);
+            }
+            pc.other++;
+            p->data = pkt;
+            p->dsize = (uint16_t)len;
+            return;
+    }
+}
+
 /*
  * Function: DecodeIP(uint8_t *, const uint32_t, Packet *)
  *
@@ -2527,101 +2639,7 @@ void DecodeIP(const uint8_t * pkt, const uint32_t len, Packet * p)
         DEBUG_WRAP(DebugMessage(DEBUG_DECODE, "IP header length: %lu\n",
                     (unsigned long)hlen););
 
-        switch(p->iph->ip_proto)
-        {
-            case IPPROTO_TCP:
-                pc.tcp++;
-                DecodeTCP(pkt + hlen, ip_len, p);
-                //ClearDumpBuf();
-                return;
-
-            case IPPROTO_UDP:
-                pc.udp++;
-                DecodeUDP(pkt + hlen, ip_len, p);
-                //ClearDumpBuf();
-                return;
-
-            case IPPROTO_ICMP:
-                pc.icmp++;
-                DecodeICMP(pkt + hlen, ip_len, p);
-                //ClearDumpBuf();
-                return;
-
-#ifdef GRE
-            case IPPROTO_IPV6:
-                if (ip_len < 40)
-                {
-                    /* Insufficient size for IPv6 Header. */
-                    /* This could be an attempt to exploit Linux kernel
-                     * vulnerability, so log an alert */
-                    DecoderEvent(p, DECODE_IPV6_TUNNELED_IPV4_TRUNCATED,
-                                DECODE_IPV6_TUNNELED_IPV4_TRUNCATED_STR,
-                                1, 1);
-                }
-                pc.ip4ip6++;
-                if ( ScTunnelBypassEnabled(TUNNEL_6IN4) )
-                    Active_SetTunnelBypass();
-                DecodeIPV6(pkt + hlen, ip_len, p);
-                return;
-
-            case IPPROTO_GRE:
-                pc.gre++;
-                DecodeGRE(pkt + hlen, ip_len, p);
-                //ClearDumpBuf();
-                return;
-
-            case IPPROTO_IPIP:
-                pc.ip4ip4++;
-                DecodeIP(pkt + hlen, ip_len, p);
-                return;
-#endif
-
-            case IPPROTO_ESP:
-                if (ScESPDecoding())
-                    DecodeESP(pkt + hlen, ip_len, p);
-                return;
-
-            case IPPROTO_SWIPE:
-            case IPPROTO_IP_MOBILITY:
-            case IPPROTO_SUN_ND:
-            case IPPROTO_PIM:
-                if ( Event_Enabled(DECODE_IP_BAD_PROTO) )
-                    DecoderEvent(p, EVARGS(IP_BAD_PROTO), 1, 1);
-                pc.other++;
-                p->data = pkt + hlen;
-                p->dsize = (u_short) ip_len;
-                return;
-
-            case IPPROTO_PGM:
-                pc.other++;
-                p->data = pkt + hlen;
-                p->dsize = (u_short) ip_len;
-
-                if ( Event_Enabled(DECODE_PGM_NAK_OVERFLOW) )
-                    CheckPGMVuln(p);
-                return;
-
-            case IPPROTO_IGMP:
-                pc.other++;
-                p->data = pkt + hlen;
-                p->dsize = (u_short) ip_len;
-
-                if ( Event_Enabled(DECODE_IGMP_OPTIONS_DOS) )
-                    CheckIGMPVuln(p);
-                return;
-
-            default:
-                if ( Event_Enabled(DECODE_IP_UNASSIGNED_PROTO) )
-                {
-                    if (GET_IPH_PROTO(p) >= MIN_UNASSIGNED_IP_PROTO)
-                        DecoderEvent(p, EVARGS(IP_UNASSIGNED_PROTO), 1, 1);
-                }
-                pc.other++;
-                p->data = pkt + hlen;
-                p->dsize = (u_short) ip_len;
-                //ClearDumpBuf();
-                return;
-        }
+        DecodeIPv4Proto(p->iph->ip_proto, pkt+hlen, ip_len, p);
     }
     else
     {
@@ -3488,6 +3506,18 @@ void DecodeIPV6Options(int type, const uint8_t *pkt, uint32_t len, Packet *p)
                              1, 1);
                 return;
             }
+
+            /* Routing type 0 extension headers are evil creatures. */
+            {
+                IP6Route *rte = (IP6Route *)exthdr;
+
+                if (rte->ip6rte_type == 0)
+                {
+                    DecoderEvent(p, DECODE_IPV6_ROUTE_ZERO,
+                         DECODE_IPV6_ROUTE_ZERO_STR, 1, 1);
+                }
+            }
+
             if (exthdr->ip6e_nxt == IPPROTO_HOPOPTS)
             {
                 DecoderEvent(p, DECODE_IPV6_ROUTE_AND_HOPBYHOP,
@@ -3536,7 +3566,7 @@ void DecodeIPV6Options(int type, const uint8_t *pkt, uint32_t len, Packet *p)
                     DecoderEvent(p, DECODE_IPV6_BAD_FRAG_PKT,
                         DECODE_IPV6_BAD_FRAG_PKT_STR , 1, 1);
                 }
-                if ( 
+                if (
                     !(p->frag_offset) &&
                     Event_Enabled(DECODE_IPV6_UNORDERED_EXTENSIONS) )
                 {
@@ -3568,6 +3598,9 @@ void DecodeIPV6Options(int type, const uint8_t *pkt, uint32_t len, Packet *p)
             /* Auth Headers work in both IPv4 & IPv6, and their lengths are
                given in 4-octet increments instead of 8-octet increments. */
             hdrlen = sizeof(IP6Extension) + (exthdr->ip6e_len << 2);
+
+            if (hdrlen <= len)
+                PushLayer(PROTO_AH, p, pkt, hdrlen);
             break;
 
         default:
@@ -3711,7 +3744,7 @@ void DecodeIPV6(const uint8_t *pkt, uint32_t len, Packet *p)
     }
 
     /* Verify version in IP6 Header agrees */
-    if((hdr->ip6vfc >> 4) != 6)
+    if(IPRAW_HDR_VER(hdr) != 6)
     {
         if ((p->packet_flags & PKT_UNSURE_ENCAP) == 0)
             DecoderEvent(p, DECODE_IPV6_IS_NOT, DECODE_IPV6_IS_NOT_STR,
@@ -3824,7 +3857,7 @@ decodeipv6_fail:
 // decode.c::ICMP6
 //--------------------------------------------------------------------
 
-void DecodeICMP6(const uint8_t *pkt, uint32_t len, Packet *p)
+void DecodeICMP6(const uint8_t *pkt, const uint32_t len, Packet *p)
 {
     if(len < ICMP6_MIN_HEADER_LEN)
     {
@@ -3838,7 +3871,9 @@ void DecodeICMP6(const uint8_t *pkt, uint32_t len, Packet *p)
         return;
     }
 
-    p->icmph = (ICMPHdr*)pkt;
+    p->icmp6h = (ICMP6Hdr*)pkt;
+    p->icmph = (ICMPHdr*)pkt; /* This is needed for icmp rules */
+
     /* Do checksums */
     if (ScIcmpChecksums())
     {
@@ -3846,7 +3881,7 @@ void DecodeICMP6(const uint8_t *pkt, uint32_t len, Packet *p)
 
         if(IS_IP4(p))
         {
-            csum = in_chksum_icmp((uint16_t *)(p->icmph), len);
+            csum = in_chksum_icmp((uint16_t *)(p->icmp6h), len);
         }
         /* IPv6 traffic */
         else
@@ -3858,7 +3893,7 @@ void DecodeICMP6(const uint8_t *pkt, uint32_t len, Packet *p)
             ph6.protocol = GET_IPH_PROTO(p);
             ph6.len = htons((u_short)len);
 
-            csum = in_chksum_icmp6(&ph6, (uint16_t *)(p->icmph), len);
+            csum = in_chksum_icmp6(&ph6, (uint16_t *)(p->icmp6h), len);
         }
         if(csum)
         {
@@ -3878,15 +3913,14 @@ void DecodeICMP6(const uint8_t *pkt, uint32_t len, Packet *p)
     p->data = pkt + ICMP6_MIN_HEADER_LEN;
 
     DEBUG_WRAP(DebugMessage(DEBUG_DECODE, "ICMP type: %d   code: %d\n",
-                p->icmph->type, p->icmph->code););
+                p->icmp6h->type, p->icmp6h->code););
 
-    switch(p->icmph->type)
+    switch(p->icmp6h->type)
     {
         case ICMP6_ECHO:
         case ICMP6_REPLY:
             if (p->dsize >= sizeof(struct idseq))
             {
-                p->icmp6h = (ICMP6Hdr *)pkt;
                 /* Set data pointer to that of the "echo message" */
                 /* add the size of the echo ext to the data
                  * ptr and subtract it from the data size */
@@ -3907,6 +3941,7 @@ void DecodeICMP6(const uint8_t *pkt, uint32_t len, Packet *p)
                 DecoderEvent(p, DECODE_ICMP_DGRAM_LT_ICMPHDR,
                                 DECODE_ICMP_DGRAM_LT_ICMPHDR_STR, 1, 1);
 
+                p->icmph = NULL;
                 p->icmp6h = NULL;
                 pc.discards++;
                 pc.icmpdisc++;
@@ -3918,7 +3953,6 @@ void DecodeICMP6(const uint8_t *pkt, uint32_t len, Packet *p)
             if (p->dsize >= sizeof(ICMP6TooBig))
             {
                 ICMP6TooBig *too_big = (ICMP6TooBig *)pkt;
-                p->icmp6h = (ICMP6Hdr *)pkt;
                 /* Set data pointer past MTU */
                 p->data += 4;
                 p->dsize -= 4;
@@ -3940,6 +3974,7 @@ void DecodeICMP6(const uint8_t *pkt, uint32_t len, Packet *p)
                 DecoderEvent(p, DECODE_ICMP_DGRAM_LT_ICMPHDR,
                                 DECODE_ICMP_DGRAM_LT_ICMPHDR_STR, 1, 1);
 
+                p->icmph = NULL;
                 p->icmp6h = NULL;
                 pc.discards++;
                 pc.icmpdisc++;
@@ -3952,7 +3987,6 @@ void DecodeICMP6(const uint8_t *pkt, uint32_t len, Packet *p)
         case ICMP6_UNREACH:
             if (p->dsize >= 4)
             {
-                p->icmp6h = (ICMP6Hdr *)pkt;
                 /* Set data pointer past the 'unused/mtu/pointer block */
                 p->data += 4;
                 p->dsize -= 4;
@@ -3982,6 +4016,7 @@ void DecodeICMP6(const uint8_t *pkt, uint32_t len, Packet *p)
                 DecoderEvent(p, DECODE_ICMP_DGRAM_LT_ICMPHDR,
                                 DECODE_ICMP_DGRAM_LT_ICMPHDR_STR, 1, 1);
 
+                p->icmph = NULL;
                 p->icmp6h = NULL;
                 pc.discards++;
                 pc.icmpdisc++;
@@ -3993,7 +4028,6 @@ void DecodeICMP6(const uint8_t *pkt, uint32_t len, Packet *p)
             if (p->dsize >= (sizeof(ICMP6RouterAdvertisement) - ICMP6_MIN_HEADER_LEN))
             {
                 ICMP6RouterAdvertisement *ra = (ICMP6RouterAdvertisement *)pkt;
-                p->icmp6h = (ICMP6Hdr *)pkt;
                 if (p->icmp6h->code != 0)
                 {
                     DecoderEvent(p, DECODE_ICMPV6_ADVERT_BAD_CODE,
@@ -4014,6 +4048,7 @@ void DecodeICMP6(const uint8_t *pkt, uint32_t len, Packet *p)
                 DecoderEvent(p, DECODE_ICMP_DGRAM_LT_ICMPHDR,
                                 DECODE_ICMP_DGRAM_LT_ICMPHDR_STR, 1, 1);
 
+                p->icmph = NULL;
                 p->icmp6h = NULL;
                 pc.discards++;
                 pc.icmpdisc++;
@@ -4025,7 +4060,6 @@ void DecodeICMP6(const uint8_t *pkt, uint32_t len, Packet *p)
             if (p->dsize >= (sizeof(ICMP6RouterSolicitation) - ICMP6_MIN_HEADER_LEN))
             {
                 ICMP6RouterSolicitation *rs = (ICMP6RouterSolicitation *)pkt;
-                p->icmp6h = (ICMP6Hdr *)pkt;
                 if (rs->code != 0)
                 {
                     DecoderEvent(p, DECODE_ICMPV6_SOLICITATION_BAD_CODE,
@@ -4046,6 +4080,37 @@ void DecodeICMP6(const uint8_t *pkt, uint32_t len, Packet *p)
                 DecoderEvent(p, DECODE_ICMP_DGRAM_LT_ICMPHDR,
                                 DECODE_ICMP_DGRAM_LT_ICMPHDR_STR, 1, 1);
 
+                p->icmph = NULL;
+                p->icmp6h = NULL;
+                pc.discards++;
+                pc.icmpdisc++;
+                return;
+            }
+            break;
+
+        case ICMP6_NODE_INFO_QUERY:
+        case ICMP6_NODE_INFO_RESPONSE:
+            if (p->dsize >= (sizeof(ICMP6NodeInfo) - ICMP6_MIN_HEADER_LEN))
+            {
+                ICMP6NodeInfo *ni = (ICMP6NodeInfo *)pkt;
+                if (ni->code > 2)
+                {
+                    DecoderEvent(p, DECODE_ICMPV6_NODE_INFO_BAD_CODE,
+                                 DECODE_ICMPV6_NODE_INFO_BAD_CODE_STR, 1, 1);
+                }
+                /* TODO: Add alert for INFO Response, code == 1 || code == 2)
+                 * and there is data.
+                 */
+            }
+            else
+            {
+                DEBUG_WRAP(DebugMessage(DEBUG_DECODE,
+                    "WARNING: Truncated ICMP header (%d bytes).\n", len););
+
+                DecoderEvent(p, DECODE_ICMP_DGRAM_LT_ICMPHDR,
+                                DECODE_ICMP_DGRAM_LT_ICMPHDR_STR, 1, 1);
+
+                p->icmph = NULL;
                 p->icmp6h = NULL;
                 pc.discards++;
                 pc.icmpdisc++;
@@ -4104,11 +4169,11 @@ void DecodeICMPEmbeddedIP6(const uint8_t *pkt, const uint32_t len, Packet *p)
      * with datalink DLT_RAW it's impossible to differ ARP datagrams from IP.
      * So we are just ignoring non IP datagrams
      */
-    if ( (hdr->ip6vfc >> 4) != 6 )
+    if(IPRAW_HDR_VER(hdr) != 6)
     {
         DEBUG_WRAP(DebugMessage(DEBUG_DECODE,
             "ICMP: not IPv6 datagram ([ver: 0x%x][len: 0x%x])\n",
-            (hdr->ip6vfc >> 4), len););
+            IPRAW_HDR_VER(hdr), len););
 
         DecoderEvent(p, DECODE_ICMP_ORIG_IP_VER_MISMATCH,
                         DECODE_ICMP_ORIG_IP_VER_MISMATCH_STR, 1, 1);
@@ -4235,6 +4300,29 @@ void DecodeTeredo(const uint8_t *pkt, uint32_t len, Packet *p)
 // decode.c::ESP
 //--------------------------------------------------------------------
 
+/* Function: DecodeAH
+ *
+ * Purpose: Decode Authentication Header
+ *
+ * NOTE: This is for IPv4 Auth Headers, we leave IPv6 to do its own
+ * work.
+ *
+ */
+void DecodeAH(const uint8_t *pkt, uint32_t len, Packet *p)
+{
+    IP6Extension *ah = (IP6Extension *)pkt;
+    uint8_t extlen = sizeof(*ah) + (ah->ip6e_len << 2);
+
+    if (extlen > len)
+    {
+        return;
+    }
+
+    PushLayer(PROTO_AH, p, pkt, extlen);
+
+    DecodeIPv4Proto(ah->ip6e_nxt, pkt+extlen, len-extlen, p);
+}
+
 /*
  * Function: DecodeESP(const uint8_t *, uint32_t, Packet *)
  *
@@ -4252,9 +4340,10 @@ void DecodeTeredo(const uint8_t *pkt, uint32_t len, Packet *p)
  */
 void DecodeESP(const uint8_t *pkt, uint32_t len, Packet *p)
 {
+    const uint8_t *esp_payload;
     uint8_t next_header;
     uint8_t pad_length;
-    const uint8_t *esp_payload;
+    uint8_t save_layer = p->next_layer;
 
     /* The ESP header contains a crypto Initialization Vector (IV) and
        a sequence number. Skip these. */
@@ -4287,6 +4376,7 @@ void DecodeESP(const uint8_t *pkt, uint32_t len, Packet *p)
     }
     else
     {
+        p->packet_flags |= PKT_TRUST;
         p->data = esp_payload;
         p->dsize = (u_short) len;
         return;
@@ -4303,37 +4393,37 @@ void DecodeESP(const uint8_t *pkt, uint32_t len, Packet *p)
        case IPPROTO_IPIP:
             DecodeIP(esp_payload, len, p);
             p->packet_flags &= ~PKT_UNSURE_ENCAP;
-            return;
+            break;
 
         case IPPROTO_IPV6:
             DecodeIPV6(esp_payload, len, p);
             p->packet_flags &= ~PKT_UNSURE_ENCAP;
-            return;
+            break;
 
        case IPPROTO_TCP:
             pc.tcp++;
             DecodeTCP(esp_payload, len, p);
             p->packet_flags &= ~PKT_UNSURE_ENCAP;
-            return;
+            break;
 
         case IPPROTO_UDP:
             pc.udp++;
             DecodeUDP(esp_payload, len, p);
             p->packet_flags &= ~PKT_UNSURE_ENCAP;
-            return;
+            break;
 
         case IPPROTO_ICMP:
             pc.icmp++;
             DecodeICMP(esp_payload, len, p);
             p->packet_flags &= ~PKT_UNSURE_ENCAP;
-            return;
+            break;
 
 #ifdef GRE
         case IPPROTO_GRE:
             pc.gre++;
             DecodeGRE(esp_payload, len, p);
             p->packet_flags &= ~PKT_UNSURE_ENCAP;
-            return;
+            break;
 #endif
 
         default:
@@ -4342,14 +4432,131 @@ void DecodeESP(const uint8_t *pkt, uint32_t len, Packet *p)
             p->data = esp_payload;
             p->dsize = (u_short) len;
             p->packet_flags &= ~PKT_UNSURE_ENCAP;
+            p->packet_flags |= PKT_TRUST;
+            return;
     }
+
+    /* If no protocol was added to the stack, than we assume its'
+     * encrypted. */
+    if (save_layer == p->next_layer)
+        p->packet_flags |= PKT_TRUST;
+}
+
+#ifdef GRE
+//--------------------------------------------------------------------
+// decode.c::ERSPAN
+//--------------------------------------------------------------------
+
+/*
+ * Function: DecodeERSPANType2(uint8_t *, uint32_t, Packet *)
+ *
+ * Purpose: Decode Encapsulated Remote Switch Packet Analysis Type 2
+ *          This will decode ERSPAN Type 2 Headers
+ *
+ * Arguments: pkt => ptr to the packet data
+ *            len => length from here to the end of the packet
+ *            p   => pointer to decoded packet struct
+ *
+ * Returns: void function
+ *
+ */
+void DecodeERSPANType2(const uint8_t *pkt, const uint32_t len, Packet *p)
+{
+    uint32_t hlen = sizeof(ERSpanType2Hdr);
+    uint32_t payload_len;
+    ERSpanType2Hdr *erSpan2Hdr = (ERSpanType2Hdr *)pkt;
+
+    if (len < sizeof(ERSpanType2Hdr))
+    {
+        DecoderAlertEncapsulated(p, DECODE_ERSPAN2_DGRAM_LT_HDR,
+                        DECODE_ERSPAN2_DGRAM_LT_HDR_STR,
+                        pkt, len);
+        return;
+    }
+
+    if (p->encapsulated)
+    {
+        /* discard packet - multiple encapsulation */
+        /* not sure if this is ever used but I am assuming it is not */
+        DecoderAlertEncapsulated(p, DECODE_IP_MULTIPLE_ENCAPSULATION,
+                        DECODE_IP_MULTIPLE_ENCAPSULATION_STR,
+                        pkt, len);
+        return;
+    }
+
+    /* Check that this is in fact ERSpan Type 2.
+     */
+    if (ERSPAN_VERSION(erSpan2Hdr) != 0x01) /* Type 2 == version 0x01 */
+    {
+        DecoderAlertEncapsulated(p, DECODE_ERSPAN_HDR_VERSION_MISMATCH,
+                        DECODE_ERSPAN_HDR_VERSION_MISMATCH_STR,
+                        pkt, len);
+        return;
+    }
+
+    PushLayer(PROTO_ERSPAN, p, pkt, hlen);
+    payload_len = len - hlen;
+
+    DecodeTransBridging(pkt + hlen, payload_len, p);
+}
+
+/*
+ * Function: DecodeERSPANType3(uint8_t *, uint32_t, Packet *)
+ *
+ * Purpose: Decode Encapsulated Remote Switch Packet Analysis Type 3
+ *          This will decode ERSPAN Type 3 Headers
+ *
+ * Arguments: pkt => ptr to the packet data
+ *            len => length from here to the end of the packet
+ *            p   => pointer to decoded packet struct
+ *
+ * Returns: void function
+ *
+ */
+void DecodeERSPANType3(const uint8_t *pkt, const uint32_t len, Packet *p)
+{
+    uint32_t hlen = sizeof(ERSpanType3Hdr);
+    uint32_t payload_len;
+    ERSpanType3Hdr *erSpan3Hdr = (ERSpanType3Hdr *)pkt;
+
+    if (len < sizeof(ERSpanType3Hdr))
+    {
+        DecoderAlertEncapsulated(p, DECODE_ERSPAN3_DGRAM_LT_HDR,
+                        DECODE_ERSPAN3_DGRAM_LT_HDR_STR,
+                        pkt, len);
+        return;
+    }
+
+    if (p->encapsulated)
+    {
+        /* discard packet - multiple encapsulation */
+        /* not sure if this is ever used but I am assuming it is not */
+        DecoderAlertEncapsulated(p, DECODE_IP_MULTIPLE_ENCAPSULATION,
+                        DECODE_IP_MULTIPLE_ENCAPSULATION_STR,
+                        pkt, len);
+        return;
+    }
+
+    /* Check that this is in fact ERSpan Type 3.
+     */
+    if (ERSPAN_VERSION(erSpan3Hdr) != 0x02) /* Type 3 == version 0x02 */
+    {
+        DecoderAlertEncapsulated(p, DECODE_ERSPAN_HDR_VERSION_MISMATCH,
+                        DECODE_ERSPAN_HDR_VERSION_MISMATCH_STR,
+                        pkt, len);
+        return;
+    }
+
+    PushLayer(PROTO_ERSPAN, p, pkt, hlen);
+    payload_len = len - hlen;
+
+    DecodeTransBridging(pkt + hlen, payload_len, p);
 }
 
 //--------------------------------------------------------------------
 // decode.c::GRE
 //--------------------------------------------------------------------
 
-#ifdef GRE
 /*
  * Function: DecodeGRE(uint8_t *, uint32_t, Packet *)
  *
@@ -4539,6 +4746,14 @@ void DecodeGRE(const uint8_t *pkt, const uint32_t len, Packet *p)
 
         case GRE_TYPE_PPP:
             DecodePppPktEncapsulated(pkt + hlen, payload_len, p);
+            return;
+
+        case ETHERNET_TYPE_ERSPAN_TYPE2:
+            DecodeERSPANType2(pkt + hlen, payload_len, p);
+            return;
+
+        case ETHERNET_TYPE_ERSPAN_TYPE3:
+            DecodeERSPANType3(pkt + hlen, payload_len, p);
             return;
 
 #ifndef NO_NON_ETHER_DECODER
@@ -4938,7 +5153,7 @@ void DecodeUDP(const uint8_t * pkt, const uint32_t len, Packet * p)
     if (ScIgnoreUdpPort(p->sp) || ScIgnoreUdpPort(p->dp))
     {
         /*  Ignore all preprocessors for this packet */
-        p->packet_flags |= PKT_IGNORE_PORT;
+        p->packet_flags |= PKT_IGNORE;
         return;
     }
 
@@ -5227,7 +5442,7 @@ void DecodeTCP(const uint8_t * pkt, const uint32_t len, Packet * p)
     if (ScIgnoreTcpPort(p->sp) || ScIgnoreTcpPort(p->dp))
     {
         /*  Ignore all preprocessors for this packet */
-        p->packet_flags |= PKT_IGNORE_PORT;
+        p->packet_flags |= PKT_IGNORE;
         return;
     }
 
@@ -5458,14 +5673,23 @@ void DecodeTCPOptions(const uint8_t *start, uint32_t o_len, Packet *p)
                                   &p->tcp_options[opt_count], &byte_skip);
             break;
         case TCPOPT_MD5SIG:
-            experimental_option_found = 1;
+            /* RFC 5925 obsoletes this option (see below) */
+            obsolete_option_found = 1;
             code = OptLenValidate(option_ptr, end_ptr, len_ptr, TCPOLEN_MD5SIG,
                                   &p->tcp_options[opt_count], &byte_skip);
+            break;
+        case TCPOPT_AUTH:
+            /* Has to have at least 4 bytes - see RFC 5925, Section 2.2 */
+            if ((len_ptr != NULL) && (*len_ptr < 4))
+                code = TCP_OPT_BADLEN;
+            else
+                code = OptLenValidate(option_ptr, end_ptr, len_ptr, -1,
+                        &p->tcp_options[opt_count], &byte_skip);
             break;
         case TCPOPT_SACK:
             code = OptLenValidate(option_ptr, end_ptr, len_ptr, -1,
                                   &p->tcp_options[opt_count], &byte_skip);
-            if(p->tcp_options[opt_count].data == NULL)
+            if((code == 0) && (p->tcp_options[opt_count].data == NULL))
                 code = TCP_OPT_BADLEN;
 
             break;

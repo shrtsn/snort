@@ -193,15 +193,15 @@ typedef struct _DCE2_ByteJumpData
 /********************************************************************
  * Private function prototypes
  ********************************************************************/
-static int DCE2_IfaceInit(char *, char *, void **);
-static int DCE2_OpnumInit(char *, char *, void **);
+static int DCE2_IfaceInit(struct _SnortConfig *, char *, char *, void **);
+static int DCE2_OpnumInit(struct _SnortConfig *, char *, char *, void **);
 static void DCE2_ParseOpnumList(char **, char *, uint8_t *);
 static inline void DCE2_OpnumSet(uint8_t *, const uint16_t);
 static inline void DCE2_OpnumSetRange(uint8_t *, uint16_t, uint16_t);
 static inline int DCE2_OpnumIsSet(const uint8_t *, const uint16_t, const uint16_t, const uint16_t);
-static int DCE2_StubDataInit(char *, char *, void **);
-static int DCE2_ByteTestInit(char *, char *, void **);
-static int DCE2_ByteJumpInit(char *, char *, void **);
+static int DCE2_StubDataInit(struct _SnortConfig *, char *, char *, void **);
+static int DCE2_ByteTestInit(struct _SnortConfig *, char *, char *, void **);
+static int DCE2_ByteJumpInit(struct _SnortConfig *, char *, char *, void **);
 static void DCE2_ParseIface(char *, DCE2_IfaceData *);
 static int DCE2_IfaceEval(void *, const uint8_t **, void *);
 static int DCE2_OpnumEval(void *, const uint8_t **, void *);
@@ -235,19 +235,19 @@ static int DCE2_IfaceAddFastPatterns(void *, int, int, FPContentInfo **);
  * Returns:
  *
  ********************************************************************/
-void DCE2_RegRuleOptions(void)
+void DCE2_RegRuleOptions(struct _SnortConfig *sc)
 {
-    _dpd.preprocOptRegister(DCE2_ROPT__IFACE, DCE2_IfaceInit, DCE2_IfaceEval,
+    _dpd.preprocOptRegister(sc, DCE2_ROPT__IFACE, DCE2_IfaceInit, DCE2_IfaceEval,
             DCE2_IfaceCleanup, DCE2_IfaceHash, DCE2_IfaceKeyCompare,
             NULL, DCE2_IfaceAddFastPatterns);
-    _dpd.preprocOptRegister(DCE2_ROPT__OPNUM, DCE2_OpnumInit, DCE2_OpnumEval,
+    _dpd.preprocOptRegister(sc, DCE2_ROPT__OPNUM, DCE2_OpnumInit, DCE2_OpnumEval,
             DCE2_OpnumCleanup, DCE2_OpnumHash, DCE2_OpnumKeyCompare, NULL, NULL);
-    _dpd.preprocOptRegister(DCE2_ROPT__STUB_DATA, DCE2_StubDataInit,
+    _dpd.preprocOptRegister(sc, DCE2_ROPT__STUB_DATA, DCE2_StubDataInit,
             DCE2_StubDataEval, NULL, NULL, NULL, NULL, NULL);
-    _dpd.preprocOptOverrideKeyword(DCE2_ROPT__BYTE_TEST, DCE2_RARG__DCE_OVERRIDE,
+    _dpd.preprocOptOverrideKeyword(sc, DCE2_ROPT__BYTE_TEST, DCE2_RARG__DCE_OVERRIDE,
             DCE2_ByteTestInit, DCE2_ByteTestEval, DCE2_ByteTestCleanup,
             DCE2_ByteTestHash, DCE2_ByteTestKeyCompare, NULL, NULL);
-    _dpd.preprocOptOverrideKeyword(DCE2_ROPT__BYTE_JUMP, DCE2_RARG__DCE_OVERRIDE,
+    _dpd.preprocOptOverrideKeyword(sc, DCE2_ROPT__BYTE_JUMP, DCE2_RARG__DCE_OVERRIDE,
             DCE2_ByteJumpInit, DCE2_ByteJumpEval, DCE2_ByteJumpCleanup,
             DCE2_ByteJumpHash, DCE2_ByteJumpKeyCompare, NULL, NULL);
     _dpd.preprocOptByteOrderKeyword(DCE2_RARG__DCE_BYTEORDER, DCE2_GetByteOrder);
@@ -277,7 +277,7 @@ void DCE2_RegRuleOptions(void)
  *  Fatal errors if invalid arguments.
  *
  ********************************************************************/
-static int DCE2_IfaceInit(char *name, char *args, void **data)
+static int DCE2_IfaceInit(struct _SnortConfig *sc, char *name, char *args, void **data)
 {
     char *token, *saveptr = NULL;
     int iface_vers = 0, any_frag = 0;
@@ -800,7 +800,7 @@ static int DCE2_IfaceAddFastPatterns(void *rule_opt_data, int protocol,
  * Returns:
  *
  ********************************************************************/
-static int DCE2_OpnumInit(char *name, char *args, void **data)
+static int DCE2_OpnumInit(struct _SnortConfig *sc, char *name, char *args, void **data)
 {
     uint8_t opnum_mask[DCE2_OPNUM__MAX_INDEX];  /* 65536 bits */
     char *args_end;
@@ -1098,7 +1098,7 @@ static inline void DCE2_OpnumSetRange(uint8_t *opnum_mask, uint16_t lo_opnum, ui
  * Returns:
  *
  ********************************************************************/
-static int DCE2_StubDataInit(char *name, char *args, void **data)
+static int DCE2_StubDataInit(struct _SnortConfig *sc, char *name, char *args, void **data)
 {
     if (strcasecmp(name, DCE2_ROPT__STUB_DATA) != 0)
         return 0;
@@ -1126,7 +1126,7 @@ static int DCE2_StubDataInit(char *name, char *args, void **data)
  * Returns:
  *
  ********************************************************************/
-static int DCE2_ByteTestInit(char *name, char *args, void **data)
+static int DCE2_ByteTestInit(struct _SnortConfig *sc, char *name, char *args, void **data)
 {
     char *token, *saveptr = NULL;
     int tok_num = 0;
@@ -1322,7 +1322,7 @@ static int DCE2_ByteTestInit(char *name, char *args, void **data)
  * Returns:
  *
  ********************************************************************/
-static int DCE2_ByteJumpInit(char *name, char *args, void **data)
+static int DCE2_ByteJumpInit(struct _SnortConfig *sc, char *name, char *args, void **data)
 {
     char *token, *saveptr = NULL;
     int tok_num = 0;
@@ -1959,14 +1959,11 @@ static int DCE2_ByteTestEval(void *pkt, const uint8_t **cursor, void *data)
             return RULE_NOMATCH;
     }
 
-    /* Invert the return value if necessary */
+    /* Invert the return value. */
     if (bt_data->invert)
     {
         DEBUG_WRAP(DCE2_DebugMsg(DCE2_DEBUG__ROPTIONS, "Applying not flag.\n"));
-        if (ret == RULE_MATCH)
-            ret = RULE_NOMATCH;
-        else
-            ret = RULE_MATCH;
+        ret = RULE_MATCH;
     }
 
     switch (bt_data->operator)

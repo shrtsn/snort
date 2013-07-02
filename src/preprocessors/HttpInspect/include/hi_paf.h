@@ -36,7 +36,8 @@
 bool hi_paf_init(uint32_t cap);
 void hi_paf_term(void);
 
-int hi_paf_register(uint16_t port, bool client, bool server, tSfPolicyId pid, bool auto_on);
+int hi_paf_register_port(struct _SnortConfig *sc, uint16_t port, bool client, bool server, tSfPolicyId pid, bool auto_on);
+int hi_paf_register_service(struct _SnortConfig *, uint16_t service, bool client, bool server, tSfPolicyId pid, bool auto_on);
 
 bool hi_paf_simple_request(void* ssn);
 

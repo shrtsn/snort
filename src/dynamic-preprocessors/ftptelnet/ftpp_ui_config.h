@@ -190,6 +190,8 @@ typedef struct s_FTP_CMD_CONF
     int  check_validity;
     int  data_chan_cmd;
     int  data_xfer_cmd;
+    int  file_put_cmd;
+    int  file_get_cmd;
     int  encr_cmd;
     int  login_cmd;
     int  dir_response;
@@ -312,6 +314,8 @@ typedef struct s_FTPTELNET_GLOBAL_CONF
     CLIENT_LOOKUP    *client_lookup;
 
     uint32_t ref_count;
+
+    uint32_t xtra_filename_id;
 
 }  FTPTELNET_GLOBAL_CONF;
 

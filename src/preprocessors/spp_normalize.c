@@ -36,10 +36,6 @@
 #include "snort_stream5_tcp.h"
 
 static tSfPolicyUserContextId base_set = NULL;
-#ifdef SNORT_RELOAD
-static tSfPolicyUserContextId swap_set = NULL;
-static bool swap_pend = false;
-#endif
 
 #ifdef PERF_PROFILING
 PreprocStats norm_perf_stats;
@@ -48,44 +44,44 @@ PreprocStats norm_perf_stats;
 static void Preproc_Execute(Packet* , void*);
 static void Preproc_CleanExit(int, void*);
 static void Preproc_Reset(int, void*);
-static void Preproc_PostConfigInit(void*);
-static void Preproc_CheckConfig (void);
+static void Preproc_PostConfigInit(struct _SnortConfig *, void*);
+static int Preproc_CheckConfig (struct _SnortConfig *);
 static void Preproc_ResetStats(int, void*);
 static void Preproc_PrintStats(int);
-static void Preproc_Install(void);
+static void Preproc_Install(struct _SnortConfig *);
 
-static void Init_IP4(char*);
-static void Init_ICMP4(char*);
-static void Init_IP6(char*);
-static void Init_ICMP6(char*);
-static void Init_TCP(char*);
+static void Init_IP4(struct _SnortConfig *, char*);
+static void Init_ICMP4(struct _SnortConfig *, char*);
+static void Init_IP6(struct _SnortConfig *, char*);
+static void Init_ICMP6(struct _SnortConfig *, char*);
+static void Init_TCP(struct _SnortConfig *, char*);
 
-static void Parse_IP4(NormalizerContext*, char*);
+static void Parse_IP4(struct _SnortConfig *, NormalizerContext*, char*);
 static void Parse_ICMP4(NormalizerContext*, char*);
-static void Parse_IP6(NormalizerContext*, char*);
+static void Parse_IP6(struct _SnortConfig *, NormalizerContext*, char*);
 static void Parse_ICMP6(NormalizerContext*, char*);
 static void Parse_TCP(NormalizerContext*, char*);
 
-static void Print_IP4(const NormalizerContext*);
+static void Print_IP4(struct _SnortConfig *, const NormalizerContext*);
 static void Print_ICMP4(const NormalizerContext*);
-static void Print_IP6(const NormalizerContext*);
+static void Print_IP6(struct _SnortConfig *, const NormalizerContext*);
 static void Print_ICMP6(const NormalizerContext*);
 static void Print_TCP(const NormalizerContext*);
 
 #ifdef SNORT_RELOAD
-static void Reload_IP4(char*);
-static void Reload_ICMP4(char*);
-static void Reload_IP6(char*);
-static void Reload_ICMP6(char*);
-static void Reload_TCP(char*);
+static void Reload_IP4(struct _SnortConfig *, char*, void **);
+static void Reload_ICMP4(struct _SnortConfig *, char*, void **);
+static void Reload_IP6(struct _SnortConfig *, char*, void **);
+static void Reload_ICMP6(struct _SnortConfig *, char*, void **);
+static void Reload_TCP(struct _SnortConfig *, char*, void **);
 
-static int Reload_Verify(void);
-static void* Reload_Swap(void);
+static int Reload_Verify(struct _SnortConfig *, void *);
+static void* Reload_Swap(struct _SnortConfig *, void *);
 static void Reload_Free(void*);
 #endif
 
 #ifdef SNORT_RELOAD
-#define NORM_FUNCS(p) Init_ ## p, Reload_ ## p, Reload_Swap, Reload_Free
+#define NORM_FUNCS(p) Init_ ## p, Reload_ ## p, Reload_Verify, Reload_Swap, Reload_Free
 #else
 #define NORM_FUNCS(p) Init_ ## p
 #endif
@@ -105,10 +101,10 @@ void SetupNormalizer (void)
 
 #define PROTO_BITS (PROTO_BIT__IP|PROTO_BIT__ICMP|PROTO_BIT__TCP)
 
-static NormalizerContext* Init_GetContext ()
+static NormalizerContext* Init_GetContext (struct _SnortConfig *sc)
 {
     NormalizerContext* pc = NULL;
-    tSfPolicyId policy_id = getParserPolicy();
+    tSfPolicyId policy_id = getParserPolicy(NULL);
 
     if ( !ScInlineMode() )
         return NULL;
@@ -116,7 +112,7 @@ static NormalizerContext* Init_GetContext ()
     if ( !base_set )
     {
         base_set = sfPolicyConfigCreate();
-        Preproc_Install();
+        Preproc_Install(sc);
     }
     sfPolicyUserPolicySet(base_set, policy_id);
     pc = sfPolicyUserDataGetCurrent(base_set);
@@ -127,26 +123,26 @@ static NormalizerContext* Init_GetContext ()
         sfPolicyUserDataSetCurrent(base_set, pc);
 
         AddFuncToPreprocList(
-            Preproc_Execute, PRIORITY_NORMALIZE, PP_NORMALIZE, PROTO_BITS);
+            sc, Preproc_Execute, PRIORITY_NORMALIZE, PP_NORMALIZE, PROTO_BITS);
     }
     return pc;
 }
 
 #define NOT_INLINE "WARNING: %s normalizations disabled because not inline.\n"
 
-static void Init_IP4 (char* args)
+static void Init_IP4 (struct _SnortConfig *sc, char* args)
 {
-    NormalizerContext* pc = Init_GetContext();
+    NormalizerContext* pc = Init_GetContext(sc);
 
     if ( pc )
-        Parse_IP4(pc, args);
+        Parse_IP4(sc, pc, args);
     else
         LogMessage(NOT_INLINE, "ip4");
 }
 
-static void Init_ICMP4 (char* args)
+static void Init_ICMP4 (struct _SnortConfig *sc, char* args)
 {
-    NormalizerContext* pc = Init_GetContext();
+    NormalizerContext* pc = Init_GetContext(sc);
 
     if ( pc )
         Parse_ICMP4(pc, args);
@@ -154,19 +150,19 @@ static void Init_ICMP4 (char* args)
         LogMessage(NOT_INLINE, "icmp4");
 }
 
-static void Init_IP6 (char* args)
+static void Init_IP6 (struct _SnortConfig *sc, char* args)
 {
-    NormalizerContext* pc = Init_GetContext();
+    NormalizerContext* pc = Init_GetContext(sc);
 
     if ( pc )
-        Parse_IP6(pc, args);
+        Parse_IP6(sc, pc, args);
     else
         LogMessage(NOT_INLINE, "ip6");
 }
 
-static void Init_ICMP6 (char* args)
+static void Init_ICMP6 (struct _SnortConfig *sc, char* args)
 {
-    NormalizerContext* pc = Init_GetContext();
+    NormalizerContext* pc = Init_GetContext(sc);
 
     if ( pc )
         Parse_ICMP6(pc, args);
@@ -174,9 +170,9 @@ static void Init_ICMP6 (char* args)
         LogMessage(NOT_INLINE, "icmp6");
 }
 
-static void Init_TCP (char* args)
+static void Init_TCP (struct _SnortConfig *sc, char* args)
 {
-    NormalizerContext* pc = Init_GetContext();
+    NormalizerContext* pc = Init_GetContext(sc);
 
     if ( pc )
         Parse_TCP(pc, args);
@@ -190,7 +186,7 @@ static void Init_TCP (char* args)
 
 // options may appear in any order separated by ',':
 // preprocessor normalize_ip4: [id] [df] [rf] [tos] [trim]
-static void Parse_IP4 (NormalizerContext* pc, char* args)
+static void Parse_IP4 (struct _SnortConfig *sc, NormalizerContext* pc, char* args)
 {
     char** toks;
     int num_toks;
@@ -234,8 +230,8 @@ static void Parse_IP4 (NormalizerContext* pc, char* args)
         }
     }
     {
-        tSfPolicyId pid = getParserPolicy();
-        SnortPolicy* policy = snort_conf_for_parsing->targeted_policies[pid];
+        tSfPolicyId pid = getParserPolicy(sc);
+        SnortPolicy* policy = sc->targeted_policies[pid];
 
         if ( (policy->new_ttl > 1) && (policy->new_ttl >= policy->min_ttl) )
         {
@@ -243,7 +239,7 @@ static void Parse_IP4 (NormalizerContext* pc, char* args)
         }
     }
     mSplitFree(&toks, num_toks);
-    Print_IP4(pc);
+    Print_IP4(sc, pc);
 }
 
 // preprocessor normalize_icmp4
@@ -254,19 +250,19 @@ static void Parse_ICMP4 (NormalizerContext* pc, char* args)
 }
 
 // preprocessor normalize_ip6
-static void Parse_IP6 (NormalizerContext* pc, char* args)
+static void Parse_IP6 (struct _SnortConfig *sc, NormalizerContext* pc, char* args)
 {
     Norm_Enable(pc, NORM_IP6);
     {
-        tSfPolicyId pid = getParserPolicy();
-        SnortPolicy* policy = snort_conf_for_parsing->targeted_policies[pid];
+        tSfPolicyId pid = getParserPolicy(sc);
+        SnortPolicy* policy = sc->targeted_policies[pid];
 
         if ( (policy->new_ttl > 1) && (policy->new_ttl >= policy->min_ttl) )
         {
             Norm_Enable(pc, NORM_IP6_TTL);
         }
     }
-    Print_IP6(pc);
+    Print_IP6(sc, pc);
 }
 
 // preprocessor normalize_icmp6
@@ -438,7 +434,7 @@ static inline void LogFlag (
     LogConf(p, s);
 }
 
-static void Print_IP4 (const NormalizerContext* nc)
+static void Print_IP4 (struct _SnortConfig *sc, const NormalizerContext* nc)
 {
     LogMessage("Normalizer config:\n");
     LogFlag("ip4", nc, NORM_IP4);
@@ -453,9 +449,9 @@ static void Print_IP4 (const NormalizerContext* nc)
 
         if ( Norm_IsEnabled(nc, NORM_IP4_TTL) )
         {
-            tSfPolicyId pid = getParserPolicy();
-            int min = snort_conf_for_parsing->targeted_policies[pid]->min_ttl;
-            int new = snort_conf_for_parsing->targeted_policies[pid]->new_ttl;
+            tSfPolicyId pid = getParserPolicy(sc);
+            int min = sc->targeted_policies[pid]->min_ttl;
+            int new = sc->targeted_policies[pid]->new_ttl;
             LogMessage("%12s: %s (min=%d, new=%d)\n", "ip4::ttl", ON, min, new);
         }
         else
@@ -469,7 +465,7 @@ static void Print_ICMP4 (const NormalizerContext* nc)
     LogFlag("icmp4", nc, NORM_ICMP4);
 }
 
-static void Print_IP6 (const NormalizerContext* nc)
+static void Print_IP6 (struct _SnortConfig *sc, const NormalizerContext* nc)
 {
     LogMessage("Normalizer config:\n");
     LogFlag("ip6", nc, NORM_IP6);
@@ -478,9 +474,9 @@ static void Print_IP6 (const NormalizerContext* nc)
     {
         if ( Norm_IsEnabled(nc, NORM_IP6_TTL) )
         {
-            tSfPolicyId pid = getParserPolicy();
-            int min = snort_conf_for_parsing->targeted_policies[pid]->min_ttl;
-            int new = snort_conf_for_parsing->targeted_policies[pid]->new_ttl;
+            tSfPolicyId pid = getParserPolicy(sc);
+            int min = sc->targeted_policies[pid]->min_ttl;
+            int new = sc->targeted_policies[pid]->new_ttl;
             LogMessage("%12s: %s (min=%d, new=%d)\n", "ip6::hops", ON, min, new);
         }
         else
@@ -548,7 +544,7 @@ static void Print_TCP (const NormalizerContext* nc)
 // preproc (main) stuff
 //-------------------------------------------------------------------------
 
-static void Preproc_Install (void)
+static void Preproc_Install (struct _SnortConfig *sc)
 {
 #ifdef PERF_PROFILING
     RegisterPreprocessorProfile(
@@ -563,14 +559,15 @@ static void Preproc_Install (void)
     AddFuncToPreprocResetStatsList(
         Preproc_ResetStats, NULL, PRIORITY_FIRST, PP_NORMALIZE);
 
-    AddFuncToConfigCheckList(Preproc_CheckConfig);
-    AddFuncToPreprocPostConfigList(Preproc_PostConfigInit, NULL);
+    AddFuncToConfigCheckList(sc, Preproc_CheckConfig);
+    AddFuncToPreprocPostConfigList(sc, Preproc_PostConfigInit, NULL);
     RegisterPreprocStats("normalize", Preproc_PrintStats);
 }
 
 //-------------------------------------------------------------------------
 
 static int Preproc_CheckPolicy (
+    struct _SnortConfig *sc,
     tSfPolicyUserContextId set,
     tSfPolicyId pid,
     void* pv)
@@ -579,21 +576,26 @@ static int Preproc_CheckPolicy (
     return 0;
 }
 
-static void Preproc_CheckConfig (void)
+static int Preproc_CheckConfig (struct _SnortConfig *sc)
 {
-    if ( !base_set )
-        return;
+    int rval;
 
-    sfPolicyUserDataIterate(base_set, Preproc_CheckPolicy);
+    if ( !base_set )
+        return 0;
+
+    if ((rval = sfPolicyUserDataIterate(sc, base_set, Preproc_CheckPolicy)))
+        return rval;
+
+    return 0;
 }
 
 static int Preproc_PostInit (
+    struct _SnortConfig *sc,
     tSfPolicyUserContextId set,
     tSfPolicyId pid,
     void* pv)
 {
     NormalizerContext *pc = (NormalizerContext *)pv;
-    SnortConfig* sc = snort_conf_for_parsing ? snort_conf_for_parsing : snort_conf;
     SnortPolicy* policy = sc->targeted_policies[pid];
 
     if ( policy->new_ttl && policy->new_ttl < policy->min_ttl )
@@ -604,9 +606,9 @@ static int Preproc_PostInit (
     return 0;
 }
 
-static void Preproc_PostConfigInit (void* pv)
+static void Preproc_PostConfigInit (struct _SnortConfig *sc, void* pv)
 {
-    sfPolicyUserDataIterate(base_set, Preproc_PostInit);
+    sfPolicyUserDataIterate(sc, base_set, Preproc_PostInit);
 }
 
 //-------------------------------------------------------------------------
@@ -656,7 +658,7 @@ static void Preproc_FreeSet (tSfPolicyUserContextId set)
     if ( !set )
         return;
 
-    sfPolicyUserDataIterate(set, Preproc_FreePolicy);
+    sfPolicyUserDataFreeIterate(set, Preproc_FreePolicy);
     sfPolicyConfigDelete(set);
 }
 
@@ -689,23 +691,26 @@ static void Preproc_ResetStats (int signal, void *foo)
 //-------------------------------------------------------------------------
 
 #ifdef SNORT_RELOAD
-static NormalizerContext* Reload_GetContext ()
+static NormalizerContext* Reload_GetContext (struct _SnortConfig *sc, void **new_config)
 {
+    tSfPolicyUserContextId swap_set;
     NormalizerContext* pc = NULL;
-    tSfPolicyId policy_id = getParserPolicy();
+    tSfPolicyId policy_id = getParserPolicy(sc);
 
-    swap_pend = true;
-
-    //if ( !ScInlineMode() )  // can't use this; need snort_conf_for_parsing
-    if ( !snort_conf_for_parsing ||
-        (snort_conf_for_parsing->targeted_policies[policy_id]->policy_mode
-        != POLICY_MODE__INLINE) )
+    if ( sc->targeted_policies[policy_id]->policy_mode != POLICY_MODE__INLINE )
         return NULL;
+
+    if (!(swap_set = (tSfPolicyUserContextId)*new_config))
+        if (!(swap_set = (tSfPolicyUserContextId)GetRelatedReloadData(sc, "normalize_ip4")))
+            if (!(swap_set = (tSfPolicyUserContextId)GetRelatedReloadData(sc, "normalize_ip6")))
+                if (!(swap_set = (tSfPolicyUserContextId)GetRelatedReloadData(sc, "normalize_tcp")))
+                    if (!(swap_set = (tSfPolicyUserContextId)GetRelatedReloadData(sc, "normalize_icmp4")))
+                        swap_set = (tSfPolicyUserContextId)GetRelatedReloadData(sc, "normalize_icmp6");
 
     if ( !swap_set )
     {
         swap_set = sfPolicyConfigCreate();
-        AddFuncToPreprocReloadVerifyList(Reload_Verify);
+        *new_config = (void *)swap_set;
     }
     sfPolicyUserPolicySet(swap_set, policy_id);
     pc = sfPolicyUserDataGetCurrent(swap_set);
@@ -716,24 +721,24 @@ static NormalizerContext* Reload_GetContext ()
         sfPolicyUserDataSetCurrent(swap_set, pc);
 
         AddFuncToPreprocList(
-            Preproc_Execute, PRIORITY_NORMALIZE, PP_NORMALIZE, PROTO_BITS);
+            sc, Preproc_Execute, PRIORITY_NORMALIZE, PP_NORMALIZE, PROTO_BITS);
     }
     return pc;
 }
 
-static void Reload_IP4 (char* args)
+static void Reload_IP4 (struct _SnortConfig *sc, char* args, void **new_config)
 {
-    NormalizerContext* pc = Reload_GetContext();
+    NormalizerContext* pc = Reload_GetContext(sc, new_config);
 
     if ( pc )
-        Parse_IP4(pc, args);
+        Parse_IP4(sc, pc, args);
     else
         LogMessage(NOT_INLINE, "tcp");
 }
 
-static void Reload_ICMP4 (char* args)
+static void Reload_ICMP4 (struct _SnortConfig *sc, char* args, void **new_config)
 {
-    NormalizerContext* pc = Reload_GetContext();
+    NormalizerContext* pc = Reload_GetContext(sc, new_config);
 
     if ( pc )
         Parse_ICMP4(pc, args);
@@ -741,19 +746,19 @@ static void Reload_ICMP4 (char* args)
         LogMessage(NOT_INLINE, "tcp");
 }
 
-static void Reload_IP6 (char* args)
+static void Reload_IP6 (struct _SnortConfig *sc, char* args, void **new_config)
 {
-    NormalizerContext* pc = Reload_GetContext();
+    NormalizerContext* pc = Reload_GetContext(sc, new_config);
 
     if ( pc )
-        Parse_IP6(pc, args);
+        Parse_IP6(sc, pc, args);
     else
         LogMessage(NOT_INLINE, "tcp");
 }
 
-static void Reload_ICMP6 (char* args)
+static void Reload_ICMP6 (struct _SnortConfig *sc, char* args, void **new_config)
 {
-    NormalizerContext* pc = Reload_GetContext();
+    NormalizerContext* pc = Reload_GetContext(sc, new_config);
 
     if ( pc )
         Parse_ICMP6(pc, args);
@@ -761,9 +766,9 @@ static void Reload_ICMP6 (char* args)
         LogMessage(NOT_INLINE, "tcp");
 }
 
-static void Reload_TCP (char* args)
+static void Reload_TCP (struct _SnortConfig *sc, char* args, void **new_config)
 {
-    NormalizerContext* pc = Reload_GetContext();
+    NormalizerContext* pc = Reload_GetContext(sc, new_config);
 
     if ( pc )
         Parse_TCP(pc, args);
@@ -774,12 +779,13 @@ static void Reload_TCP (char* args)
 //-------------------------------------------------------------------------
 
 static int Reload_VerifyPolicy (
+    struct _SnortConfig *sc,
     tSfPolicyUserContextId set,
     tSfPolicyId pid,
     void* pv
 ) {
     //NormalizerContext* pc = (NormalizerContext*)pv;
-    SnortPolicy* policy = snort_conf_for_parsing->targeted_policies[pid];
+    SnortPolicy* policy = sc->targeted_policies[pid];
     if ( policy->new_ttl && policy->new_ttl < policy->min_ttl )
     {
         policy->new_ttl = policy->min_ttl;
@@ -787,12 +793,17 @@ static int Reload_VerifyPolicy (
     return 0;
 }
 
-static int Reload_Verify(void)
+static int Reload_Verify(struct _SnortConfig *sc, void *swap_config)
 {
+    int rval;
+    tSfPolicyUserContextId swap_set = (tSfPolicyUserContextId)swap_config;
+
     if ( !swap_set )
         return -1;
 
-    sfPolicyUserDataIterate (swap_set, Reload_VerifyPolicy);
+    if ((rval = sfPolicyUserDataIterate (sc, swap_set, Reload_VerifyPolicy)))
+        return rval;
+
     return 0;
 }
 
@@ -811,23 +822,21 @@ static int Reload_SwapPolicy (
     return 0;
 }
 
-static void* Reload_Swap (void)
+static void* Reload_Swap (struct _SnortConfig *sc, void *swap_config)
 {
+    tSfPolicyUserContextId swap_set = (tSfPolicyUserContextId)swap_config;
     tSfPolicyUserContextId old_set = base_set;
 
-    if ( !swap_pend )
+    if ( !swap_set )
         return NULL;
 
     base_set = swap_set;
-    swap_set = NULL;
-    swap_pend = false;
 
-    if ( base_set )
-        sfPolicyUserDataIterate(base_set, Preproc_PostInit);
+    sfPolicyUserDataIterate(sc, base_set, Preproc_PostInit);
 
     if ( old_set )
     {
-        sfPolicyUserDataIterate(old_set, Reload_SwapPolicy);
+        sfPolicyUserDataFreeIterate(old_set, Reload_SwapPolicy);
 
         if ( !sfPolicyUserPolicyGetActive(old_set) )
             return (void*)old_set;

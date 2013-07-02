@@ -94,21 +94,22 @@ am__installdirs = "$(DESTDIR)$(preproclibdir)" \
 LTLIBRARIES = $(preproclib_LTLIBRARIES)
 libsf_dynamic_preproc_la_LIBADD =
 am__libsf_dynamic_preproc_la_SOURCES_DIST = libs/ssl.c libs/sfparser.c
-@HAVE_DYNAMIC_PLUGINS_TRUE@@SO_WITH_STATIC_LIB_TRUE@am_libsf_dynamic_preproc_la_OBJECTS = libsf_dynamic_preproc_la-ssl.lo \
-@HAVE_DYNAMIC_PLUGINS_TRUE@@SO_WITH_STATIC_LIB_TRUE@	libsf_dynamic_preproc_la-sfparser.lo
-@HAVE_DYNAMIC_PLUGINS_TRUE@@SO_WITH_STATIC_LIB_TRUE@nodist_libsf_dynamic_preproc_la_OBJECTS = libsf_dynamic_preproc_la-sf_dynamic_preproc_lib.lo \
-@HAVE_DYNAMIC_PLUGINS_TRUE@@SO_WITH_STATIC_LIB_TRUE@	libsf_dynamic_preproc_la-sf_ip.lo \
-@HAVE_DYNAMIC_PLUGINS_TRUE@@SO_WITH_STATIC_LIB_TRUE@	libsf_dynamic_preproc_la-sfrt.lo \
-@HAVE_DYNAMIC_PLUGINS_TRUE@@SO_WITH_STATIC_LIB_TRUE@	libsf_dynamic_preproc_la-sfrt_dir.lo \
-@HAVE_DYNAMIC_PLUGINS_TRUE@@SO_WITH_STATIC_LIB_TRUE@	libsf_dynamic_preproc_la-sfrt_flat.lo \
-@HAVE_DYNAMIC_PLUGINS_TRUE@@SO_WITH_STATIC_LIB_TRUE@	libsf_dynamic_preproc_la-sfrt_flat_dir.lo \
-@HAVE_DYNAMIC_PLUGINS_TRUE@@SO_WITH_STATIC_LIB_TRUE@	libsf_dynamic_preproc_la-segment_mem.lo \
-@HAVE_DYNAMIC_PLUGINS_TRUE@@SO_WITH_STATIC_LIB_TRUE@	libsf_dynamic_preproc_la-mempool.lo \
-@HAVE_DYNAMIC_PLUGINS_TRUE@@SO_WITH_STATIC_LIB_TRUE@	libsf_dynamic_preproc_la-sf_sdlist.lo \
-@HAVE_DYNAMIC_PLUGINS_TRUE@@SO_WITH_STATIC_LIB_TRUE@	libsf_dynamic_preproc_la-sfPolicyUserData.lo \
-@HAVE_DYNAMIC_PLUGINS_TRUE@@SO_WITH_STATIC_LIB_TRUE@	libsf_dynamic_preproc_la-util_unfold.lo \
-@HAVE_DYNAMIC_PLUGINS_TRUE@@SO_WITH_STATIC_LIB_TRUE@	libsf_dynamic_preproc_la-sf_base64decode.lo \
-@HAVE_DYNAMIC_PLUGINS_TRUE@@SO_WITH_STATIC_LIB_TRUE@	libsf_dynamic_preproc_la-sf_email_attach_decode.lo
+@SO_WITH_STATIC_LIB_TRUE@am_libsf_dynamic_preproc_la_OBJECTS =  \
+@SO_WITH_STATIC_LIB_TRUE@	libsf_dynamic_preproc_la-ssl.lo \
+@SO_WITH_STATIC_LIB_TRUE@	libsf_dynamic_preproc_la-sfparser.lo
+@SO_WITH_STATIC_LIB_TRUE@nodist_libsf_dynamic_preproc_la_OBJECTS = libsf_dynamic_preproc_la-sf_dynamic_preproc_lib.lo \
+@SO_WITH_STATIC_LIB_TRUE@	libsf_dynamic_preproc_la-sf_ip.lo \
+@SO_WITH_STATIC_LIB_TRUE@	libsf_dynamic_preproc_la-sfrt.lo \
+@SO_WITH_STATIC_LIB_TRUE@	libsf_dynamic_preproc_la-sfrt_dir.lo \
+@SO_WITH_STATIC_LIB_TRUE@	libsf_dynamic_preproc_la-sfrt_flat.lo \
+@SO_WITH_STATIC_LIB_TRUE@	libsf_dynamic_preproc_la-sfrt_flat_dir.lo \
+@SO_WITH_STATIC_LIB_TRUE@	libsf_dynamic_preproc_la-segment_mem.lo \
+@SO_WITH_STATIC_LIB_TRUE@	libsf_dynamic_preproc_la-mempool.lo \
+@SO_WITH_STATIC_LIB_TRUE@	libsf_dynamic_preproc_la-sf_sdlist.lo \
+@SO_WITH_STATIC_LIB_TRUE@	libsf_dynamic_preproc_la-sfPolicyUserData.lo \
+@SO_WITH_STATIC_LIB_TRUE@	libsf_dynamic_preproc_la-util_unfold.lo \
+@SO_WITH_STATIC_LIB_TRUE@	libsf_dynamic_preproc_la-sf_base64decode.lo \
+@SO_WITH_STATIC_LIB_TRUE@	libsf_dynamic_preproc_la-sf_email_attach_decode.lo
 libsf_dynamic_preproc_la_OBJECTS =  \
 	$(am_libsf_dynamic_preproc_la_OBJECTS) \
 	$(nodist_libsf_dynamic_preproc_la_OBJECTS)
@@ -116,9 +117,8 @@ libsf_dynamic_preproc_la_LINK = $(LIBTOOL) --tag=CC $(AM_LIBTOOLFLAGS) \
 	$(LIBTOOLFLAGS) --mode=link $(CCLD) \
 	$(libsf_dynamic_preproc_la_CFLAGS) $(CFLAGS) \
 	$(libsf_dynamic_preproc_la_LDFLAGS) $(LDFLAGS) -o $@
-@HAVE_DYNAMIC_PLUGINS_TRUE@@SO_WITH_STATIC_LIB_TRUE@am_libsf_dynamic_preproc_la_rpath =  \
-@HAVE_DYNAMIC_PLUGINS_TRUE@@SO_WITH_STATIC_LIB_TRUE@	-rpath \
-@HAVE_DYNAMIC_PLUGINS_TRUE@@SO_WITH_STATIC_LIB_TRUE@	$(preproclibdir)
+@SO_WITH_STATIC_LIB_TRUE@am_libsf_dynamic_preproc_la_rpath = -rpath \
+@SO_WITH_STATIC_LIB_TRUE@	$(preproclibdir)
 DEFAULT_INCLUDES = -I.@am__isrc@ -I$(top_builddir)
 depcomp =
 am__depfiles_maybe =
@@ -314,70 +314,70 @@ top_build_prefix = @top_build_prefix@
 top_builddir = @top_builddir@
 top_srcdir = @top_srcdir@
 AUTOMAKE_OPTIONS = foreign no-dependencies
-@HAVE_DYNAMIC_PLUGINS_TRUE@@SO_WITH_STATIC_LIB_TRUE@preproclibdir = $(pkglibdir)/dynamic_preproc
-@HAVE_DYNAMIC_PLUGINS_TRUE@@SO_WITH_STATIC_LIB_TRUE@preproclib_LTLIBRARIES = libsf_dynamic_preproc.la
-@HAVE_DYNAMIC_PLUGINS_TRUE@@SO_WITH_STATIC_LIB_TRUE@libsf_dynamic_preproc_la_CFLAGS = -fPIC -DPIC
-@HAVE_DYNAMIC_PLUGINS_TRUE@@SO_WITH_STATIC_LIB_TRUE@libsf_dynamic_preproc_la_LDFLAGS = -static
-@HAVE_DYNAMIC_PLUGINS_TRUE@@SO_WITH_STATIC_LIB_TRUE@nodist_libsf_dynamic_preproc_la_SOURCES = \
-@HAVE_DYNAMIC_PLUGINS_TRUE@@SO_WITH_STATIC_LIB_TRUE@include/sf_dynamic_preproc_lib.c \
-@HAVE_DYNAMIC_PLUGINS_TRUE@@SO_WITH_STATIC_LIB_TRUE@include/sf_ip.c \
-@HAVE_DYNAMIC_PLUGINS_TRUE@@SO_WITH_STATIC_LIB_TRUE@include/sfrt.c \
-@HAVE_DYNAMIC_PLUGINS_TRUE@@SO_WITH_STATIC_LIB_TRUE@include/sfrt_dir.c \
-@HAVE_DYNAMIC_PLUGINS_TRUE@@SO_WITH_STATIC_LIB_TRUE@include/sfrt_flat.c \
-@HAVE_DYNAMIC_PLUGINS_TRUE@@SO_WITH_STATIC_LIB_TRUE@include/sfrt_flat_dir.c \
-@HAVE_DYNAMIC_PLUGINS_TRUE@@SO_WITH_STATIC_LIB_TRUE@include/segment_mem.c \
-@HAVE_DYNAMIC_PLUGINS_TRUE@@SO_WITH_STATIC_LIB_TRUE@include/mempool.c \
-@HAVE_DYNAMIC_PLUGINS_TRUE@@SO_WITH_STATIC_LIB_TRUE@include/sf_sdlist.c \
-@HAVE_DYNAMIC_PLUGINS_TRUE@@SO_WITH_STATIC_LIB_TRUE@include/sfPolicyUserData.c \
-@HAVE_DYNAMIC_PLUGINS_TRUE@@SO_WITH_STATIC_LIB_TRUE@include/util_unfold.c \
-@HAVE_DYNAMIC_PLUGINS_TRUE@@SO_WITH_STATIC_LIB_TRUE@include/sf_base64decode.c \
-@HAVE_DYNAMIC_PLUGINS_TRUE@@SO_WITH_STATIC_LIB_TRUE@include/sf_email_attach_decode.c
+@SO_WITH_STATIC_LIB_TRUE@preproclibdir = $(pkglibdir)/dynamic_preproc
+@SO_WITH_STATIC_LIB_TRUE@preproclib_LTLIBRARIES = libsf_dynamic_preproc.la
+@SO_WITH_STATIC_LIB_TRUE@libsf_dynamic_preproc_la_CFLAGS = -fPIC -DPIC
+@SO_WITH_STATIC_LIB_TRUE@libsf_dynamic_preproc_la_LDFLAGS = -static
+@SO_WITH_STATIC_LIB_TRUE@nodist_libsf_dynamic_preproc_la_SOURCES = \
+@SO_WITH_STATIC_LIB_TRUE@include/sf_dynamic_preproc_lib.c \
+@SO_WITH_STATIC_LIB_TRUE@include/sf_ip.c \
+@SO_WITH_STATIC_LIB_TRUE@include/sfrt.c \
+@SO_WITH_STATIC_LIB_TRUE@include/sfrt_dir.c \
+@SO_WITH_STATIC_LIB_TRUE@include/sfrt_flat.c \
+@SO_WITH_STATIC_LIB_TRUE@include/sfrt_flat_dir.c \
+@SO_WITH_STATIC_LIB_TRUE@include/segment_mem.c \
+@SO_WITH_STATIC_LIB_TRUE@include/mempool.c \
+@SO_WITH_STATIC_LIB_TRUE@include/sf_sdlist.c \
+@SO_WITH_STATIC_LIB_TRUE@include/sfPolicyUserData.c \
+@SO_WITH_STATIC_LIB_TRUE@include/util_unfold.c \
+@SO_WITH_STATIC_LIB_TRUE@include/sf_base64decode.c \
+@SO_WITH_STATIC_LIB_TRUE@include/sf_email_attach_decode.c
 
-@HAVE_DYNAMIC_PLUGINS_TRUE@@SO_WITH_STATIC_LIB_TRUE@libsf_dynamic_preproc_la_SOURCES = \
-@HAVE_DYNAMIC_PLUGINS_TRUE@@SO_WITH_STATIC_LIB_TRUE@libs/ssl.c \
-@HAVE_DYNAMIC_PLUGINS_TRUE@@SO_WITH_STATIC_LIB_TRUE@libs/sfparser.c
+@SO_WITH_STATIC_LIB_TRUE@libsf_dynamic_preproc_la_SOURCES = \
+@SO_WITH_STATIC_LIB_TRUE@libs/ssl.c \
+@SO_WITH_STATIC_LIB_TRUE@libs/sfparser.c
 
-@HAVE_DYNAMIC_PLUGINS_TRUE@@SO_WITH_STATIC_LIB_TRUE@preprocdir = $(pkgincludedir)/dynamic_preproc
-@HAVE_DYNAMIC_PLUGINS_TRUE@@SO_WITH_STATIC_LIB_TRUE@nodist_preproc_HEADERS = \
-@HAVE_DYNAMIC_PLUGINS_TRUE@@SO_WITH_STATIC_LIB_TRUE@libs/ssl.h \
-@HAVE_DYNAMIC_PLUGINS_TRUE@@SO_WITH_STATIC_LIB_TRUE@libs/sfcommon.h \
-@HAVE_DYNAMIC_PLUGINS_TRUE@@SO_WITH_STATIC_LIB_TRUE@libs/sf_preproc_info.h \
-@HAVE_DYNAMIC_PLUGINS_TRUE@@SO_WITH_STATIC_LIB_TRUE@include/sf_snort_packet.h \
-@HAVE_DYNAMIC_PLUGINS_TRUE@@SO_WITH_STATIC_LIB_TRUE@include/sf_protocols.h \
-@HAVE_DYNAMIC_PLUGINS_TRUE@@SO_WITH_STATIC_LIB_TRUE@include/sf_snort_plugin_api.h \
-@HAVE_DYNAMIC_PLUGINS_TRUE@@SO_WITH_STATIC_LIB_TRUE@include/sf_decompression.h \
-@HAVE_DYNAMIC_PLUGINS_TRUE@@SO_WITH_STATIC_LIB_TRUE@include/sfPolicyUserData.h \
-@HAVE_DYNAMIC_PLUGINS_TRUE@@SO_WITH_STATIC_LIB_TRUE@include/snort_debug.h \
-@HAVE_DYNAMIC_PLUGINS_TRUE@@SO_WITH_STATIC_LIB_TRUE@include/snort_bounds.h \
-@HAVE_DYNAMIC_PLUGINS_TRUE@@SO_WITH_STATIC_LIB_TRUE@include/cpuclock.h \
-@HAVE_DYNAMIC_PLUGINS_TRUE@@SO_WITH_STATIC_LIB_TRUE@include/profiler.h \
-@HAVE_DYNAMIC_PLUGINS_TRUE@@SO_WITH_STATIC_LIB_TRUE@include/bitop.h \
-@HAVE_DYNAMIC_PLUGINS_TRUE@@SO_WITH_STATIC_LIB_TRUE@include/mempool.h \
-@HAVE_DYNAMIC_PLUGINS_TRUE@@SO_WITH_STATIC_LIB_TRUE@include/sf_sdlist_types.h \
-@HAVE_DYNAMIC_PLUGINS_TRUE@@SO_WITH_STATIC_LIB_TRUE@include/sf_ip.h \
-@HAVE_DYNAMIC_PLUGINS_TRUE@@SO_WITH_STATIC_LIB_TRUE@include/sfrt_flat.h \
-@HAVE_DYNAMIC_PLUGINS_TRUE@@SO_WITH_STATIC_LIB_TRUE@include/sfrt_flat_dir.h \
-@HAVE_DYNAMIC_PLUGINS_TRUE@@SO_WITH_STATIC_LIB_TRUE@include/segment_mem.h \
-@HAVE_DYNAMIC_PLUGINS_TRUE@@SO_WITH_STATIC_LIB_TRUE@include/sf_dynamic_common.h \
-@HAVE_DYNAMIC_PLUGINS_TRUE@@SO_WITH_STATIC_LIB_TRUE@include/sf_dynamic_engine.h \
-@HAVE_DYNAMIC_PLUGINS_TRUE@@SO_WITH_STATIC_LIB_TRUE@include/sf_dynamic_define.h \
-@HAVE_DYNAMIC_PLUGINS_TRUE@@SO_WITH_STATIC_LIB_TRUE@include/sf_dynamic_meta.h \
-@HAVE_DYNAMIC_PLUGINS_TRUE@@SO_WITH_STATIC_LIB_TRUE@include/sf_dynamic_preprocessor.h \
-@HAVE_DYNAMIC_PLUGINS_TRUE@@SO_WITH_STATIC_LIB_TRUE@include/sf_dynamic_preproc_lib.h \
-@HAVE_DYNAMIC_PLUGINS_TRUE@@SO_WITH_STATIC_LIB_TRUE@include/ipv6_port.h \
-@HAVE_DYNAMIC_PLUGINS_TRUE@@SO_WITH_STATIC_LIB_TRUE@include/sfPolicy.h \
-@HAVE_DYNAMIC_PLUGINS_TRUE@@SO_WITH_STATIC_LIB_TRUE@include/sfrt.h \
-@HAVE_DYNAMIC_PLUGINS_TRUE@@SO_WITH_STATIC_LIB_TRUE@include/sfrt_dir.h \
-@HAVE_DYNAMIC_PLUGINS_TRUE@@SO_WITH_STATIC_LIB_TRUE@include/sfrt_trie.h \
-@HAVE_DYNAMIC_PLUGINS_TRUE@@SO_WITH_STATIC_LIB_TRUE@include/obfuscation.h \
-@HAVE_DYNAMIC_PLUGINS_TRUE@@SO_WITH_STATIC_LIB_TRUE@include/stream_api.h \
-@HAVE_DYNAMIC_PLUGINS_TRUE@@SO_WITH_STATIC_LIB_TRUE@include/str_search.h \
-@HAVE_DYNAMIC_PLUGINS_TRUE@@SO_WITH_STATIC_LIB_TRUE@include/preprocids.h \
-@HAVE_DYNAMIC_PLUGINS_TRUE@@SO_WITH_STATIC_LIB_TRUE@include/sfcontrol.h \
-@HAVE_DYNAMIC_PLUGINS_TRUE@@SO_WITH_STATIC_LIB_TRUE@include/idle_processing.h \
-@HAVE_DYNAMIC_PLUGINS_TRUE@@SO_WITH_STATIC_LIB_TRUE@include/sf_seqnums.h \
-@HAVE_DYNAMIC_PLUGINS_TRUE@@SO_WITH_STATIC_LIB_TRUE@include/file_api.h \
-@HAVE_DYNAMIC_PLUGINS_TRUE@@SO_WITH_STATIC_LIB_TRUE@include/file_lib.h
+@SO_WITH_STATIC_LIB_TRUE@preprocdir = $(pkgincludedir)/dynamic_preproc
+@SO_WITH_STATIC_LIB_TRUE@nodist_preproc_HEADERS = \
+@SO_WITH_STATIC_LIB_TRUE@libs/ssl.h \
+@SO_WITH_STATIC_LIB_TRUE@libs/sfcommon.h \
+@SO_WITH_STATIC_LIB_TRUE@libs/sf_preproc_info.h \
+@SO_WITH_STATIC_LIB_TRUE@include/sf_snort_packet.h \
+@SO_WITH_STATIC_LIB_TRUE@include/sf_protocols.h \
+@SO_WITH_STATIC_LIB_TRUE@include/sf_snort_plugin_api.h \
+@SO_WITH_STATIC_LIB_TRUE@include/sf_decompression.h \
+@SO_WITH_STATIC_LIB_TRUE@include/sfPolicyUserData.h \
+@SO_WITH_STATIC_LIB_TRUE@include/snort_debug.h \
+@SO_WITH_STATIC_LIB_TRUE@include/snort_bounds.h \
+@SO_WITH_STATIC_LIB_TRUE@include/cpuclock.h \
+@SO_WITH_STATIC_LIB_TRUE@include/profiler.h \
+@SO_WITH_STATIC_LIB_TRUE@include/bitop.h \
+@SO_WITH_STATIC_LIB_TRUE@include/mempool.h \
+@SO_WITH_STATIC_LIB_TRUE@include/sf_sdlist_types.h \
+@SO_WITH_STATIC_LIB_TRUE@include/sf_ip.h \
+@SO_WITH_STATIC_LIB_TRUE@include/sfrt_flat.h \
+@SO_WITH_STATIC_LIB_TRUE@include/sfrt_flat_dir.h \
+@SO_WITH_STATIC_LIB_TRUE@include/segment_mem.h \
+@SO_WITH_STATIC_LIB_TRUE@include/sf_dynamic_common.h \
+@SO_WITH_STATIC_LIB_TRUE@include/sf_dynamic_engine.h \
+@SO_WITH_STATIC_LIB_TRUE@include/sf_dynamic_define.h \
+@SO_WITH_STATIC_LIB_TRUE@include/sf_dynamic_meta.h \
+@SO_WITH_STATIC_LIB_TRUE@include/sf_dynamic_preprocessor.h \
+@SO_WITH_STATIC_LIB_TRUE@include/sf_dynamic_preproc_lib.h \
+@SO_WITH_STATIC_LIB_TRUE@include/ipv6_port.h \
+@SO_WITH_STATIC_LIB_TRUE@include/sfPolicy.h \
+@SO_WITH_STATIC_LIB_TRUE@include/sfrt.h \
+@SO_WITH_STATIC_LIB_TRUE@include/sfrt_dir.h \
+@SO_WITH_STATIC_LIB_TRUE@include/sfrt_trie.h \
+@SO_WITH_STATIC_LIB_TRUE@include/obfuscation.h \
+@SO_WITH_STATIC_LIB_TRUE@include/stream_api.h \
+@SO_WITH_STATIC_LIB_TRUE@include/str_search.h \
+@SO_WITH_STATIC_LIB_TRUE@include/preprocids.h \
+@SO_WITH_STATIC_LIB_TRUE@include/sfcontrol.h \
+@SO_WITH_STATIC_LIB_TRUE@include/idle_processing.h \
+@SO_WITH_STATIC_LIB_TRUE@include/sf_seqnums.h \
+@SO_WITH_STATIC_LIB_TRUE@include/file_api.h \
+@SO_WITH_STATIC_LIB_TRUE@include/file_lib.h
 
 BUILT_SOURCES = \
 	include/snort_bounds.h \
@@ -581,58 +581,58 @@ copy_treenode_header = \
 	fi
 
 @WANT_SF_SAAC_TRUE@RZB_SAAC_DIR = rzb_saac
-@HAVE_DYNAMIC_PLUGINS_TRUE@SUBDIRS = . libs ftptelnet pop imap smtp ssh dns ssl dcerpc2 sdf sip reputation gtp modbus dnp3 $(RZB_SAAC_DIR)
+SUBDIRS = . libs ftptelnet pop imap smtp ssh dns ssl dcerpc2 sdf sip reputation gtp modbus dnp3 $(RZB_SAAC_DIR)
 EXTRA_DIST = \
 dynamic_preprocessors.dsp \
 sf_dynamic_initialize/sf_dynamic_initialize.dsp \
 treenodes.sed
 
-@HAVE_DYNAMIC_PLUGINS_TRUE@srcinstdir = $(exec_prefix)/src/snort_dynamicsrc
-@HAVE_DYNAMIC_PLUGINS_TRUE@exported_files = \
-@HAVE_DYNAMIC_PLUGINS_TRUE@include/sf_dynamic_common.h \
-@HAVE_DYNAMIC_PLUGINS_TRUE@include/sf_dynamic_define.h \
-@HAVE_DYNAMIC_PLUGINS_TRUE@include/sf_dynamic_engine.h \
-@HAVE_DYNAMIC_PLUGINS_TRUE@include/sf_dynamic_meta.h \
-@HAVE_DYNAMIC_PLUGINS_TRUE@include/sf_dynamic_preprocessor.h \
-@HAVE_DYNAMIC_PLUGINS_TRUE@include/sf_dynamic_preproc_lib.h \
-@HAVE_DYNAMIC_PLUGINS_TRUE@include/sf_dynamic_preproc_lib.c \
-@HAVE_DYNAMIC_PLUGINS_TRUE@include/sf_ip.h \
-@HAVE_DYNAMIC_PLUGINS_TRUE@include/sf_snort_packet.h \
-@HAVE_DYNAMIC_PLUGINS_TRUE@include/sf_protocols.h \
-@HAVE_DYNAMIC_PLUGINS_TRUE@include/sf_snort_plugin_api.h \
-@HAVE_DYNAMIC_PLUGINS_TRUE@include/sf_decompression.h \
-@HAVE_DYNAMIC_PLUGINS_TRUE@include/sf_types.h \
-@HAVE_DYNAMIC_PLUGINS_TRUE@include/sfsnort_dynamic_detection_lib.h \
-@HAVE_DYNAMIC_PLUGINS_TRUE@include/sfsnort_dynamic_detection_lib.c \
-@HAVE_DYNAMIC_PLUGINS_TRUE@include/pcap_pkthdr32.h \
-@HAVE_DYNAMIC_PLUGINS_TRUE@include/str_search.h \
-@HAVE_DYNAMIC_PLUGINS_TRUE@include/stream_api.h \
-@HAVE_DYNAMIC_PLUGINS_TRUE@include/snort_debug.h \
-@HAVE_DYNAMIC_PLUGINS_TRUE@include/profiler.h \
-@HAVE_DYNAMIC_PLUGINS_TRUE@include/sfghash.h \
-@HAVE_DYNAMIC_PLUGINS_TRUE@include/sfhashfcn.h \
-@HAVE_DYNAMIC_PLUGINS_TRUE@include/bitop.h \
-@HAVE_DYNAMIC_PLUGINS_TRUE@include/preprocids.h \
-@HAVE_DYNAMIC_PLUGINS_TRUE@include/sfPolicyUserData.h \
-@HAVE_DYNAMIC_PLUGINS_TRUE@include/util_unfold.h \
-@HAVE_DYNAMIC_PLUGINS_TRUE@include/util_unfold.c \
-@HAVE_DYNAMIC_PLUGINS_TRUE@include/sf_base64decode.h \
-@HAVE_DYNAMIC_PLUGINS_TRUE@include/sf_base64decode.c \
-@HAVE_DYNAMIC_PLUGINS_TRUE@include/sf_email_attach_decode.h \
-@HAVE_DYNAMIC_PLUGINS_TRUE@include/sf_email_attach_decode.c \
-@HAVE_DYNAMIC_PLUGINS_TRUE@include/treenodes.h \
-@HAVE_DYNAMIC_PLUGINS_TRUE@include/signature.h \
-@HAVE_DYNAMIC_PLUGINS_TRUE@include/plugin_enum.h \
-@HAVE_DYNAMIC_PLUGINS_TRUE@include/sfPolicyUserData.c \
-@HAVE_DYNAMIC_PLUGINS_TRUE@include/obfuscation.h \
-@HAVE_DYNAMIC_PLUGINS_TRUE@include/rule_option_types.h \
-@HAVE_DYNAMIC_PLUGINS_TRUE@include/event.h \
-@HAVE_DYNAMIC_PLUGINS_TRUE@include/Unified2_common.h \
-@HAVE_DYNAMIC_PLUGINS_TRUE@include/sfcontrol.h \
-@HAVE_DYNAMIC_PLUGINS_TRUE@include/idle_processing.h \
-@HAVE_DYNAMIC_PLUGINS_TRUE@include/sf_seqnums.h \
-@HAVE_DYNAMIC_PLUGINS_TRUE@include/file_api.h \
-@HAVE_DYNAMIC_PLUGINS_TRUE@include/file_lib.h
+srcinstdir = $(exec_prefix)/src/snort_dynamicsrc
+exported_files = \
+include/sf_dynamic_common.h \
+include/sf_dynamic_define.h \
+include/sf_dynamic_engine.h \
+include/sf_dynamic_meta.h \
+include/sf_dynamic_preprocessor.h \
+include/sf_dynamic_preproc_lib.h \
+include/sf_dynamic_preproc_lib.c \
+include/sf_ip.h \
+include/sf_snort_packet.h \
+include/sf_protocols.h \
+include/sf_snort_plugin_api.h \
+include/sf_decompression.h \
+include/sf_types.h \
+include/sfsnort_dynamic_detection_lib.h \
+include/sfsnort_dynamic_detection_lib.c \
+include/pcap_pkthdr32.h \
+include/str_search.h \
+include/stream_api.h \
+include/snort_debug.h \
+include/profiler.h \
+include/sfghash.h \
+include/sfhashfcn.h \
+include/bitop.h \
+include/preprocids.h \
+include/sfPolicyUserData.h \
+include/util_unfold.h \
+include/util_unfold.c \
+include/sf_base64decode.h \
+include/sf_base64decode.c \
+include/sf_email_attach_decode.h \
+include/sf_email_attach_decode.c \
+include/treenodes.h \
+include/signature.h \
+include/plugin_enum.h \
+include/sfPolicyUserData.c \
+include/obfuscation.h \
+include/rule_option_types.h \
+include/event.h \
+include/Unified2_common.h \
+include/sfcontrol.h \
+include/idle_processing.h \
+include/sf_seqnums.h \
+include/file_api.h \
+include/file_lib.h
 
 all: $(BUILT_SOURCES)
 	$(MAKE) $(AM_MAKEFLAGS) all-recursive
@@ -984,7 +984,6 @@ distdir: $(DISTFILES)
 check-am: all-am
 check: $(BUILT_SOURCES)
 	$(MAKE) $(AM_MAKEFLAGS) check-recursive
-@HAVE_DYNAMIC_PLUGINS_FALSE@all-local:
 @SO_WITH_STATIC_LIB_FALSE@all-local:
 all-am: Makefile $(LTLIBRARIES) $(HEADERS) all-local
 installdirs: installdirs-recursive
@@ -1024,8 +1023,6 @@ maintainer-clean-generic:
 	@echo "This command is intended for maintainers to use"
 	@echo "it deletes files that may require special tools to rebuild."
 	-test -z "$(BUILT_SOURCES)" || rm -f $(BUILT_SOURCES)
-@HAVE_DYNAMIC_PLUGINS_FALSE@uninstall-local:
-@HAVE_DYNAMIC_PLUGINS_FALSE@install-data-local:
 clean: clean-recursive
 
 clean-am: clean-generic clean-libtool clean-local \
@@ -1121,8 +1118,8 @@ uninstall-am: uninstall-local uninstall-nodist_preprocHEADERS \
 	uninstall-preproclibLTLIBRARIES
 
 
-@HAVE_DYNAMIC_PLUGINS_TRUE@@SO_WITH_STATIC_LIB_TRUE@all-local: $(LTLIBRARIES)
-@HAVE_DYNAMIC_PLUGINS_TRUE@@SO_WITH_STATIC_LIB_TRUE@	$(MAKE) DESTDIR=`pwd`/build install-preproclibLTLIBRARIES
+@SO_WITH_STATIC_LIB_TRUE@all-local: $(LTLIBRARIES)
+@SO_WITH_STATIC_LIB_TRUE@	$(MAKE) DESTDIR=`pwd`/build install-preproclibLTLIBRARIES
 
 # From main src tree
 include/snort_debug.h: $(srcdir)/../snort_debug.h
@@ -1335,20 +1332,20 @@ include/file_lib.h: $(top_srcdir)/src/file-process/libs/file_lib.h
 clean-local:
 	rm -rf include build
 
-@HAVE_DYNAMIC_PLUGINS_TRUE@install-data-local:
-@HAVE_DYNAMIC_PLUGINS_TRUE@	@for f in $(exported_files); do \
-@HAVE_DYNAMIC_PLUGINS_TRUE@		truefile=`echo $$f | sed -e "s/.*\///"`; \
-@HAVE_DYNAMIC_PLUGINS_TRUE@		$(mkinstalldirs) $(DESTDIR)$(srcinstdir); \
-@HAVE_DYNAMIC_PLUGINS_TRUE@		if test -f $(srcdir)/$$f; then p=$(srcdir)/$$f; else p=$$f; fi; \
-@HAVE_DYNAMIC_PLUGINS_TRUE@		$(INSTALL_DATA) $$p $(DESTDIR)$(srcinstdir)/$$truefile; \
-@HAVE_DYNAMIC_PLUGINS_TRUE@	done
+install-data-local:
+	@for f in $(exported_files); do \
+		truefile=`echo $$f | sed -e "s/.*\///"`; \
+		$(mkinstalldirs) $(DESTDIR)$(srcinstdir); \
+		if test -f $(srcdir)/$$f; then p=$(srcdir)/$$f; else p=$$f; fi; \
+		$(INSTALL_DATA) $$p $(DESTDIR)$(srcinstdir)/$$truefile; \
+	done
 
-@HAVE_DYNAMIC_PLUGINS_TRUE@uninstall-local:
-@HAVE_DYNAMIC_PLUGINS_TRUE@	@for f in $(exported_files); do \
-@HAVE_DYNAMIC_PLUGINS_TRUE@		truefile=`echo $$f | sed -e "s/.*\///"`; \
-@HAVE_DYNAMIC_PLUGINS_TRUE@		$(mkinstalldirs) $(DESTDIR)$(srcinstdir); \
-@HAVE_DYNAMIC_PLUGINS_TRUE@		rm -f $(DESTDIR)$(srcinstdir)/$$truefile; \
-@HAVE_DYNAMIC_PLUGINS_TRUE@	done
+uninstall-local:
+	@for f in $(exported_files); do \
+		truefile=`echo $$f | sed -e "s/.*\///"`; \
+		$(mkinstalldirs) $(DESTDIR)$(srcinstdir); \
+		rm -f $(DESTDIR)$(srcinstdir)/$$truefile; \
+	done
 
 # Tell versions [3.59,3.63) of GNU make to not export all variables.
 # Otherwise a system limit (for SysV at least) may be exceeded.

@@ -25,12 +25,13 @@
 #include "sf_types.h"
 #include "spp_sdf.h"
 #include "sdf_us_ssn.h"
+#include "sf_dynamic_preprocessor.h"
 #include <stdio.h>
 #include <stdint.h>
 #include <string.h>
 #include <ctype.h>
 #include <stdlib.h>
-
+#include <errno.h>
 
 static int SDFCompareGroupNumbers(int group, int max_group);
 static int SSNGroupCategory(int group);
@@ -75,6 +76,13 @@ int SDFSocialCheck(char *buf, uint32_t buflen, struct _SDFConfig *config)
     serial = (numbuf[5] - '0') * 1000 + (numbuf[6] - '0') * 100 +
              (numbuf[7] - '0') * 10 + (numbuf[8] - '0');
 
+    /* This range was reserved for advertising */
+    if (area == 987 && group == 65)
+    {
+        if (serial >= 4320 && serial <= 4329)
+            return 0;
+    }
+
     /* Start validating */
     if (area > MAX_AREA ||
         area == 666 ||
@@ -84,13 +92,6 @@ int SDFSocialCheck(char *buf, uint32_t buflen, struct _SDFConfig *config)
         serial <= 0 ||
         serial > 9999)
             return 0;
-
-    /* This range was reserved for advertising */
-    if (area == 987 && group == 65)
-    {
-        if (serial >= 4320 && serial <= 4329)
-            return 0;
-    }
 
     return SDFCompareGroupNumbers(group, config->ssn_max_group[area]);
 }
@@ -146,31 +147,63 @@ int ParseSSNGroups(char *filename, struct _SDFConfig *config)
     ssn_file = fopen(filename, "r");
     if (ssn_file == NULL)
     {
-        /* TODO: Print error */
+        _dpd.logMsg("Sensitive Data preprocessor: Failed to open SSN groups "
+                "file \"%s\": %s.\n", filename, strerror(errno));
         return -1;
     }
 
     /* Determine size of file */
-    fseek(ssn_file, 0, SEEK_END);
-    length = ftell(ssn_file);
-    rewind(ssn_file);
-
-    if (length <= 0)
+    if (fseek(ssn_file, 0, SEEK_END) == -1)
     {
-        /* TODO: Print error */
+        _dpd.logMsg("Sensitive Data preprocessor: Failed to fseek() to end of "
+                "SSN groups file \"%s\": %s.\n", filename, strerror(errno));
+
+        fclose(ssn_file);
         return -1;
     }
 
-    contents = calloc(length, sizeof(char));
+    if ((length = ftell(ssn_file)) <= 0)
+    {
+        if (length == -1)
+        {
+            _dpd.logMsg("Sensitive Data preprocessor: Failed to get size of SSN "
+                    "groups file \"%s\": %s.\n", filename, strerror(errno));
+        }
+        else
+        {
+            _dpd.logMsg("Sensitive Data preprocessor: SSN groups file \"%s\" "
+                    "is empty.\n", filename);
+        }
+
+        fclose(ssn_file);
+        return -1;
+    }
+
+    rewind(ssn_file);
+
+    contents = (char *)malloc(length + 1);
     if (contents == NULL)
     {
-        /* TODO: print error */
+        _dpd.logMsg("Sensitive Data preprocessor: Failed to allocate memory "
+                "for SSN groups.\n");
+
+        fclose(ssn_file);
         return -1;
     }
 
     /* Read file into memory */
-    fread(contents, sizeof(char), length, ssn_file);
+    if (fread(contents, sizeof(char), length, ssn_file) != (size_t)length)
+    {
+        _dpd.logMsg("Sensitive Data preprocessor: Failed read contents of "
+                "SSN groups file \"%s\".\n", filename);
+
+        fclose(ssn_file);
+        return -1;
+    }
+
     fclose(ssn_file);
+
+    contents[length] = '\0';
 
     /* Parse! */
     token = strtok_r(contents, " ,\n", &saveptr);

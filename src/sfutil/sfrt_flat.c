@@ -46,7 +46,7 @@ table_flat_t *sfrt_flat_new(char table_flat_type, char ip_type,  long data_size,
     /*The first allocation always return 0*/
     if(!table_ptr)
     {
-      //  return NULL;
+        //  return NULL;
     }
 #endif
 
@@ -142,18 +142,15 @@ table_flat_t *sfrt_flat_new(char table_flat_type, char ip_type,  long data_size,
         break;
     };
 
-    if(!table->rt)
+    if((!table->rt) && (!table->rt6))
     {
+        if (table->rt)
+            sfrt_dir_flat_free( table->rt );
+        if (table->rt6)
+            sfrt_dir_flat_free( table->rt6 );
         segment_free(table->data);
         segment_free(table_ptr);
         return NULL;
-    }
-
-    if (!table->rt6)
-    {
-        sfrt_dir_flat_free( table->rt );
-        segment_free(table->data);
-        segment_free(table_ptr);
     }
 
     return table;
@@ -268,6 +265,7 @@ int sfrt_flat_insert(void *adr, unsigned char len, INFO ptr,
     tuple_flat_t tuple;
     TABLE_PTR rt = 0;
     uint8_t *base;
+    int64_t bytesAllocated;
 
     if(!adr )
     {
@@ -312,7 +310,6 @@ int sfrt_flat_insert(void *adr, unsigned char len, INFO ptr,
 
     if(tuple.length != len)
     {
-
         if( table->num_ent >= table->max_size)
         {
             return RT_POLICY_TABLE_EXCEEDED;
@@ -322,20 +319,26 @@ int sfrt_flat_insert(void *adr, unsigned char len, INFO ptr,
         table->num_ent++;
         /* Insert value into policy table */
         data[index] = 0;
-
-        table->allocated += updateEntry(&data[index], ptr, SAVE_TO_CURRENT, base);
-
-        /* The actual value that is looked-up is an index
-         * into the data table. */
-        res = sfrt_dir_flat_insert(ip, len, index, behavior, rt, updateEntry, data);
     }
     else
     {
         index = tuple.index;
-        /* update the current index*/
-        table->allocated += updateEntry(&data[index], ptr, SAVE_TO_CURRENT, base);
-        return RT_SUCCESS;
     }
+
+    bytesAllocated = updateEntry(&data[index], ptr, SAVE_TO_CURRENT, base);
+
+    if (bytesAllocated < 0)
+    {
+        if(tuple.length != len)
+            table->num_ent--;
+        return MEM_ALLOC_FAILURE;
+    }
+
+    table->allocated += (uint32_t)bytesAllocated;
+
+    /* The actual value that is looked-up is an index
+     * into the data table. */
+    res = sfrt_dir_flat_insert(ip, len, index, behavior, rt, updateEntry, data);
 
     /* Check if we ran out of memory. If so, need to decrement
      * table->num_ent */

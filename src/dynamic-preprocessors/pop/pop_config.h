@@ -34,6 +34,7 @@
 #define CONF_SEPARATORS                  " \t\n\r"
 #define CONF_PORTS                       "ports"
 #define CONF_POP_MEMCAP                  "memcap"
+#define CONF_MAX_MIME_MEM                "max_mime_mem"
 #define CONF_B64_DECODE                  "b64_decode_depth"
 #define CONF_QP_DECODE                   "qp_decode_depth"
 #define CONF_BITENC_DECODE               "bitenc_decode_depth"
@@ -43,11 +44,13 @@
 #define CONF_END_LIST   "}"
 
 /*These are temporary values*/
-
+#define DEFAULT_MAX_MIME_MEM          838860
 #define DEFAULT_POP_MEMCAP            838860
 #define DEFAULT_DEPTH                 1464
 #define MAX_POP_MEMCAP                104857600
 #define MIN_POP_MEMCAP                3276
+#define MAX_MIME_MEM                  104857600
+#define MIN_MIME_MEM                  3276
 #define MAX_DEPTH                     65535 
 #define MIN_DEPTH                     -1 
 #define POP_DEFAULT_SERVER_PORT       110  /* POP normally runs on port 110 */
@@ -80,7 +83,8 @@ typedef struct _POPCmdConfig
 typedef struct _POPConfig
 {
     char  ports[8192];
-    uint32_t   memcap;
+    int  max_mime_mem;
+    uint32_t  memcap;
     int max_depth;
     int b64_depth;
     int qp_depth;
@@ -92,6 +96,7 @@ typedef struct _POPConfig
     void *cmd_search_mpse;
     int num_cmds;
     int disabled;
+    MAIL_LogConfig log_config;
 
     int ref_count;
 

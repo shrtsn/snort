@@ -143,3 +143,8 @@ alert ( msg:"DECODE_IP6_EXCESS_EXT_HDR"; sid:456; gid:116; rev:1; metadata:rule-
 alert ( msg:"DECODE_ICMPV6_UNREACHABLE_NON_RFC_4443_CODE"; sid:457; gid:116; rev:1; metadata:rule-type decode; classtype:protocol-command-decode; )
 alert ( msg:"DECODE_IPV6_BAD_FRAG_PKT"; sid:458; gid:116; rev:1; metadata:rule-type decode; classtype:protocol-command-decode; )
 alert ( msg:"DECODE_ZERO_LENGTH_FRAG"; sid:459; gid:116; rev:1; metadata:rule-type decode; classtype:protocol-command-decode; )
+alert ( msg:"DECODE_ICMPV6_SOLICITATION_BAD_CODE"; sid:460; gid:116; rev:1; metadata:rule-type decode; classtype:protocol-command-decode; )
+alert ( msg:"DECODE_IPV6_ROUTE_ZERO"; sid:461; gid:116; rev:1; metadata:rule-type decode; classtype:protocol-command-decode; )
+alert ( msg:"DECODE_ERSPAN_HDR_VERSION_MISMATCH_STR"; sid:462; gid:116; rev:1; metadata:rule-type decode; classtype:protocol-command-decode; )
+alert ( msg:"DECODE_ERSPAN2_DGRAM_LT_HDR_STR"; sid:463; gid:116; rev:1; metadata:rule-type decode; classtype:protocol-command-decode; )
+alert ( msg:"DECODE_ERSPAN3_DGRAM_LT_HDR_STR"; sid:464; gid:116; rev:1; metadata:rule-type decode; classtype:protocol-command-decode; )

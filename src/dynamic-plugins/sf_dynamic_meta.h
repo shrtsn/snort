@@ -24,11 +24,21 @@
 #ifndef _SF_DYNAMIC_META_H_
 #define _SF_DYNAMIC_META_H_
 
+/* Required version and name of the engine */
+#ifndef REQ_ENGINE_LIB_MAJOR
+#define REQ_ENGINE_LIB_MAJOR 2
+#endif
+#ifndef REQ_ENGINE_LIB_MINOR
+#define REQ_ENGINE_LIB_MINOR 0
+#endif
+#define REQ_ENGINE_LIB_NAME "SF_SNORT_DETECTION_ENGINE"
+
 #define MAX_NAME_LEN 1024
 
 #define TYPE_ENGINE 0x01
 #define TYPE_DETECTION 0x02
 #define TYPE_PREPROCESSOR 0x04
+#define TYPE_SIDE_CHANNEL 0x08
 
 typedef struct _DynamicPluginMeta
 {

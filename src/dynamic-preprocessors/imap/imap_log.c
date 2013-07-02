@@ -100,9 +100,6 @@ void IMAP_DecodeAlert(void)
         case DECODE_UU:
             IMAP_GenerateAlert(IMAP_UU_DECODING_FAILED, "%s", IMAP_UU_DECODING_FAILED_STR);
             break;
-        case DECODE_BITENC:
-            IMAP_GenerateAlert(IMAP_BITENC_DECODING_FAILED, "%s", IMAP_BITENC_DECODING_FAILED_STR);
-            break;
 
         default:
             break;

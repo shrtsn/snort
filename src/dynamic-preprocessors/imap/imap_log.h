@@ -39,7 +39,9 @@
 #define IMAP_MEMCAP_EXCEEDED        3
 #define IMAP_B64_DECODING_FAILED    4
 #define IMAP_QP_DECODING_FAILED     5
-#define IMAP_BITENC_DECODING_FAILED 6
+/* Do not delete or reuse this SID. Commenting this SID as this alert is no longer valid.*
+*   #define IMAP_BITENC_DECODING_FAILED 6
+*/
 #define IMAP_UU_DECODING_FAILED     7
 
 #define IMAP_EVENT_MAX  8
@@ -50,7 +52,6 @@
 #define IMAP_MEMCAP_EXCEEDED_STR             "(IMAP) No memory available for decoding. Memcap exceeded"
 #define IMAP_B64_DECODING_FAILED_STR         "(IMAP) Base64 Decoding failed."
 #define IMAP_QP_DECODING_FAILED_STR          "(IMAP) Quoted-Printable Decoding failed."
-#define IMAP_BITENC_DECODING_FAILED_STR      "(IMAP) Non-Encoded MIME attachment Extraction failed."
 #define IMAP_UU_DECODING_FAILED_STR          "(IMAP) Unix-to-Unix Decoding failed."
 
 #define EVENT_STR_LEN  256

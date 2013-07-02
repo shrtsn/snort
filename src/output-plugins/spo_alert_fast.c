@@ -93,8 +93,8 @@ typedef struct _SpoAlertFastData
     uint8_t packet_flag;
 } SpoAlertFastData;
 
-static void AlertFastInit(char *);
-static SpoAlertFastData *ParseAlertFastArgs(char *);
+static void AlertFastInit(struct _SnortConfig *, char *);
+static SpoAlertFastData *ParseAlertFastArgs(struct _SnortConfig *, char *);
 static void AlertFastCleanExitFunc(int, void *);
 static void AlertFast(Packet *, char *, void *, Event *);
 
@@ -130,19 +130,19 @@ void AlertFastSetup(void)
  * Returns: void function
  *
  */
-static void AlertFastInit(char *args)
+static void AlertFastInit(struct _SnortConfig *sc, char *args)
 {
     SpoAlertFastData *data;
 
     DEBUG_WRAP(DebugMessage(DEBUG_INIT,"Output: AlertFast Initialized\n"););
 
     /* parse the argument list from the rules file */
-    data = ParseAlertFastArgs(args);
+    data = ParseAlertFastArgs(sc, args);
 
     DEBUG_WRAP(DebugMessage(DEBUG_INIT,"Linking AlertFast functions to call lists...\n"););
 
     /* Set the preprocessor function into the function list */
-    AddFuncToOutputList(AlertFast, OUTPUT_TYPE__ALERT, data);
+    AddFuncToOutputList(sc, AlertFast, OUTPUT_TYPE__ALERT, data);
     AddFuncToCleanExitList(AlertFastCleanExitFunc, data);
 }
 
@@ -162,7 +162,6 @@ static void AlertFast(Packet *p, char *msg, void *arg, Event *event)
     }
 
 
-    if(msg != NULL)
     {
 #ifdef MARK_TAGGED
         char c=' ';
@@ -186,14 +185,17 @@ static void AlertFast(Packet *p, char *msg, void *arg, Event *event)
         if (ScAlertInterface())
         {
             TextLog_Print(data->log, " <%s> ", PRINT_INTERFACE(DAQ_GetInterfaceSpec()));
+        }
+
+        if (msg != NULL)
+        {
             TextLog_Puts(data->log, msg);
+            TextLog_Puts(data->log, " [**] ");
         }
         else
         {
-            TextLog_Puts(data->log, msg);
+            TextLog_Puts(data->log, "[**] ");
         }
-
-        TextLog_Puts(data->log, " [**] ");
     }
 
     /* print the packet header to the alert file */
@@ -263,7 +265,7 @@ static void AlertFast(Packet *p, char *msg, void *arg, Event *event)
  * Returns: void function
  *
  */
-static SpoAlertFastData *ParseAlertFastArgs(char *args)
+static SpoAlertFastData *ParseAlertFastArgs(struct _SnortConfig *sc, char *args)
 {
     char **toks;
     int num_toks;
@@ -295,7 +297,7 @@ static SpoAlertFastData *ParseAlertFastArgs(char *args)
                     filename = SnortStrdup(tok);
 
                 else
-                    filename = ProcessFileOption(snort_conf_for_parsing, tok);
+                    filename = ProcessFileOption(sc, tok);
                 break;
 
             case 1:
@@ -335,7 +337,7 @@ static SpoAlertFastData *ParseAlertFastArgs(char *args)
     mSplitFree(&toks, num_toks);
 
 #ifdef DEFAULT_FILE
-    if ( !filename ) filename = ProcessFileOption(snort_conf_for_parsing, DEFAULT_FILE);
+    if ( !filename ) filename = ProcessFileOption(sc, DEFAULT_FILE);
 #endif
 
     DEBUG_WRAP(DebugMessage(
@@ -343,8 +345,8 @@ static SpoAlertFastData *ParseAlertFastArgs(char *args)
         filename?filename:"alert", data->packet_flag, limit
     ););
 
-    if ((filename == NULL) && (snort_conf->alert_file != NULL))
-        filename = SnortStrdup(snort_conf->alert_file);
+    if ((filename == NULL) && (sc->alert_file != NULL))
+        filename = SnortStrdup(sc->alert_file);
 
     data->log = TextLog_Init(filename, bufSize, limit);
 

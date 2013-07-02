@@ -61,10 +61,9 @@ extern const char *smb_nt_transact_sub_command_strings[NT_TRANSACT_SUBCOM_MAX];
 typedef enum _DCE2_SmbSsnState
 {
     DCE2_SMB_SSN_STATE__START         = 0x00,
-    DCE2_SMB_SSN_STATE__NBSS_POSITIVE = 0x01,
-    DCE2_SMB_SSN_STATE__NEGOTIATED    = 0x02,
-    DCE2_SMB_SSN_STATE__FP_CLIENT     = 0x04,
-    DCE2_SMB_SSN_STATE__FP_SERVER     = 0x08 
+    DCE2_SMB_SSN_STATE__NEGOTIATED    = 0x01,
+    DCE2_SMB_SSN_STATE__FP_CLIENT     = 0x02,
+    DCE2_SMB_SSN_STATE__FP_SERVER     = 0x04 
 
 } DCE2_SmbSsnState;
 
@@ -202,9 +201,9 @@ typedef struct _DCE2_SmbSsnData
  * Inline function prototypes
  ********************************************************************/
 static inline DCE2_TransType DCE2_SmbAutodetect(const SFSnortPacket *);
-static inline bool DCE2_SmbSetFingerprintedClient(DCE2_SmbSsnData *);
+static inline void DCE2_SmbSetFingerprintedClient(DCE2_SmbSsnData *);
 static inline bool DCE2_SmbFingerprintedClient(DCE2_SmbSsnData *);
-static inline bool DCE2_SmbSetFingerprintedServer(DCE2_SmbSsnData *);
+static inline void DCE2_SmbSetFingerprintedServer(DCE2_SmbSsnData *);
 static inline bool DCE2_SmbFingerprintedServer(DCE2_SmbSsnData *);
 
 /********************************************************************
@@ -261,9 +260,9 @@ static inline DCE2_TransType DCE2_SmbAutodetect(const SFSnortPacket *p)
     return DCE2_TRANS_TYPE__NONE;
 }
 
-static inline bool DCE2_SmbSetFingerprintedClient(DCE2_SmbSsnData *ssd)
+static inline void DCE2_SmbSetFingerprintedClient(DCE2_SmbSsnData *ssd)
 {
-    return ssd->ssn_state_flags |= DCE2_SMB_SSN_STATE__FP_CLIENT;
+    ssd->ssn_state_flags |= DCE2_SMB_SSN_STATE__FP_CLIENT;
 }
 
 static inline bool DCE2_SmbFingerprintedClient(DCE2_SmbSsnData *ssd)
@@ -271,9 +270,9 @@ static inline bool DCE2_SmbFingerprintedClient(DCE2_SmbSsnData *ssd)
     return ssd->ssn_state_flags & DCE2_SMB_SSN_STATE__FP_CLIENT;
 }
 
-static inline bool DCE2_SmbSetFingerprintedServer(DCE2_SmbSsnData *ssd)
+static inline void DCE2_SmbSetFingerprintedServer(DCE2_SmbSsnData *ssd)
 {
-    return ssd->ssn_state_flags |= DCE2_SMB_SSN_STATE__FP_SERVER;
+    ssd->ssn_state_flags |= DCE2_SMB_SSN_STATE__FP_SERVER;
 }
 
 static inline bool DCE2_SmbFingerprintedServer(DCE2_SmbSsnData *ssd)

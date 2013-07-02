@@ -67,20 +67,21 @@
 #include "file_api.h"
 
 #define MINIMUM_DYNAMIC_PREPROC_ID 10000
-typedef void (*PreprocessorInitFunc)(char *);
-typedef void * (*AddPreprocFunc)(void (*pp_func)(void *, void *), uint16_t, uint32_t, uint32_t);
-typedef void * (*AddMetaEvalFunc)(void (*meta_eval_func)(int, const uint8_t *), uint16_t priority, uint32_t preproc_id);
+typedef void (*PreprocessorInitFunc)(struct _SnortConfig *, char *);
+typedef void * (*AddPreprocFunc)(struct _SnortConfig *, void (*pp_func)(void *, void *), uint16_t, uint32_t, uint32_t);
+typedef void * (*AddMetaEvalFunc)(struct _SnortConfig *, void (*meta_eval_func)(int, const uint8_t *),
+                                  uint16_t priority, uint32_t preproc_id);
 typedef void (*AddPreprocExit)(void (*pp_exit_func) (int, void *), void *arg, uint16_t, uint32_t);
 typedef void (*AddPreprocUnused)(void (*pp_unused_func) (int, void *), void *arg, uint16_t, uint32_t);
-typedef void (*AddPreprocConfCheck)(void (*pp_conf_chk_func) (void));
+typedef void (*AddPreprocConfCheck)(struct _SnortConfig *, int (*pp_conf_chk_func) (struct _SnortConfig *));
 typedef int (*AlertQueueAdd)(uint32_t, uint32_t, uint32_t,
                              uint32_t, uint32_t, char *, void *);
 typedef uint32_t (*GenSnortEvent)(Packet *p, uint32_t gid, uint32_t sid, uint32_t rev,
                                   uint32_t classification, uint32_t priority, char *msg);
 #ifdef SNORT_RELOAD
-typedef void (*PreprocessorReloadFunc)(char *);
-typedef int (*PreprocessorReloadVerifyFunc)(void);
-typedef void * (*PreprocessorReloadSwapFunc)(void);
+typedef void (*PreprocessorReloadFunc)(struct _SnortConfig *, char *, void **);
+typedef int (*PreprocessorReloadVerifyFunc)(struct _SnortConfig *, void *);
+typedef void * (*PreprocessorReloadSwapFunc)(struct _SnortConfig *, void *);
 typedef void (*PreprocessorReloadSwapFreeFunc)(void *);
 #endif
 
@@ -89,10 +90,10 @@ typedef void (*PreprocRegisterFunc)(const char *, PreprocessorInitFunc);
 #else
 typedef void (*PreprocRegisterFunc)(const char *, PreprocessorInitFunc,
                                     PreprocessorReloadFunc,
+                                    PreprocessorReloadVerifyFunc,
                                     PreprocessorReloadSwapFunc,
                                     PreprocessorReloadSwapFreeFunc);
-
-typedef void (*AddPreprocReloadVerifyFunc)(PreprocessorReloadVerifyFunc);
+typedef void *(*GetRelatedReloadDataFunc)(struct _SnortConfig *, const char *);
 #endif
 typedef int (*ThresholdCheckFunc)(unsigned int, unsigned int, snort_ip_p, snort_ip_p, long);
 typedef void (*InlineDropFunc)(void *);
@@ -117,25 +118,27 @@ typedef void (*DisablePreprocessorsFunc)(void *);
 #ifdef TARGET_BASED
 typedef int16_t (*FindProtocolReferenceFunc)(const char *);
 typedef int16_t (*AddProtocolReferenceFunc)(const char *);
-typedef int (*IsAdaptiveConfiguredFunc)(tSfPolicyId, int);
+typedef int (*IsAdaptiveConfiguredFunc)(tSfPolicyId);
+typedef int (*IsAdaptiveConfiguredForSnortConfigFunc)(struct _SnortConfig *, tSfPolicyId);
 #endif
 typedef void (*IP6BuildFunc)(void *, const void *, int);
 #define SET_CALLBACK_IP 0
 #define SET_CALLBACK_ICMP_ORIG 1
 typedef void (*IP6SetCallbacksFunc)(void *, int, char);
-typedef void (*AddKeywordOverrideFunc)(char *, char *, PreprocOptionInit,
+typedef void (*AddKeywordOverrideFunc)(struct _SnortConfig *, char *, char *, PreprocOptionInit,
         PreprocOptionEval, PreprocOptionCleanup, PreprocOptionHash,
         PreprocOptionKeyCompare, PreprocOptionOtnHandler,
         PreprocOptionFastPatternFunc);
 typedef void (*AddKeywordByteOrderFunc)(char *, PreprocOptionByteOrderFunc);
 
-typedef int (*IsPreprocEnabledFunc)(uint32_t);
+typedef int (*IsPreprocEnabledFunc)(struct _SnortConfig *, uint32_t);
 
 typedef char * (*PortArrayFunc)(char *, PortObject *, int *);
 
 typedef int (*AlertQueueLog)(void *);
 typedef void (*AlertQueueControl)(void);  // reset, push, and pop
-typedef void (*SetPolicyFunc)(tSfPolicyId);
+struct _SnortConfig;
+typedef void (*SetPolicyFunc)(struct _SnortConfig *, tSfPolicyId);
 typedef tSfPolicyId (*GetPolicyFromIdFunc)(uint16_t );
 typedef void (*ChangePolicyFunc)(tSfPolicyId, void *p);
 typedef void (*SetFileDataPtrFunc)(uint8_t *,uint16_t );
@@ -158,7 +161,6 @@ typedef int (*EncodeFormat)(uint32_t, const void*, void*, int);
 typedef bool (*PafEnabledFunc)(void);
 
 typedef char* (*GetLogDirectory)(void);
-typedef uint32_t (*GetSnortInstance)(void);
 
 typedef int (*ControlSocketRegisterHandlerFunc)(uint16_t, OOBPreControlFunc, IBControlFunc,
                                                 OOBPostControlFunc);
@@ -171,12 +173,14 @@ typedef int (*DynamicSetFlowId)(const void* p, uint32_t id);
 
 typedef int (*DynamicIsStrEmpty)(const char * );
 typedef void (*AddPeriodicCheck)(void (*pp_check_func) (int, void *), void *arg, uint16_t, uint32_t, uint32_t);
-typedef void (*AddPostConfigFuncs)(void (*pp_post_config_func) (void *), void *arg);
+typedef void (*AddPostConfigFuncs)(struct _SnortConfig *, void (*pp_post_config_func) (struct _SnortConfig *, void *), void *arg);
 typedef int (*AddOutPutModule)(const char *filename);
 typedef int (*CanWhitelist)(void);
 
-typedef void (*DisableAllPoliciesFunc)(void);
-typedef int (*ReenablePreprocBitFunc)(unsigned int preproc_id);
+typedef void (*DisableAllPoliciesFunc)(struct _SnortConfig *);
+typedef int (*ReenablePreprocBitFunc)(struct _SnortConfig *, unsigned int preproc_id);
+typedef int (*DynamicCheckValueInRangeFunc)(const char *, char *,
+        unsigned long lo, unsigned long hi, unsigned long *value);
 
 #define ENC_DYN_FWD 0x80000000
 #define ENC_DYN_NET 0x10000000
@@ -206,6 +210,9 @@ typedef struct _DynamicPreprocessorData
     DebugMsgFunc debugMsg;
 
     PreprocRegisterFunc registerPreproc;
+#ifdef SNORT_RELOAD
+    GetRelatedReloadDataFunc getRelatedReloadData;
+#endif
     AddPreprocFunc addPreproc;
     GetSnortInstance getSnortInstance;
     AddPreprocExit addPreprocExit;
@@ -266,20 +273,17 @@ typedef struct _DynamicPreprocessorData
     FindProtocolReferenceFunc findProtocolReference;
     AddProtocolReferenceFunc addProtocolReference;
     IsAdaptiveConfiguredFunc isAdaptiveConfigured;
+    IsAdaptiveConfiguredForSnortConfigFunc isAdaptiveConfiguredForSnortConfig;
 #endif
 
     AddKeywordOverrideFunc preprocOptOverrideKeyword;
     AddKeywordByteOrderFunc preprocOptByteOrderKeyword;
     IsPreprocEnabledFunc isPreprocEnabled;
 
-#ifdef SNORT_RELOAD
-    AddPreprocReloadVerifyFunc addPreprocReloadVerify;
-#endif
-
     PortArrayFunc portObjectCharPortArray;
 
     GetPolicyFunc getRuntimePolicy;
-    GetPolicyFunc getParserPolicy;
+    GetParserPolicyFunc getParserPolicy;
     GetPolicyFunc getDefaultPolicy;
     SetPolicyFunc setParserPolicy;
     SetFileDataPtrFunc setFileDataPtr;
@@ -330,12 +334,13 @@ typedef struct _DynamicPreprocessorData
     FileAPI *fileAPI;
     DisableAllPoliciesFunc disableAllPolicies;
     ReenablePreprocBitFunc reenablePreprocBit;
+    DynamicCheckValueInRangeFunc checkValueInRange;
 } DynamicPreprocessorData;
 
 /* Function prototypes for Dynamic Preprocessor Plugins */
 void CloseDynamicPreprocessorLibs(void);
-int LoadDynamicPreprocessor(char *library_name, int indent);
-void LoadAllDynamicPreprocessors(char *path);
+int LoadDynamicPreprocessor(const char * const library_name, int indent);
+void LoadAllDynamicPreprocessors(const char * const path);
 typedef int (*InitPreprocessorLibFunc)(DynamicPreprocessorData *);
 
 int InitDynamicPreprocessors(void);

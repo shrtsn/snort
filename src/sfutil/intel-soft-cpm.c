@@ -29,6 +29,7 @@
 #include "intel-soft-cpm.h"
 #include "pm/cpa_pm_compile.h"
 #include "util.h"
+#include "snort.h"
 #include "snort_debug.h"
 #include "fpcreate.h"
 
@@ -94,7 +95,6 @@ static inline void IntelPmInitQueue(IntelPmMatchQueue *);
 static inline int IntelPmAddQueue(IntelPmMatchQueue *, void *);
 static inline unsigned int IntelPmProcessQueue(IntelPmMatchQueue *, MatchFunc, void *);
 static void IntelPmRelease(IntelPmHandles *);
-
 
 /* FUNCTIONS ******************************************************************/
 static inline const char * GetCpaStatusStr(CpaStatus status)
@@ -199,7 +199,7 @@ void IntelPmStartInstance(void)
     ipm_instance = instanceHandle;
 }
 
-void * IntelPmNew(void (*user_free)(void *p), void (*option_tree_free)(void **p),
+void * IntelPmNew(SnortConfig *sc, void (*user_free)(void *p), void (*option_tree_free)(void **p),
         void (*neg_list_free)(void **p))
 {
     CpaStatus status;
@@ -296,10 +296,6 @@ static void IntelPmRelease(IntelPmHandles *handles)
 
     if (handles->pdbh != NULL)
     {
-        //status = cpaPmDeactivatePdb(ipm_instance, ipm_handles->pdbh);
-        //if (status != CPA_STATUS_SUCCESS)
-        //    FatalError("cpaPmPdbDeactivate() failed: %s\n", GetCpaStatusStr(status));
-
         status = cpaPmPdbRelease(ipm_instance, handles->pdbh);
         if (status != CPA_STATUS_SUCCESS)
             FatalError("cpaPmPdbRelease() failed: %s\n", GetCpaStatusStr(status));
@@ -308,11 +304,12 @@ static void IntelPmRelease(IntelPmHandles *handles)
     free(handles->ipms);
     free(handles->pm_mtchs);
     free(handles);
-    if(handles == ipm_handles)
+
+    if ( handles == ipm_handles )
         ipm_handles = NULL;
 }
 
-int IntelPmAddPattern(IntelPm *ipm, unsigned char *pat, int pat_len,
+int IntelPmAddPattern(SnortConfig *sc, IntelPm *ipm, unsigned char *pat, int pat_len,
         unsigned no_case, unsigned negative, void *pat_data, int pat_id)
 {
 
@@ -376,8 +373,8 @@ int IntelPmAddPattern(IntelPm *ipm, unsigned char *pat, int pat_len,
     return 0;
 }
 
-int IntelPmFinishGroup(IntelPm *ipm,
-        int (*build_tree)(void *id, void **existing_tree),
+int IntelPmFinishGroup(SnortConfig *sc, IntelPm *ipm,
+        int (*build_tree)(SnortConfig *, void *id, void **existing_tree),
         int (*neg_list_func)(void *id, void **list))
 {
     Cpa32U sessionCtxSize;
@@ -427,7 +424,7 @@ int IntelPmFinishGroup(IntelPm *ipm,
     return 0;
 }
 
-void IntelPmCompile(void)
+void IntelPmCompile(SnortConfig *sc)
 {
     if ((ipm_instance == NULL) || (ipm_handles == NULL)
             || (ipm_handles->psh == NULL))
@@ -495,7 +492,7 @@ void IntelPmCompile(void)
                     if (ipp->negative)
                         ipm->neg_list_func(ipp->user_data, &neg_list);
                     else
-                        ipm->build_tree(ipp->user_data, &rule_option_tree);
+                        ipm->build_tree(sc, ipp->user_data, &rule_option_tree);
 
                     status = cpaPmMsoGetNextPatternId(ipm_instance, ipm_handles->pdbh,
                             &patternIdIter, &patternID);
@@ -506,7 +503,7 @@ void IntelPmCompile(void)
 
                 if (ipp != NULL)
                 {
-                    ipm->build_tree(NULL, &rule_option_tree);
+                    ipm->build_tree(sc, NULL, &rule_option_tree);
 
                     ipm_handles->pm_mtchs[matchStateId].user_data = user_data;
                     ipm_handles->pm_mtchs[matchStateId].neg_list = neg_list;
@@ -527,7 +524,7 @@ void IntelPmCompile(void)
     }
 }
 
-void IntelPmActivate(void)
+void IntelPmActivate(SnortConfig *sc)
 {
     CpaStatus status;
 
@@ -622,7 +619,7 @@ int IntelPmPrintInfo(IntelPm *ipm)
     return 0;
 }
 
-void IntelPmPrintSummary(void)
+void IntelPmPrintSummary(SnortConfig *sc)
 {
     if (ipm_handles == NULL)
         return;

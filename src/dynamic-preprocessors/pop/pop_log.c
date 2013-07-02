@@ -100,9 +100,6 @@ void POP_DecodeAlert(void)
         case DECODE_UU:
             POP_GenerateAlert(POP_UU_DECODING_FAILED, "%s", POP_UU_DECODING_FAILED_STR);
             break;
-        case DECODE_BITENC:
-            POP_GenerateAlert(POP_BITENC_DECODING_FAILED, "%s", POP_BITENC_DECODING_FAILED_STR);
-            break;
 
         default:
             break;

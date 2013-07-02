@@ -45,7 +45,8 @@ typedef enum
    SAVE_TO_CURRENT
 }SaveDest;
 
-typedef int (*updateEntryInfoFunc)(INFO *entryInfo, INFO newInfo, SaveDest saveDest, uint8_t *base);
+typedef int64_t (*updateEntryInfoFunc)(INFO *entryInfo, INFO newInfo,
+        SaveDest saveDest, uint8_t *base);
 typedef struct {
     FLAT_INDEX index;
     int length;

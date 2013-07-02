@@ -119,7 +119,7 @@ PatternMatchData * NewNode(OptTreeNode *, int);
 void PatternMatchFree(void *d);
 uint32_t PatternMatchHash(void *d);
 int PatternMatchCompare(void *l, void *r);
-void FinalizeContentUniqueness(OptTreeNode *otn);
+void FinalizeContentUniqueness(struct _SnortConfig *sc, OptTreeNode *otn);
 void ValidateFastPattern(OptTreeNode *otn);
 void make_precomp(PatternMatchData *);
 void ParsePattern(char *, OptTreeNode *, int);

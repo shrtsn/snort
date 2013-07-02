@@ -52,39 +52,6 @@ typedef struct
 typedef tSfPolicyUserContext * tSfPolicyUserContextId;
 
 //SharedObjectDeleteBegins
-extern tSfPolicyId runtimePolicyId;
-extern tSfPolicyId parserPolicyId;
-
-static inline tSfPolicyId getRuntimePolicy(void)
-{
-    return runtimePolicyId;
-}
-
-static inline void setRuntimePolicy(tSfPolicyId id)
-{
-    runtimePolicyId = id;
-}
-
-static inline int isRuntimePolicyDefault(void)
-{
-    return (runtimePolicyId == 0);
-}
-
-static inline tSfPolicyId getParserPolicy(void)
-{
-    return parserPolicyId;
-}
-
-static inline void setParserPolicy(tSfPolicyId id)
-{
-    parserPolicyId = id;
-}
-
-static inline int isParserPolicyDefault(void)
-{
-    return (parserPolicyId == 0);
-}
-
 static inline tSfPolicyId getDefaultPolicy(void)
 {
     return 0;
@@ -176,6 +143,12 @@ void * sfPolicyUserDataClear (
         );
 
 int sfPolicyUserDataIterate (
+        struct _SnortConfig *sc,
+        tSfPolicyUserContextId pContext,
+        int (*callback)(struct _SnortConfig *sc, tSfPolicyUserContextId pContext, tSfPolicyId policyId, void* config)
+        );
+
+int sfPolicyUserDataFreeIterate (
         tSfPolicyUserContextId pContext,
         int (*callback)(tSfPolicyUserContextId pContext, tSfPolicyId policyId, void* config)
         );

@@ -56,12 +56,13 @@
 /* Rest of the keywords */
 #define SNORT_CONF_KEYWORD__ATTRIBUTE_TABLE      "attribute_table"
 #define SNORT_CONF_KEYWORD__CONFIG               "config"
-#ifdef DYNAMIC_PLUGIN
-# define SNORT_CONF_KEYWORD__DYNAMIC_DETECTION   "dynamicdetection"
-# define SNORT_CONF_KEYWORD__DYNAMIC_ENGINE      "dynamicengine"
-# define SNORT_CONF_KEYWORD__DYNAMIC_PREPROC     "dynamicpreprocessor"
-# define SNORT_CONF_KEYWORD__DYNAMIC_OUTPUT     "dynamicoutput"
-#endif  /* DYNAMIC_PLUGIN */
+#define SNORT_CONF_KEYWORD__DYNAMIC_DETECTION    "dynamicdetection"
+#define SNORT_CONF_KEYWORD__DYNAMIC_ENGINE       "dynamicengine"
+#define SNORT_CONF_KEYWORD__DYNAMIC_PREPROC      "dynamicpreprocessor"
+#define SNORT_CONF_KEYWORD__DYNAMIC_OUTPUT       "dynamicoutput"
+#ifdef SIDE_CHANNEL
+# define SNORT_CONF_KEYWORD__DYNAMIC_SIDE_CHAN  "dynamicsidechannel"
+#endif
 #define SNORT_CONF_KEYWORD__EVENT_FILTER         "event_filter"
 # define SNORT_CONF_KEYWORD__IPVAR               "ipvar"
 #define SNORT_CONF_KEYWORD__OUTPUT               "output"
@@ -70,6 +71,9 @@
 #define SNORT_CONF_KEYWORD__RATE_FILTER          "rate_filter"
 #define SNORT_CONF_KEYWORD__RULE_STATE           "rule_state"
 #define SNORT_CONF_KEYWORD__RULE_TYPE            "ruletype"
+#ifdef SIDE_CHANNEL
+# define SNORT_CONF_KEYWORD__SIDE_CHANNEL         "sidechannel"
+#endif
 #define SNORT_CONF_KEYWORD__SUPPRESS             "suppress"
 #define SNORT_CONF_KEYWORD__THRESHOLD            "threshold"
 #define SNORT_CONF_KEYWORD__VAR                  "var"
@@ -189,7 +193,6 @@
 #endif  /* PERF_PROFILING */
 #define CONFIG_OPT__QUIET                           "quiet"
 #define CONFIG_OPT__RATE_FILTER                     "rate_filter"
-#define CONFIG_OPT__READ_BIN_FILE                   "read_bin_file"
 #define CONFIG_OPT__REFERENCE                       "reference"
 #define CONFIG_OPT__REFERENCE_NET                   "reference_net"
 #define CONFIG_OPT__SET_GID                         "set_gid"
@@ -205,14 +208,13 @@
 #define CONFIG_OPT__VLAN_AGNOSTIC                   "vlan_agnostic"
 #define CONFIG_OPT__ADDRESSSPACE_AGNOSTIC           "addressspace_agnostic"
 #define CONFIG_OPT__LOG_IPV6_EXTRA                  "log_ipv6_extra_data"
-#ifdef DYNAMIC_PLUGIN
 #define CONFIG_OPT__DUMP_DYNAMIC_RULES_PATH         "dump-dynamic-rules-path"
-#endif
 #define CONFIG_OPT__CONTROL_SOCKET_DIR              "cs_dir"
 #define CONFIG_OPT__FILE                            "file"
 #define CONFIG_OPT__TUNNEL_BYPASS                   "tunnel_verdicts"
-
-extern SnortConfig *snort_conf_for_parsing;
+#ifdef SIDE_CHANNEL
+# define CONFIG_OPT__SIDE_CHANNEL                    "sidechannel"
+#endif
 
 /* exported values */
 extern char *file_name;
@@ -227,7 +229,7 @@ void ParseOutput(SnortConfig *, SnortPolicy *, char *);
 void OrderRuleLists(SnortConfig *, char *);
 void PrintRuleOrder(RuleListNode *);
 
-char * VarGet(char *);
+char * VarGet(SnortConfig *, char *);
 char * ProcessFileOption(SnortConfig *, const char *);
 void SetRuleStates(SnortConfig *);
 int GetPcaps(SF_LIST *, SF_QUEUE *);
@@ -241,6 +243,7 @@ int CompareIPNodes(IpAddrNode *, IpAddrNode *);
 void ResolveOutputPlugins(SnortConfig *, SnortConfig *);
 void ConfigureOutputPlugins(SnortConfig *);
 void ConfigurePreprocessors(SnortConfig *, int);
+void ConfigureSideChannelModules(SnortConfig *);
 
 NORETURN void ParseError(const char *, ...);
 void ParseWarning(const char *, ...);
@@ -383,9 +386,7 @@ void ConfigVerbose(SnortConfig *, char *);
 void ConfigVlanAgnostic(SnortConfig *, char *);
 void ConfigAddressSpaceAgnostic(SnortConfig *, char *);
 void ConfigLogIPv6Extra(SnortConfig *, char *);
-#ifdef DYNAMIC_PLUGIN
 void ConfigDumpDynamicRulesPath(SnortConfig *, char *);
-#endif
 void ConfigControlSocketDirectory(SnortConfig *, char *);
 void ConfigFile(SnortConfig *, char *);
 void ConfigTunnelVerdicts(SnortConfig*, char*);
@@ -426,19 +427,14 @@ static inline RuleTreeNode *getRtnFromOtn(OptTreeNode *otn, tSfPolicyId policyId
 
 /**Get rtn from otn for the current policy.
  */
-static inline RuleTreeNode *getParserRtnFromOtn(OptTreeNode *otn)
+static inline RuleTreeNode *getParserRtnFromOtn(SnortConfig *sc, OptTreeNode *otn)
 {
-    return getRtnFromOtn(otn, getParserPolicy());
+    return getRtnFromOtn(otn, getParserPolicy(sc));
 }
 
 static inline RuleTreeNode *getRuntimeRtnFromOtn(OptTreeNode *otn)
 {
     return getRtnFromOtn(otn, getRuntimePolicy());
-}
-
-static inline SnortConfig *getWorkingConf(void)
-{
-    return snort_conf_for_parsing ? snort_conf_for_parsing : snort_conf;
 }
 
 SnortPolicy * SnortPolicyNew(void);

@@ -47,7 +47,7 @@ typedef enum _OutputTypeFlag
 
 
 /***************************** Output Plugin API  *****************************/
-typedef void (*OutputConfigFunc)(char *);
+typedef void (*OutputConfigFunc)(struct _SnortConfig *, char *);
 typedef void (*OutputFunc)(Packet *, char *, void *, Event *);
 
 typedef struct _OutputConfigFuncNode
@@ -79,7 +79,7 @@ OutputConfigFunc GetOutputConfigFunc(char *);
 void RemoveOutputPlugin(char *);
 int GetOutputTypeFlags(char *);
 void DumpOutputPlugins(void);
-void AddFuncToOutputList(OutputFunc, OutputType, void *);
+void AddFuncToOutputList(struct _SnortConfig *, OutputFunc, OutputType, void *);
 void FreeOutputConfigFuncs(void);
 void FreeOutputList(OutputFuncNode *);
 

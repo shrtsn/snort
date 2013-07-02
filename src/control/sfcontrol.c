@@ -136,7 +136,7 @@ void ControlSocketConfigureDirectory(const char *optarg)
 int ControlSocketRegisterHandler(uint16_t type, OOBPreControlFunc oobpre, IBControlFunc ib,
                                  OOBPostControlFunc oobpost)
 {
-    if (type > CS_TYPE_MAX)
+    if (type >= CS_TYPE_MAX)
         return -1;
     pthread_mutex_lock(&msg_handler_mutex);
     if (msg_handlers[type])
@@ -363,9 +363,9 @@ static void *ControlSocketProcessThread(void *arg)
             }
         }
 
-        if (hdr.type > CS_TYPE_MAX)
+        if (hdr.type >= CS_TYPE_MAX)
         {
-            static const char invalid_type[] = "Invalid type. Must be 0-2047 inclusive.";
+            static const char invalid_type[] = "Invalid type. Must be 0-8190 inclusive.";
 
             SendErrorResponse(t, invalid_type);
             DEBUG_WRAP( DebugMessage(DEBUG_CONTROL, "Control Socket %d: Invalid message type - %u\n", t->socket_fd, hdr.type););
@@ -667,6 +667,7 @@ void ControlSocketCleanUp(void)
     ThreadElement *t;
     int rval;
     int done = 0;
+    int i;
 
     if (p_thread_id != NULL)
     {
@@ -695,10 +696,20 @@ void ControlSocketCleanUp(void)
         }
     } while (!done && rval > 0);
 
+    pthread_mutex_lock(&thread_mutex);
+    if (thread_list)
+        WarningMessage("%s\n", "Not all control socket threads terminated");
+    pthread_mutex_unlock(&thread_mutex);
+
     pthread_mutex_lock(&work_mutex);
     if (work_queue)
         WarningMessage("%s\n", "Work queue is not emtpy during termination");
     pthread_mutex_unlock(&work_mutex);
+    for (i = 0; i < CS_TYPE_MAX; i++)
+    {
+        if (msg_handlers[i])
+            free(msg_handlers[i]);
+    }
 }
 
 void ControlSocketDoWork(int idle)

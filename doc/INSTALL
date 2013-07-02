@@ -50,10 +50,6 @@ Snort Configure-time switches
      state (enabled/disabled) from the action (alert, drop, log, etc)
      and definition.
 
-`--enable-dynamicplugin'
-     Enable dynamically loadable preprocessors, detection engine
-     and rules libraries.
-
 `--enable-so-with-static-lib`
      Enable linking of dynamically loaded preprocessors with a static
      preprocessor library.
@@ -281,63 +277,6 @@ Operation Controls
 Platform Specific Notes
 =======================
 
-* 64bit platforms:
-------------------
-On some 64bit Linux systems (e.g. with Fedora distributions), when configuring
-snort with MySQL output support, the necessary library may not be found
-automatically by the configure script, giving the following error when
-'configure' is run:
-
-**********************************************
-  ERROR: unable to find mysqlclient library (libmysqlclient.*)
-  checked in the following places
-        /usr
-        /usr/lib
-        /usr/mysql
-        /usr/mysql/lib
-        /usr/local
-        /usr/local/lib
-        /usr/local/mysql
-        /usr/local/mysql/lib
-**********************************************
-
-In this case, libmysqlclient.* may actually be found in /usr/lib64/mysql, and
-the path will need to be explicitly specified in this manner: configure
---with-mysql-libraries=/usr/lib64/mysql
-
-Note, you may also specify alternate locations for the mysql header files using
---with-mysql-includes.  Specifying a directory as part of the --with-mysql
-option to configure will be deprecated in the future.
-
-Problems may also be encountered if both the 32bit and 64bit libraries are
-installed on the system, and configuring snort with MySQL support may result in
-a different error:
-
-checking for mysql... yes
-checking for compress in -lz... yes
-checking for dlsym in -ldl... no
-checking for dlsym in -lc... no
-
-   ERROR!  programmatic interface to dynamic link loader
-   not found.  Cannot use dynamic plugin libraries.
-
-Reading through config.log, you may see something like this (the numbers are
-the line number and may differ):
-
-configure:24280: checking for dlsym in -ldl
-configure:24310: gcc -o conftest -g -O2 -Wall  -DDYNAMIC_PLUGIN   -I/usr/include/mysql -DENABLE_MYSQL  -lpcre -L/usr/lib/mysql conftest.c -ldl  -lmysqlclient -lz -lpcre -lpcap -lm -lnsl  >&5
-/usr/bin/ld: skipping incompatible /usr/lib/mysql/libmysqlclient.so when searching for -lmysqlclient
-/usr/bin/ld: skipping incompatible /usr/lib/mysql/libmysqlclient.a when searching for -lmysqlclient
-/usr/bin/ld: cannot find -lmysqlclient
-collect2: ld returned 1 exit status
-configure:24316: $? = 1 
-
-This likely indicates a compatibility issue between a 32bit library from mysql
-(found in its normal location), and a 64bit library for libdl (dynamic loader).
-Use the --with-mysql-libraries option to specify the location of the 64bit
-mysql library (e.g. /usr/lib64/mysql).
-
-
 * Linux:
 -------- With kernels 2.2.x and higher you may get `snort [pid] uses obsolete
 (PF_INET, SOCK_PACKET)' warnings. This is because you use some older
@@ -447,6 +386,9 @@ dynamicpreprocessor directory) to load the version specific shared library.
 Note that on FreeBSD and OpenBSD, divert sockets don't work with bridges. Please 
 refer to the DAQ distro README for work arounds and more details.
 
+When using the alert_unixsock output plugin on FreeBSD, please refer to the
+Output Modules section of the Snort Manual.
+
 * FreeBSD 6.x
 -------------
 If you run the auto tools (instead of using the delivered configure script),
@@ -463,6 +405,5 @@ autoheader
 automake --add-missing --copy
 autoconf
 
-Then run configure with any desired options (--enable-dynamicplugin,
-etc).
+Then run configure with any desired options.
 

@@ -513,6 +513,48 @@ int bnfaBuildMatchStateTrees(bnfa_struct_t *bnfa,
     return cnt;
 }
 
+static
+int bnfaBuildMatchStateTreesWithSnortConf(struct _SnortConfig *sc, bnfa_struct_t *bnfa,
+                                          int (*build_tree)(struct _SnortConfig *, void *id, void **existing_tree),
+                                          int (*neg_list_func)(void *id, void **list))
+{
+    int i,cnt = 0;
+    bnfa_match_node_t  * mn;
+    bnfa_match_node_t ** MatchList = bnfa->bnfaMatchList;
+    bnfa_pattern_t     * patrn;
+
+    for (i=0;i<bnfa->bnfaNumStates;i++)
+    {
+        for(mn = MatchList[i];
+            mn!= NULL;
+            mn = mn->next )
+        {
+            patrn = (bnfa_pattern_t *)mn->data;
+            if (patrn->userdata)
+            {
+                if (patrn->negative)
+                {
+                    neg_list_func(patrn->userdata, &MatchList[i]->neg_list);
+                }
+                else
+                {
+                    build_tree(sc, patrn->userdata, &MatchList[i]->rule_option_tree);
+                }
+            }
+
+            cnt++;
+        }
+
+        /* Last call to finalize the tree */
+        if (MatchList[i])
+        {
+            build_tree(sc, NULL, &MatchList[i]->rule_option_tree);
+        }
+    }
+
+    return cnt;
+}
+
 #ifdef ALLOW_LIST_PRINT
 /*
 * Print the transition list table to stdout
@@ -1444,7 +1486,7 @@ bnfaAddPattern (bnfa_struct_t * p,
   if(!plist) return -1;
 
   plist->casepatrn = (unsigned char *)BNFA_MALLOC(n,p->pat_memory );
-  if(!plist->casepatrn) 
+  if(!plist->casepatrn)
   {
       BNFA_FREE(plist,sizeof(bnfa_pattern_t),p->pat_memory);
       return -1;
@@ -1468,10 +1510,8 @@ bnfaAddPattern (bnfa_struct_t * p,
 /*
 *   Compile the patterns into an nfa state machine
 */
-int
-bnfaCompile (bnfa_struct_t * bnfa,
-             int (*build_tree)(void * id, void **existing_tree),
-             int (*neg_list_func )(void *id, void **list))
+static inline int
+_bnfaCompile (bnfa_struct_t * bnfa)
 {
     bnfa_pattern_t  * plist;
     bnfa_match_node_t   ** tmpMatchList;
@@ -1599,11 +1639,40 @@ bnfaCompile (bnfa_struct_t * bnfa,
 
     bnfaAccumInfo( bnfa  );
 
+    return 0;
+}
+
+int
+bnfaCompile (bnfa_struct_t * bnfa,
+             int (*build_tree)(void * id, void **existing_tree),
+             int (*neg_list_func )(void *id, void **list))
+{
+    int rval;
+
+    if ((rval = _bnfaCompile (bnfa)))
+        return rval;
+
     if (build_tree && neg_list_func)
     {
         bnfaBuildMatchStateTrees( bnfa, build_tree, neg_list_func );
     }
+    return 0;
+}
 
+int
+bnfaCompileWithSnortConf (struct _SnortConfig *sc, bnfa_struct_t * bnfa,
+                          int (*build_tree)(struct _SnortConfig *, void * id, void **existing_tree),
+                          int (*neg_list_func )(void *id, void **list))
+{
+    int rval;
+
+    if ((rval = _bnfaCompile (bnfa)))
+        return rval;
+
+    if (build_tree && neg_list_func)
+    {
+        bnfaBuildMatchStateTreesWithSnortConf( sc, bnfa, build_tree, neg_list_func );
+    }
     return 0;
 }
 

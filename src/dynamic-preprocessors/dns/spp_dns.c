@@ -88,7 +88,7 @@ const char *PREPROC_NAME = "SF_DNS";
  * Function prototype(s)
  */
 DNSSessionData * GetDNSSessionData(SFSnortPacket *, DNSConfig *);
-static void DNSInit( char* );
+static void DNSInit( struct _SnortConfig *, char* );
 static void PrintDNSConfig(DNSConfig *);
 static void FreeDNSSessionData( void* );
 static void  ParseDNSArgs(DNSConfig *, u_char*);
@@ -96,12 +96,12 @@ static void ProcessDNS( void*, void* );
 static inline int CheckDNSPort(DNSConfig *, uint16_t);
 static void DNSReset(int, void *);
 static void DNSResetStats(int, void *);
-static void _addPortsToStream5Filter(DNSConfig *, tSfPolicyId);
+static void _addPortsToStream5Filter(struct _SnortConfig *, DNSConfig *, tSfPolicyId);
 #ifdef TARGET_BASED
-static void _addServicesToStream5Filter(tSfPolicyId);
+static void _addServicesToStream5Filter(struct _SnortConfig *, tSfPolicyId);
 #endif
 static void DNSFreeConfig(tSfPolicyUserContextId config);
-static void DNSCheckConfig(void);
+static int DNSCheckConfig(struct _SnortConfig *);
 static void DNSCleanExit(int, void *);
 
 /* Ultimately calls SnortEventqAdd */
@@ -120,10 +120,9 @@ static tSfPolicyUserContextId dns_config = NULL;
 DNSConfig *dns_eval_config = NULL;
 
 #ifdef SNORT_RELOAD
-static tSfPolicyUserContextId dns_swap_config = NULL;
-static void DNSReload(char *);
-static int DNSReloadVerify(void);
-static void * DNSReloadSwap(void);
+static void DNSReload(struct _SnortConfig *, char *, void **);
+static int DNSReloadVerify(struct _SnortConfig *, void *);
+static void * DNSReloadSwap(struct _SnortConfig *, void *);
 static void DNSReloadSwapFree(void *);
 #endif
 
@@ -144,7 +143,7 @@ void SetupDNS(void)
     _dpd.registerPreproc( "dns", DNSInit );
 #else
     _dpd.registerPreproc("dns", DNSInit, DNSReload,
-                         DNSReloadSwap, DNSReloadSwapFree);
+                         DNSReloadVerify, DNSReloadSwap, DNSReloadSwapFree);
 #endif
 }
 
@@ -158,9 +157,9 @@ void SetupDNS(void)
  *
  * RETURNS:     Nothing.
  */
-static void DNSInit( char* argp )
+static void DNSInit( struct _SnortConfig *sc, char* argp )
 {
-    int policy_id = _dpd.getParserPolicy();
+    int policy_id = _dpd.getParserPolicy(sc);
 
     DNSConfig *pPolicyConfig = NULL;
     if (dns_config == NULL)
@@ -182,7 +181,7 @@ static void DNSInit( char* argp )
 
         _dpd.addPreprocReset(DNSReset, NULL, PRIORITY_LAST, PP_DNS);
         _dpd.addPreprocResetStats(DNSResetStats, NULL, PRIORITY_LAST, PP_DNS);
-        _dpd.addPreprocConfCheck(DNSCheckConfig);
+        _dpd.addPreprocConfCheck(sc, DNSCheckConfig);
         _dpd.addPreprocExit(DNSCleanExit, NULL, PRIORITY_LAST, PP_DNS);
 
 #ifdef PERF_PROFILING
@@ -217,10 +216,10 @@ static void DNSInit( char* argp )
 
     ParseDNSArgs(pPolicyConfig, (u_char *)argp);
 
-    _dpd.addPreproc(ProcessDNS, PRIORITY_APPLICATION, PP_DNS, PROTO_BIT__TCP | PROTO_BIT__UDP);
-    _addPortsToStream5Filter(pPolicyConfig, policy_id);
+    _dpd.addPreproc(sc, ProcessDNS, PRIORITY_APPLICATION, PP_DNS, PROTO_BIT__TCP | PROTO_BIT__UDP);
+    _addPortsToStream5Filter(sc, pPolicyConfig, policy_id);
 #ifdef TARGET_BASED
-    _addServicesToStream5Filter(policy_id);
+    _addServicesToStream5Filter(sc, policy_id);
 #endif
 }
 
@@ -923,10 +922,7 @@ uint16_t ParseDNSAnswer(const unsigned char *data,
             }
         }
         dnsSessionData->curr_rec_state = DNS_RESP_STATE_RR_RDLENGTH;
-        if (bytes_unused == 0)
-        {
-            return bytes_unused;
-        }
+        /* Fall through */
     case DNS_RESP_STATE_RR_RDLENGTH:
         dnsSessionData->curr_rr.length = (uint8_t)*data << 8;
         data++;
@@ -1592,7 +1588,7 @@ static void DNSResetStats(int signal, void *data)
     return;
 }
 
-static void _addPortsToStream5Filter(DNSConfig *config, tSfPolicyId policy_id)
+static void _addPortsToStream5Filter(struct _SnortConfig *sc, DNSConfig *config, tSfPolicyId policy_id)
 {
     unsigned int portNum;
 
@@ -1605,18 +1601,18 @@ static void _addPortsToStream5Filter(DNSConfig *config, tSfPolicyId policy_id)
         {
             //Add port the port
             _dpd.streamAPI->set_port_filter_status
-                (IPPROTO_TCP, (uint16_t)portNum, PORT_MONITOR_SESSION, policy_id, 1);
+                (sc, IPPROTO_TCP, (uint16_t)portNum, PORT_MONITOR_SESSION, policy_id, 1);
 
             _dpd.streamAPI->set_port_filter_status
-                (IPPROTO_UDP, (uint16_t)portNum, PORT_MONITOR_SESSION, policy_id, 1);
+                (sc, IPPROTO_UDP, (uint16_t)portNum, PORT_MONITOR_SESSION, policy_id, 1);
         }
     }
 }
 #ifdef TARGET_BASED
-static void _addServicesToStream5Filter(tSfPolicyId policy_id)
+static void _addServicesToStream5Filter(struct _SnortConfig *sc, tSfPolicyId policy_id)
 {
     _dpd.streamAPI->set_service_filter_status
-        (dns_app_id, PORT_MONITOR_SESSION, policy_id, 1);
+        (sc, dns_app_id, PORT_MONITOR_SESSION, policy_id, 1);
 }
 #endif
 
@@ -1640,30 +1636,35 @@ static void DNSFreeConfig(tSfPolicyUserContextId config)
     if (config == NULL)
         return;
 
-    sfPolicyUserDataIterate (config, DnsFreeConfigPolicy);
+    sfPolicyUserDataFreeIterate (config, DnsFreeConfigPolicy);
     sfPolicyConfigDelete(config);
 }
 
 static int DNSCheckPolicyConfig(
+            struct _SnortConfig *sc,
             tSfPolicyUserContextId config,
             tSfPolicyId policyId,
             void* pData
             )
 {
-    _dpd.setParserPolicy(policyId);
+    _dpd.setParserPolicy(sc, policyId);
 
-    if (!_dpd.isPreprocEnabled(PP_STREAM5))
+    if (!_dpd.isPreprocEnabled(sc, PP_STREAM5))
     {
-        DynamicPreprocessorFatalMessage("Streaming & reassembly must be enabled "
-                                        "for DNS preprocessor\n");
+        _dpd.errMsg("Streaming & reassembly must be enabled for DNS preprocessor\n");
+        return -1;
     }
 
     return 0;
 }
 
-static void DNSCheckConfig(void)
+static int DNSCheckConfig(struct _SnortConfig *sc)
 {
-    sfPolicyUserDataIterate (dns_config, DNSCheckPolicyConfig);
+    int rval;
+
+    if ((rval = sfPolicyUserDataIterate (sc, dns_config, DNSCheckPolicyConfig)))
+        return rval;
+    return 0;
 }
 
 static void DNSCleanExit(int signal, void *data)
@@ -1673,9 +1674,10 @@ static void DNSCleanExit(int signal, void *data)
 }
 
 #ifdef SNORT_RELOAD
-static void DNSReload(char *argp)
+static void DNSReload(struct _SnortConfig *sc, char *argp, void **new_config)
 {
-    int policy_id = _dpd.getParserPolicy();
+    tSfPolicyUserContextId dns_swap_config = (tSfPolicyUserContextId)*new_config;
+    int policy_id = _dpd.getParserPolicy(sc);
     DNSConfig *pPolicyConfig = NULL;
 
     if (dns_swap_config == NULL)
@@ -1694,8 +1696,7 @@ static void DNSReload(char *argp)
                 "stream5 preprocessor to be enabled.\n",
                 *(_dpd.config_file), *(_dpd.config_line));
         }
-
-        _dpd.addPreprocReloadVerify(DNSReloadVerify);
+        *new_config = (void *)dns_swap_config;
     }
 
     sfPolicyUserPolicySet (dns_swap_config, policy_id);
@@ -1717,35 +1718,35 @@ static void DNSReload(char *argp)
 
     ParseDNSArgs(pPolicyConfig, (u_char *)argp);
 
-    _dpd.addPreproc(ProcessDNS, PRIORITY_APPLICATION, PP_DNS, PROTO_BIT__TCP | PROTO_BIT__UDP);
+    _dpd.addPreproc(sc, ProcessDNS, PRIORITY_APPLICATION, PP_DNS, PROTO_BIT__TCP | PROTO_BIT__UDP);
 
-    _addPortsToStream5Filter(pPolicyConfig, policy_id);
+    _addPortsToStream5Filter(sc, pPolicyConfig, policy_id);
 
 #ifdef TARGET_BASED
-    _addServicesToStream5Filter(policy_id);
+    _addServicesToStream5Filter(sc, policy_id);
 #endif
 }
 
-static int DNSReloadVerify(void)
+static int DNSReloadVerify(struct _SnortConfig *sc, void *swap_config)
 {
-    if (!_dpd.isPreprocEnabled(PP_STREAM5))
+    if (!_dpd.isPreprocEnabled(sc, PP_STREAM5))
     {
-        DynamicPreprocessorFatalMessage("Streaming & reassembly must be enabled "
-                                        "for DNS preprocessor\n");
+        _dpd.errMsg("Streaming & reassembly must be enabled for DNS preprocessor\n");
+        return -1;
     }
 
     return 0;
 }
 
-static void * DNSReloadSwap(void)
+static void * DNSReloadSwap(struct _SnortConfig *sc, void *swap_config)
 {
+    tSfPolicyUserContextId dns_swap_config = (tSfPolicyUserContextId)swap_config;
     tSfPolicyUserContextId old_config = dns_config;
 
     if (dns_swap_config == NULL)
         return NULL;
 
     dns_config = dns_swap_config;
-    dns_swap_config = NULL;
 
     return (void *)old_config;
 }

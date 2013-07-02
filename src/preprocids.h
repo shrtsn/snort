@@ -80,6 +80,7 @@
 #define PRIORITY_TRANSPORT     0x100
 #define PRIORITY_TUNNEL        0x105
 #define PRIORITY_SCANNER       0x110
+#define PRIORITY_SESSION       0x1FF
 #define PRIORITY_APPLICATION   0x200
 #define PRIORITY_LAST         0xffff
 

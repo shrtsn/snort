@@ -36,14 +36,9 @@
 #define _DETECTION_LIB_META_H_
 
 /* Version for this rule library */
-#define DETECTION_LIB_MAJOR 1
+#define DETECTION_LIB_MAJOR 2
 #define DETECTION_LIB_MINOR 0
 #define DETECTION_LIB_BUILD 1
 #define DETECTION_LIB_NAME "Snort_Dynamic_Rule_Example"
-
-/* Required version and name of the engine */
-#define REQ_ENGINE_LIB_MAJOR 1
-#define REQ_ENGINE_LIB_MINOR 0
-#define REQ_ENGINE_LIB_NAME "SF_SNORT_DETECTION_ENGINE"
 
 #endif /* _DETECTION_LIB_META_H_ */

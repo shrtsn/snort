@@ -25,7 +25,7 @@
 
 #include "sp_pattern_match.h"
 
-void PayloadReplaceInit(char *, OptTreeNode *, int);
+void PayloadReplaceInit(struct _SnortConfig *, char *, OptTreeNode *, int);
 
 extern void Replace_ResetQueue(void);
 extern void Replace_QueueChange(PatternMatchData*);

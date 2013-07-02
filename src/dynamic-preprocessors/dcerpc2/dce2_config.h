@@ -278,9 +278,6 @@ typedef struct _DCE2_Config
 extern DCE2_Config *dce2_eval_config;
 extern tSfPolicyUserContextId dce2_config;
 extern DCE2_Config *dce2_eval_config;
-#ifdef SNORT_RELOAD
-extern tSfPolicyUserContextId dce2_swap_config;
-#endif
 
 /********************************************************************
  * Inline function prototypes
@@ -327,9 +324,9 @@ static inline DCE2_Ret DCE2_CheckAndSetMask(int, int *);
  * Public function prototypes
  ********************************************************************/
 void DCE2_GlobalConfigure(DCE2_Config *, char *);
-void DCE2_ServerConfigure(DCE2_Config *, char *);
-void DCE2_CreateDefaultServerConfig(DCE2_Config *, tSfPolicyId);
-void DCE2_ScCheckTransports(DCE2_Config *);
+void DCE2_ServerConfigure(struct _SnortConfig *, DCE2_Config *, char *);
+int DCE2_CreateDefaultServerConfig(struct _SnortConfig *, DCE2_Config *, tSfPolicyId);
+int DCE2_ScCheckTransports(DCE2_Config *);
 const DCE2_ServerConfig * DCE2_ScGetConfig(const SFSnortPacket *);
 int DCE2_ScIsPortSet(const DCE2_ServerConfig *, const uint16_t, const DCE2_TransType);
 int DCE2_ScIsDetectPortSet(const DCE2_ServerConfig *, const uint16_t, const DCE2_TransType);

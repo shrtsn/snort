@@ -167,7 +167,5 @@ SID   Description
       b64_decode_depth.
   5   If the decoding of a Quoted-Printable MIME attachments fails or when the decoding stops due to exceeded
       qp_decode_depth.
-  6   If the extraction of a non-encoded MIME attachments fails or when the decoding stops due to 
-      exceeded bitenc_decode_depth.
   7   If the decoding of a Unix-to-Unix encoded attachments fails or when the decoding stops due to exceeded
       uu_decode_depth.

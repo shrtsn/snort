@@ -54,6 +54,7 @@
 
 static uint8_t* dst_mac = NULL;
 Packet* encode_pkt = NULL;
+uint64_t total_rebuilt_pkts = 0;
 
 static inline int IsIcmp (int type)
 {
@@ -228,7 +229,10 @@ const uint8_t* Encode_Response(
 #ifdef HAVE_DAQ_ADDRESS_SPACE_ID
 int Encode_Format_With_DAQ_Info (EncodeFlags f, const Packet* p, Packet* c, PseudoPacketType type,
         int32_t ingress_index, int32_t ingress_group, int32_t egress_index, int32_t egress_group,
-        uint32_t daq_flags, uint16_t address_space_id)
+        uint32_t daq_flags, uint16_t address_space_id, uint32_t opaque)
+#elif defined(HAVE_DAQ_ACQUIRE_WITH_META)
+int Encode_Format_With_DAQ_Info (EncodeFlags f, const Packet* p, Packet* c, PseudoPacketType type,
+        uint32_t opaque)
 #else
 int Encode_Format (EncodeFlags f, const Packet* p, Packet* c, PseudoPacketType type)
 #endif
@@ -253,8 +257,11 @@ int Encode_Format (EncodeFlags f, const Packet* p, Packet* c, PseudoPacketType t
     pkth->ingress_group = ingress_group;
     pkth->egress_index = egress_index;
     pkth->egress_group = egress_group;
-    pkth->flags = daq_flags;
+    pkth->flags = daq_flags & (~DAQ_PKT_FLAG_HW_TCP_CS_GOOD);
     pkth->address_space_id = address_space_id;
+    pkth->opaque = opaque;
+#elif defined(HAVE_DAQ_ACQUIRE_WITH_META)
+    pkth->opaque = opaque;
 #endif
 
     if ( f & ENC_FLAG_NET )
@@ -296,13 +303,13 @@ int Encode_Format (EncodeFlags f, const Packet* p, Packet* c, PseudoPacketType t
     // setup payload info
     c->data = lyr->start + lyr->length;
     len = c->data - c->pkt;
-
     assert(len < PKT_MAX - IP_MAXPACKET);
-    c->max_dsize = IP_MAXPACKET;
+    c->max_dsize = IP_MAXPACKET - len;
 
     c->proto_bits = p->proto_bits;
     c->packet_flags |= PKT_PSEUDO;
     c->pseudo_type = type;
+    UpdateRebuiltPktCount();
 
     switch ( type )
     {
@@ -342,7 +349,13 @@ int Encode_Format (EncodeFlags f, const Packet* p, Packet* c, PseudoPacketType t
 int Encode_Format (EncodeFlags f, const Packet* p, Packet* c, PseudoPacketType type)
 {
     return Encode_Format_With_DAQ_Info(f, p, c, type, p->pkth->ingress_index, p->pkth->ingress_group,
-            p->pkth->egress_index, p->pkth->egress_group, p->pkth->flags, p->pkth->address_space_id);
+            p->pkth->egress_index, p->pkth->egress_group, p->pkth->flags, p->pkth->address_space_id,
+            p->pkth->opaque);
+}
+#elif defined(HAVE_DAQ_ACQUIRE_WITH_META)
+int Encode_Format (EncodeFlags f, const Packet* p, Packet* c, PseudoPacketType type)
+{
+    return Encode_Format_With_DAQ_Info(f, p, c, type, p->pkth->opaque);
 }
 #endif
 
@@ -373,6 +386,8 @@ void Encode_Update (Packet* p)
 #endif
     )
         pkth->caplen = pkth->pktlen = len;
+
+    p->packet_flags &= ~PKT_LOGGED;
 }
 
 //-------------------------------------------------------------------------
@@ -1491,6 +1506,7 @@ static EncoderFunctions encoders[PROTO_MAX] = {
     { XXX_Encode,  XXX_Update,   VLAN_Format  },
 #ifdef GRE
     { XXX_Encode,  XXX_Update,   GRE_Format   },
+    { XXX_Encode,  XXX_Update,   XXX_Format   },  // ERSPAN
 #endif
     { PPPoE_Encode,XXX_Update,   XXX_Format   },
     { XXX_Encode,  XXX_Update,   XXX_Format   },  // PPP Encap
@@ -1498,6 +1514,7 @@ static EncoderFunctions encoders[PROTO_MAX] = {
     { XXX_Encode,  XXX_Update,   XXX_Format   },  // MPLS
 #endif
     { XXX_Encode,  XXX_Update,   XXX_Format,  },  // ARP
-    { GTP_Encode,  GTP_Update,   XXX_Format,  }   // GTP
+    { GTP_Encode,  GTP_Update,   XXX_Format,  },  // GTP
+    { XXX_Encode,  XXX_Update,   XXX_Format,  }   // Auth Header
 };
 

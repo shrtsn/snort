@@ -28,6 +28,7 @@
 #include "spp_dnp3.h"
 #include "stream_api.h"
 
-int DNP3AddPortsToPaf(dnp3_config_t *config, tSfPolicyId policy_id);
+int DNP3AddPortsToPaf(struct _SnortConfig *sc, dnp3_config_t *config, tSfPolicyId policy_id);
+int DNP3AddServiceToPaf(struct _SnortConfig *sc, uint16_t service, tSfPolicyId policy_id);
 
 #endif /* DNP3_PAF__H */

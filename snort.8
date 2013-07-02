@@ -72,6 +72,10 @@ Snort \- open source network intrusion detection system
 .I file
 .B ] [--dynamic-preprocessor-lib-dir
 .I directory
+.B ] [--dynamic-output-lib
+.I file
+.B ] [--dynamic-output-lib-dir
+.I directory
 .B ] [--alert-before-pass
 .B ] [--treat-drop-as-alert
 .B ] [--treat-drop-as-ignore
@@ -79,6 +83,7 @@ Snort \- open source network intrusion detection system
 .B ] [--enable-inline-test
 .B ] [--create-pidfile
 .B ] [--nolock-pidfile
+.B ] [--disable-attribute-reload-thread
 .B ] [--pcap-single=
 .I tcpdump-file
 .B ] [--pcap-filter=
@@ -91,10 +96,15 @@ Snort \- open source network intrusion detection system
 .I file
 .B ] [--pcap-no-filter
 .B ] [--pcap-reset
+.B ] [--pcap-reload
 .B ] [--pcap-show
 .B ] [--exit-check
 .I count
 .B ] [--conf-error-out
+.B ] [--enable-mpls-multicast
+.B ] [--enable-mpls-overlapping-ip
+.B ] [--max-mpls-labelchain-len
+.B ] [--mpls-payload-type
 .B ] [--require-rule-sid
 .B ] [--daq
 .I type
@@ -106,8 +116,14 @@ Snort \- open source network intrusion detection system
 .I dir
 .B ] [--daq-list
 .I [dir]
+.B ] [--dirty-pig
 .B ] [--cs-dir
 .I dir
+.B ] [--ha-peer
+.B ] [--ha-out
+.I file
+.B ] [--ha-in
+.I file
 .B ]
 .I expression
 .SH DESCRIPTION

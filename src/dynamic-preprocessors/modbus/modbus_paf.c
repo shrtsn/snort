@@ -32,17 +32,29 @@
 #define MODBUS_MAX_HDR_LEN 254      /* Max PDU size is 260, 6 bytes already seen */
 
 
-int ModbusPafRegister(uint16_t port, tSfPolicyId policy_id)
+int ModbusPafRegisterPort (struct _SnortConfig *sc, uint16_t port, tSfPolicyId policy_id)
 {
     if (!_dpd.isPafEnabled())
         return 0;
 
-    _dpd.streamAPI->register_paf_cb(policy_id, port, 0, ModbusPaf, true);
-    _dpd.streamAPI->register_paf_cb(policy_id, port, 1, ModbusPaf, true);
+    _dpd.streamAPI->register_paf_port(sc, policy_id, port, 0, ModbusPaf, true);
+    _dpd.streamAPI->register_paf_port(sc, policy_id, port, 1, ModbusPaf, true);
 
     return 0;
 }
 
+#ifdef TARGET_BASED
+int ModbusAddServiceToPaf (struct _SnortConfig *sc, uint16_t service, tSfPolicyId policy_id)
+{
+    if (!_dpd.isPafEnabled())
+        return 0;
+
+    _dpd.streamAPI->register_paf_service(sc, policy_id, service, 0, ModbusPaf, true);
+    _dpd.streamAPI->register_paf_service(sc, policy_id, service, 1, ModbusPaf, true);
+
+    return 0;
+}
+#endif
 
 /* Function: ModbusPaf()
 
@@ -62,7 +74,7 @@ int ModbusPafRegister(uint16_t port, tSfPolicyId policy_id)
     PAF_Status - PAF_FLUSH if flush point found, PAF_SEARCH otherwise
 */
 
-PAF_Status ModbusPaf(void *ssn, void **user, const uint8_t *data, 
+PAF_Status ModbusPaf(void *ssn, void **user, const uint8_t *data,
                      uint32_t len, uint32_t flags, uint32_t *fp)
 {
     modbus_paf_data_t *pafdata = *(modbus_paf_data_t **)user;
@@ -102,7 +114,7 @@ PAF_Status ModbusPaf(void *ssn, void **user, const uint8_t *data,
                 pafdata->modbus_length |= *(data + bytes_processed);
                 pafdata->state++;
                 break;
-                
+
             case MODBUS_PAF_STATE__SET_FLUSH:
                 if ((pafdata->modbus_length < MODBUS_MIN_HDR_LEN) ||
                     (pafdata->modbus_length > MODBUS_MAX_HDR_LEN))
@@ -124,7 +136,7 @@ PAF_Status ModbusPaf(void *ssn, void **user, const uint8_t *data,
 }
 
 /* Take a Modbus config + Snort policy, iterate through ports, register PAF callback */
-void ModbusAddPortsToPaf(modbus_config_t *config, tSfPolicyId policy_id)
+void ModbusAddPortsToPaf(struct _SnortConfig *sc, modbus_config_t *config, tSfPolicyId policy_id)
 {
     unsigned int i;
 
@@ -132,7 +144,7 @@ void ModbusAddPortsToPaf(modbus_config_t *config, tSfPolicyId policy_id)
     {
         if (config->ports[PORT_INDEX(i)] & CONV_PORT(i))
         {
-            ModbusPafRegister((uint16_t) i, policy_id);
+            ModbusPafRegisterPort(sc, (uint16_t) i, policy_id);
         }
     }
 }

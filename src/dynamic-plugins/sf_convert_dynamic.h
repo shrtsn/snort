@@ -23,6 +23,7 @@
 #ifndef __SF_CONVERT_DYNAMIC_H__
 #define __SF_CONVERT_DYNAMIC_H__
 
-int ConvertDynamicRule(Rule *rule, OptTreeNode *otn);
+struct _SnortConfig;
+int ConvertDynamicRule(struct _SnortConfig *, Rule *rule, OptTreeNode *otn);
 
 #endif

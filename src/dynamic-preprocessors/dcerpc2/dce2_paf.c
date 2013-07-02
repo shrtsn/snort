@@ -31,9 +31,7 @@
 #include "includes/dcerpc.h"
 #include "includes/smb.h"
 
-#ifdef ENABLE_PAF
-
-#define DCE2_SMB_PAF_SHIFT(x64, x8) { x64 <<= 8; x64 |= (uint64_t)x8; } 
+#define DCE2_SMB_PAF_SHIFT(x64, x8) { x64 <<= 8; x64 |= (uint64_t)x8; }
 
 // Enumerations for PAF states
 typedef enum _DCE2_PafSmbStates
@@ -175,7 +173,7 @@ static inline bool DCE2_PafSmbIsValidNetbiosHdr(uint32_t nb_hdr, bool junk)
 
     if ((bit != 0x00) && (bit != 0x01))
         return false;
-    
+
     return true;
 }
 
@@ -382,7 +380,7 @@ PAF_Status DCE2_TcpPaf(void *ssn, void **user, const uint8_t *data,
         bool autodetected = false;
 
 #ifdef TARGET_BASED
-        if (_dpd.isAdaptiveConfigured(_dpd.getRuntimePolicy(), 0))
+        if (_dpd.isAdaptiveConfigured(_dpd.getRuntimePolicy()))
         {
             int16_t proto_id = _dpd.streamAPI->get_application_protocol_id(ssn);
 
@@ -533,17 +531,16 @@ PAF_Status DCE2_TcpPaf(void *ssn, void **user, const uint8_t *data,
     return ps;
 }
 
-#endif  // ENABLE_PAF
-
 /*********************************************************************
- * Function: DCE2_PafRegister()
+ * Function: DCE2_PafRegisterPort()
+ * Function: DCE2_PafRegisterService()
  *
- * Purpose: Registers callbacks for interested ports.  SMB and TCP
- *          ports are mutually exclusive so only one or the other
- *          will be registered for any given port.
+ * Purpose: Registers callbacks for interested ports and services.
+ *          SMB and TCP ports are mutually exclusive so only one or
+ *          the other will be registered for any given port.
  *
  * Arguments:
- *  uint16_t - port to register
+ *  uint16_t - port or service to register
  *  tSfPolicyId - the policy to register for
  *  DCE2_TransType - the type of DCE/RPC transport to register for.
  *
@@ -551,31 +548,49 @@ PAF_Status DCE2_TcpPaf(void *ssn, void **user, const uint8_t *data,
  *  int - 0 for success.
  *
  *********************************************************************/
-int DCE2_PafRegister(uint16_t port, tSfPolicyId pid, DCE2_TransType trans)
+int DCE2_PafRegisterPort (struct _SnortConfig *sc, uint16_t port, tSfPolicyId pid, DCE2_TransType trans)
 {
-#ifdef ENABLE_PAF
     if (!_dpd.isPafEnabled())
         return 0;
-
-    //DEBUG_WRAP(DebugMessage(DEBUG_STREAM_PAF,
-    //            "%s: policy %u, port %u\n", __FUNCTION__, pid, port););
 
     switch (trans)
     {
         case DCE2_TRANS_TYPE__SMB:
-            _dpd.streamAPI->register_paf_cb(pid, port, 0, DCE2_SmbPaf, true);
-            _dpd.streamAPI->register_paf_cb(pid, port, 1, DCE2_SmbPaf, true);
+            _dpd.streamAPI->register_paf_port(sc, pid, port, 0, DCE2_SmbPaf, true);
+            _dpd.streamAPI->register_paf_port(sc, pid, port, 1, DCE2_SmbPaf, true);
             break;
         case DCE2_TRANS_TYPE__TCP:
-            _dpd.streamAPI->register_paf_cb(pid, port, 0, DCE2_TcpPaf, true);
-            _dpd.streamAPI->register_paf_cb(pid, port, 1, DCE2_TcpPaf, true);
+            _dpd.streamAPI->register_paf_port(sc, pid, port, 0, DCE2_TcpPaf, true);
+            _dpd.streamAPI->register_paf_port(sc, pid, port, 1, DCE2_TcpPaf, true);
             break;
         default:
             DCE2_Die("Invalid transport type sent to paf registration function");
             break;
     }
-#endif
-
     return 0;
 }
+
+#ifdef TARGET_BASED
+int DCE2_PafRegisterService (struct _SnortConfig *sc, uint16_t app_id, tSfPolicyId pid, DCE2_TransType trans)
+{
+    if (!_dpd.isPafEnabled())
+        return 0;
+
+    switch (trans)
+    {
+        case DCE2_TRANS_TYPE__SMB:
+            _dpd.streamAPI->register_paf_service(sc, pid, app_id, 0, DCE2_SmbPaf, true);
+            _dpd.streamAPI->register_paf_service(sc, pid, app_id, 1, DCE2_SmbPaf, true);
+            break;
+        case DCE2_TRANS_TYPE__TCP:
+            _dpd.streamAPI->register_paf_service(sc, pid, app_id, 0, DCE2_TcpPaf, true);
+            _dpd.streamAPI->register_paf_service(sc, pid, app_id, 1, DCE2_TcpPaf, true);
+            break;
+        default:
+            DCE2_Die("Invalid transport type sent to paf registration function");
+            break;
+    }
+    return 0;
+}
+#endif
 

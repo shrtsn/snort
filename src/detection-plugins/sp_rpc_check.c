@@ -74,8 +74,8 @@ typedef struct _RpcCheckData
 #define RPC_CHECK_VERS 2
 #define RPC_CHECK_PROC 4
 
-void RpcCheckInit(char *, OptTreeNode *, int);
-void ParseRpc(char *, OptTreeNode *);
+void RpcCheckInit(struct _SnortConfig *, char *, OptTreeNode *, int);
+void ParseRpc(struct _SnortConfig *, char *, OptTreeNode *);
 int CheckRpc(void *option_data, Packet *p);
 
 uint32_t RpcCheckHash(void *d)
@@ -143,7 +143,7 @@ void SetupRpcCheck(void)
 
 /****************************************************************************
  *
- * Function: RpcCheckInit(char *, OptTreeNode *)
+ * Function: RpcCheckInit(struct _SnortConfig *, char *, OptTreeNode *)
  *
  * Purpose: Parse the rpc keyword arguments and link the detection module
  *          into the function list
@@ -154,7 +154,7 @@ void SetupRpcCheck(void)
  * Returns: void function
  *
  ****************************************************************************/
-void RpcCheckInit(char *data, OptTreeNode *otn, int protocol)
+void RpcCheckInit(struct _SnortConfig *sc, char *data, OptTreeNode *otn, int protocol)
 {
     OptFpList *fpl;
     if(protocol != IPPROTO_TCP && protocol != IPPROTO_UDP)
@@ -177,7 +177,7 @@ void RpcCheckInit(char *data, OptTreeNode *otn, int protocol)
 
     /* this is where the keyword arguments are processed and placed into the
        rule option's data structure */
-    ParseRpc(data, otn);
+    ParseRpc(sc, data, otn);
 
     /* finally, attach the option's detection function to the rule's
        detect function pointer list */
@@ -189,7 +189,7 @@ void RpcCheckInit(char *data, OptTreeNode *otn, int protocol)
 
 /****************************************************************************
  *
- * Function: ParseRpc(char *, OptTreeNode *)
+ * Function: ParseRpc(struct _SnortConfig *, char *, OptTreeNode *)
  *
  * Purpose: Parse the RPC keyword's arguments
  *
@@ -199,7 +199,7 @@ void RpcCheckInit(char *data, OptTreeNode *otn, int protocol)
  * Returns: void function
  *
  ****************************************************************************/
-void ParseRpc(char *data, OptTreeNode *otn)
+void ParseRpc(struct _SnortConfig *sc, char *data, OptTreeNode *otn)
 {
     RpcCheckData *ds_ptr;  /* data struct pointer */
     void *ds_ptr_dup;
@@ -246,7 +246,7 @@ void ParseRpc(char *data, OptTreeNode *otn)
         DEBUG_WRAP(DebugMessage(DEBUG_PLUGIN,"Set RPC proc to %lu\n", ds_ptr->proc););
     }
 
-    if (add_detection_option(RULE_OPTION_TYPE_RPC_CHECK, (void *)ds_ptr, &ds_ptr_dup) == DETECTION_OPTION_EQUAL)
+    if (add_detection_option(sc, RULE_OPTION_TYPE_RPC_CHECK, (void *)ds_ptr, &ds_ptr_dup) == DETECTION_OPTION_EQUAL)
     {
         free(ds_ptr);
         ds_ptr = otn->ds_list[PLUGIN_RPC_CHECK] = ds_ptr_dup;

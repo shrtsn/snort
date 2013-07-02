@@ -56,26 +56,24 @@
 
 # include "ipv6_port.h"
 
-extern SnortConfig *snort_conf_for_parsing;
 extern char *file_name;     /* current rules file being processed */
 extern int line_num;        /* current rules file line */
 
 
 
-IpAddrSet *IpAddrSetParse(char *addr)
+IpAddrSet *IpAddrSetParse(SnortConfig *sc, char *addr)
 {
     IpAddrSet *ret;
     int ret_code;
-    SnortConfig *sc = snort_conf_for_parsing;
     vartable_t *ip_vartable;
 
-    if ((sc == NULL) || (sc->targeted_policies[getParserPolicy()] == NULL))
+    if ((sc == NULL) || (sc->targeted_policies[getParserPolicy(sc)] == NULL))
     {
         FatalError("%s(%d) Snort conf for parsing is NULL.\n",
                    __FILE__, __LINE__);
     }
 
-    ip_vartable = sc->targeted_policies[getParserPolicy()]->ip_vartable;
+    ip_vartable = sc->targeted_policies[getParserPolicy(sc)]->ip_vartable;
 
     DEBUG_WRAP(DebugMessage(DEBUG_CONFIGRULES,"Got address string: %s\n",
                 addr););

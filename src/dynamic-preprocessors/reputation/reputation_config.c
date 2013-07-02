@@ -29,6 +29,7 @@
 #include <ctype.h>
 #include <errno.h>
 #include <stdint.h>
+#include <assert.h>
 #include "sf_snort_packet.h"
 #include "sf_types.h"
 #include "sfPolicy.h"
@@ -397,7 +398,7 @@ int InitPerProcessZeroSegment(void*** data_ptr)
  * RETURNS:
  *    1: success
  *********************************************************************/
-void initShareMemory(void *conf)
+void initShareMemory(struct _SnortConfig *sc, void *conf)
 {
     uint32_t snortID;
     ReputationConfig *config = (ReputationConfig *)conf;
@@ -582,17 +583,119 @@ static void IpListInit(uint32_t maxEntries, ReputationConfig *config)
         }
     }
 }
-/*New information for the same IP will be appended to the current
+
+
+/*********************************************************************
+ *
+ * Get the last index in the IP repuation information
+ *
+ * Arguments:
+ *
+ * IPrepInfo *repInfo: IP reputation information
+ * uint8_t *base: the base pointer in shared memory
+ *
+ * RETURNS:
+ *     int *lastIndex: the last index
+ *    IPrepInfo *: the last IP info that stores the last index
+ *                NULL if not found
+ *********************************************************************/
+
+static inline IPrepInfo * getLastIndex(IPrepInfo *repInfo, uint8_t *base, int *lastIndex)
+{
+    int i;
+
+    assert(repInfo);
+
+    /* Move to the end of current info*/
+    while (repInfo->next)
+    {
+        repInfo =  (IPrepInfo *)&base[repInfo->next];
+    }
+
+    for (i = 0; i < NUM_INDEX_PER_ENTRY; i++)
+    {
+        if (!repInfo->listIndexes[i])
+            break;
+    }
+
+    if (i > 0)
+    {
+        *lastIndex = i-1;
+        return repInfo;
+    }
+    else
+    {
+        return NULL;
+    }
+}
+
+/*********************************************************************
+ *
+ * Duplicate IP reputation information
+ *
+ * Arguments:
+ *
+ * IPrepInfo *currentInfo: IP reputation information copy from
+ * IPrepInfo *destInfo: IP reputation information copy to
+ * uint8_t *base: the base pointer in shared memory
+ *
+ * RETURNS:
+ *     number of bytes duplicated
+ *     -1 if out of memory
+ *
+ *********************************************************************/
+
+static inline int duplicateInfo(IPrepInfo *destInfo,IPrepInfo *currentInfo,
+         uint8_t *base)
+{
+    int bytesAllocated = 0;
+
+    while (currentInfo)
+    {
+        INFO nextInfo;
+        *destInfo = *currentInfo;
+        if (!currentInfo->next)
+            break;
+        nextInfo = segment_calloc(1,sizeof(IPrepInfo));
+        if (!nextInfo)
+        {
+            destInfo->next = 0;
+            return -1;
+        }
+        else
+        {
+            destInfo->next = nextInfo;
+        }
+        bytesAllocated += sizeof(IPrepInfo);
+        currentInfo =  (IPrepInfo *)&base[currentInfo->next];
+        destInfo =  (IPrepInfo *)&base[nextInfo];
+    }
+
+    return bytesAllocated;
+}
+/*********************************************************************
+ * New information for the same IP will be appended to the current
  *
  * If current information is empty (0), new information will be created.
  *
- */
-static int updateEntryInfo (INFO *current, INFO new, SaveDest saveDest, uint8_t *base)
+ * Arguments:
+ *
+ * INFO *current: (address to the location of) current IP reputation information
+ * INFO new: (location of) new IP reputation information
+ * uint8_t *base: the base pointer in shared memory
+ * SaveDest saveDest: whether to update reputation at current location
+ *                    or update at new location
+ *
+ * Returns: number of bytes allocated, -1 if out of memory
+ *
+ *********************************************************************/
+static int64_t updateEntryInfo (INFO *current, INFO new, SaveDest saveDest, uint8_t *base)
 {
     IPrepInfo *currentInfo;
     IPrepInfo *newInfo;
     IPrepInfo *destInfo;
-    int bytesAllocated = 0;
+    IPrepInfo *lastInfo;
+    int64_t bytesAllocated = 0;
     int i;
     char newIndex;
 
@@ -602,43 +705,56 @@ static int updateEntryInfo (INFO *current, INFO new, SaveDest saveDest, uint8_t 
         *current = segment_calloc(1,sizeof(IPrepInfo));
         if (!(*current))
         {
-            return 0;
+            return -1;
         }
         bytesAllocated = sizeof(IPrepInfo);
     }
 
     if (*current == new)
-        return 0;
+        return bytesAllocated;
 
     currentInfo = (IPrepInfo *)&base[*current];
     newInfo = (IPrepInfo *)&base[new];
-    newIndex = newInfo->listIndexes[0];
 
-    DEBUG_WRAP( DebugMessage(DEBUG_REPUTATION, "Current IP reptuation information: \n"););
+    /*The latest information is always the last entry
+     */
+    lastInfo = getLastIndex(newInfo, base, &i);
+
+    if (!lastInfo)
+    {
+        return bytesAllocated;
+    }
+    newIndex = lastInfo->listIndexes[i++];
+
+    DEBUG_WRAP( DebugMessage(DEBUG_REPUTATION, "Current IP reputation information: \n"););
     DEBUG_WRAP(ReputationPrintRepInfo(currentInfo, base););
-    DEBUG_WRAP( DebugMessage(DEBUG_REPUTATION, "New IP reptuation information: \n"););
+    DEBUG_WRAP( DebugMessage(DEBUG_REPUTATION, "New IP reputation information: \n"););
     DEBUG_WRAP(ReputationPrintRepInfo(newInfo, base););
 
     if (SAVE_TO_NEW == saveDest)
     {
+        int bytesDuplicated;
+
+        /* When updating new entry, current information should be reserved
+         * because current information is inherited from parent
+         */
+        if ((bytesDuplicated = duplicateInfo(newInfo, currentInfo, base)) < 0)
+            return -1;
+        else
+            bytesAllocated += bytesDuplicated;
+
         destInfo = newInfo;
-        /*Copy current to new*/
-        while (currentInfo)
-        {
-            *destInfo = *currentInfo;
-            if (!currentInfo->next)
-                break;
-            currentInfo =  (IPrepInfo *)&base[currentInfo->next];
-
-        }
-
     }
     else
     {
         destInfo = currentInfo;
     }
 
-    /* Move to the end of current info*/
+    /* Add the new list information to the end
+     * This way, the order of list information is preserved.
+     * The first one always has the highest priority,
+     * because it is checked first during lookup.
+     */
 
     while (destInfo->next)
     {
@@ -649,8 +765,14 @@ static int updateEntryInfo (INFO *current, INFO new, SaveDest saveDest, uint8_t 
     {
         if (!destInfo->listIndexes[i])
             break;
-    }
+        else if (destInfo->listIndexes[i] == newIndex)
+        {
+            DEBUG_WRAP( DebugMessage(DEBUG_REPUTATION, "Final IP reputation information: \n"););
+            DEBUG_WRAP(ReputationPrintRepInfo(destInfo, base););
+            return bytesAllocated;
+        }
 
+    }
 
     if (i < NUM_INDEX_PER_ENTRY)
     {
@@ -661,14 +783,14 @@ static int updateEntryInfo (INFO *current, INFO new, SaveDest saveDest, uint8_t 
         IPrepInfo *nextInfo;
         MEM_OFFSET ipInfo_ptr = segment_calloc(1,sizeof(IPrepInfo));
         if (!ipInfo_ptr)
-            return 0;
+            return -1;
         destInfo->next = ipInfo_ptr;
         nextInfo = (IPrepInfo *)&base[destInfo->next];
         nextInfo->listIndexes[0] = newIndex;
         bytesAllocated += sizeof(IPrepInfo);
     }
 
-    DEBUG_WRAP( DebugMessage(DEBUG_REPUTATION, "Final IP reptuation information: \n"););
+    DEBUG_WRAP( DebugMessage(DEBUG_REPUTATION, "Final IP reputation information: \n"););
     DEBUG_WRAP(ReputationPrintRepInfo(destInfo, base););
 
     return bytesAllocated;
@@ -710,17 +832,18 @@ static int AddIPtoList(sfip_t *ipAddr,INFO ipInfo_ptr, ReputationConfig *config)
         for(i = 0; i < 4 ; i++)
             ipAddr->ip32[i] = ntohl(ipAddr->ip32[i]);
     }
-#ifdef DEBUG_MSGS
 
+#ifdef DEBUG_MSGS
     if (NULL != sfrt_flat_lookup((void *)ipAddr, config->iplist))
     {
-        DebugMessage(DEBUG_REPUTATION, "Find address before insert: %s \n",sfip_to_str(ipAddr) );
+        DebugMessage(DEBUG_REPUTATION, 
+                "Find address before insert: %s\n", sfip_to_str(ipAddr) );
 
     }
     else
     {
-        DebugMessage(DEBUG_REPUTATION, "Can't find address before insert: %s \n",sfip_to_str(ipAddr) );
-
+        DebugMessage(DEBUG_REPUTATION,
+                "Can't find address before insert: %s\n", sfip_to_str(ipAddr) );
     }
 #endif
 
@@ -780,6 +903,155 @@ static int AddIPtoList(sfip_t *ipAddr,INFO ipInfo_ptr, ReputationConfig *config)
 
 }
 
+static int snort_pton__address( char const *src, sfip_t *dest )
+{
+    unsigned char _temp[sizeof(struct in6_addr)];
+
+    if ( inet_pton(AF_INET, src, _temp) == 1 )
+    {
+        dest->family = AF_INET;
+        dest->bits = 32;
+    }
+    else if ( inet_pton(AF_INET6, src, _temp) == 1 )
+    {
+        dest->family = AF_INET6;
+        dest->bits = 128;
+    }
+    else
+    {
+        return 0;
+    }
+
+    memcpy(&dest->ip, _temp, sizeof(_temp));
+
+    return 1;
+}
+
+#define isident(x) (isxdigit((x)) || (x) == ':' || (x) == '.')
+static int snort_pton( char const * src, sfip_t * dest )
+{
+    char ipbuf[INET6_ADDRSTRLEN];
+    char cidrbuf[sizeof("128")];
+    char *out;
+    enum {
+        BEGIN, IP, CIDR1, CIDR2, END, INVALID
+    } state;
+
+    memset(ipbuf, '\0', sizeof(ipbuf));
+    memset(cidrbuf, '\0', sizeof(cidrbuf));
+
+    state = BEGIN;
+
+    while ( *src )
+    {
+        char ch = *src;
+
+        //printf("State:%d; C:%x; P:%p\n", state, ch, src );
+        src += 1;
+
+        switch ( state )
+        {
+        // Scan for beginning of IP address
+        case BEGIN:
+            if ( isident((int)ch) )
+            {
+                // Set the first ipbuff byte and change state 
+                out = ipbuf;
+                *out++ = ch;
+                state = IP;
+            }
+            else if ( !isspace((int)ch) )
+            {
+                state = INVALID;
+            }
+            break;
+
+        // Fill in ipbuf with ip identifier characters
+        // Move to CIDR1 if a cidr divider (i.e., '/') is found.
+        case IP:
+            if ( isident((int)ch) && (out - ipbuf + 1) < (int)sizeof(ipbuf) )
+            {
+                *out++ = ch;
+            }
+            else if ( ch == '/' )
+            {
+                state = CIDR1;
+            }
+            else if ( isspace((int)ch) )
+            {
+                state = END;
+            }
+            else
+            {
+                state = INVALID;
+            }
+            break;
+
+        // First cidr digit 
+        case CIDR1:
+            if ( !isdigit((int)ch) )
+            {
+                state = INVALID;
+            }
+            else
+            {
+                // Set output to the cidrbuf buffer
+                out = cidrbuf;
+                *out++ = ch;
+                state = CIDR2;
+            }
+            break;
+
+        // Consume any addition digits for cidrbuf
+        case CIDR2:
+            if ( isdigit((int)ch) && (out - cidrbuf + 1) < (int)sizeof(cidrbuf) )
+            {
+                *out++ = ch;
+            }
+            else if ( isspace((int)ch) )
+            {
+                state = END;
+            }
+            else
+            {
+                state = INVALID;
+            }
+            break;
+
+        // Scan for junk at the EOL
+        case END:
+            if ( !isspace((int)ch) )
+            {
+                state = INVALID;
+            }
+            break;
+
+        // Can't get here
+        default:
+            break;
+        }
+
+        if ( state == INVALID )
+            return -1;
+    }
+
+    if ( snort_pton__address(ipbuf, dest) < 1 )
+        return 0;
+
+    if ( *cidrbuf )
+    {
+        char *end;
+        int value = strtol(cidrbuf, &end, 10);
+
+        if ( value > dest->bits || value <= 0 || errno == ERANGE )
+            return 0;
+
+        dest->bits = value;
+    }
+
+    return 1;
+}
+
 /********************************************************************
  * Function:
  *
@@ -796,64 +1068,29 @@ static int AddIPtoList(sfip_t *ipAddr,INFO ipInfo_ptr, ReputationConfig *config)
  *  IP_INSERT_DUPLICATE
  *
  ********************************************************************/
-
-static int ProcessLine(char *line, INFO ipInfo_ptr, ReputationConfig *config)
+static int ProcessLine(char *line, INFO info, ReputationConfig *config)
 {
-    sfip_t ipAddr;
-    char *lineBuff;
-    char *nextBuff;
-    char *arg = NULL;
+    sfip_t address;
 
-    if (!line)
+    if ( !line || *line == '\0' )
         return IP_INSERT_SUCCESS;
-    lineBuff = strdup(line);
-    if (NULL == lineBuff)
-        return IP_MEM_ALLOC_FAILURE;
-    if((arg = strtok_r(lineBuff, REPUTATION_SEPARATORS, &nextBuff)) != NULL)
-    {
-        int iRet;
-        if (Reputation_IsEmptyStr(arg))
-        {
-            free(lineBuff);
-            return IP_INSERT_SUCCESS;
-        }
 
-        if(sfip_pton(arg, &ipAddr) != SFIP_SUCCESS)
-        {
-            free(lineBuff);
-            return IP_INVALID;
+    if ( snort_pton(line, &address) < 1 )
+        return IP_INVALID;
 
-        }
-        iRet = AddIPtoList(&ipAddr, ipInfo_ptr, config);
-        if( IP_INSERT_SUCCESS != iRet)
-        {
-            free(lineBuff);
-            return iRet;
-        }
-        if ((arg = strtok_r(nextBuff, REPUTATION_SEPARATORS, &nextBuff)) != NULL)
-        {
-            if (!Reputation_IsEmptyStr(arg))
-            {
-                free(lineBuff);
-                return IP_INSERT_FAILURE;
-            }
-        }
-
-    }
-    free(lineBuff);
-    return IP_INSERT_SUCCESS;
+    return AddIPtoList(&address, info, config);
 }
 
 /********************************************************************
  * Function: UpdatePathToFile
  *
- * Update the patch to file, if using relative patch
- * The relative path is based on config file directory
+ * Update the path to a file, if using relative path.
+ * The relative path is based on config file directory.
  *
  * Arguments:
- *  fullfilename: file name string
- *  info: information about the file.
- *  ReputationConfig *:  The configuration to be update.
+ *  full_path_filename: file name string
+ *  max_size: ?
+ *  char *filename: ?
  *
  * Returns:
  *  1 successful
@@ -863,6 +1100,7 @@ static int ProcessLine(char *line, INFO ipInfo_ptr, ReputationConfig *config)
 
 static int UpdatePathToFile(char *full_path_filename, unsigned int max_size, char *filename)
 {
+
     char *snort_conf_dir = *(_dpd.snort_conf_dir);
 
     if (!snort_conf_dir || !(*snort_conf_dir) || !full_path_filename || !filename)
@@ -872,12 +1110,13 @@ static int UpdatePathToFile(char *full_path_filename, unsigned int max_size, cha
         return 0;
     }
     /*filename is too long*/
-    if (max_size < strlen(filename) )
+    if ( max_size < strlen(filename) )
     {
         DynamicPreprocessorFatalMessage(" %s(%d) => the file name length %u is longer than allowed %u.\n",
                 *(_dpd.config_file), *(_dpd.config_line), strlen(filename), max_size);
         return 0;
     }
+
     /*
      *  If an absolute path is specified, then use that.
      */
@@ -889,7 +1128,7 @@ static int UpdatePathToFile(char *full_path_filename, unsigned int max_size, cha
     else
     {
         /*
-         **  Set up the file name directory
+         * Set up the file name directory.
          */
         if (snort_conf_dir[strlen(snort_conf_dir) - 1] == '/')
         {
@@ -990,9 +1229,8 @@ static char* GetListInfo(INFO info)
 static void LoadListFile(char *filename, INFO info, ReputationConfig *config)
 {
 
-    char list_buf[MAX_ADDR_LINE_LENGTH+1];
+    char linebuf[MAX_ADDR_LINE_LENGTH];
     char full_path_filename[PATH_MAX+1];
-    char *lb = list_buf;
     int addrline = 0;
     FILE *fp = NULL;
     char *cmt = NULL;
@@ -1003,8 +1241,9 @@ static void LoadListFile(char *filename, INFO info, ReputationConfig *config)
     uint8_t *base;
 
     /*entries processing statistics*/
-    unsigned int num_duplicates = 0; /*number of duplicates in this file*/
-    unsigned int num_invalids = 0;   /*number of invalid entries in this file*/
+    unsigned int duplicate_count = 0; /*number of duplicates in this file*/
+    unsigned int invalid_count = 0;   /*number of invalid entries in this file*/
+    unsigned int fail_count = 0;   /*number of invalid entries in this file*/
     unsigned int num_loaded_before = 0;     /*number of valid entries loaded */
 
     if ((NULL == filename)||(0 == info)|| (NULL == config)||config->memCapReached)
@@ -1039,85 +1278,83 @@ static void LoadListFile(char *filename, INFO info, ReputationConfig *config)
 #else
         strerror_r(errno, errBuf, STD_BUF);
 #endif
-        DynamicPreprocessorFatalMessage("%s(%d) => Unable to open address file %s, Error: %s\n",
-                *(_dpd.config_file), *(_dpd.config_line), full_path_filename, errBuf);
+        errBuf[STD_BUF-1] = '\0';
+        _dpd.errMsg("%s(%d) => Unable to open address file %s, Error: %s\n",
+            *(_dpd.config_file), *(_dpd.config_line), full_path_filename, errBuf);
+        return;
     }
 
     num_loaded_before = sfrt_flat_num_entries(config->iplist);
-    while((fgets(lb, MAX_ADDR_LINE_LENGTH, fp)) != NULL)
+    while( fgets(linebuf, MAX_ADDR_LINE_LENGTH, fp) )
     {
         int iRet;
         addrline++;
 
-        DEBUG_WRAP(DebugMessage(DEBUG_REPUTATION, "Reputation configurations: %s\n",lb ););
-        /* remove comments */
-        if((cmt = strchr(lb, '#')) != NULL)
-        {
+        DEBUG_WRAP(DebugMessage(DEBUG_REPUTATION, "Reputation configurations: %s\n",linebuf ););
+
+        // Remove comments
+        if( (cmt = strchr(linebuf, '#')) )
             *cmt = '\0';
-        }
-        DEBUG_WRAP(DebugMessage(DEBUG_REPUTATION, "Reputation configurations: %s\n",lb ););
+
+        // Remove newline as well, prevent double newline in logging.
+        if( (cmt = strchr(linebuf, '\n')) )
+            *cmt = '\0';
+
+
+        DEBUG_WRAP(DebugMessage(DEBUG_REPUTATION, "Reputation configurations: %s\n",linebuf ););
+
         /* process the line */
-        iRet = ProcessLine(lb, ipInfo_ptr, config);
+        iRet = ProcessLine(linebuf, ipInfo_ptr, config);
 
         if (IP_INSERT_SUCCESS == iRet)
         {
             continue;
         }
-        else if (IP_INSERT_FAILURE == iRet)
+        else if (IP_INSERT_FAILURE == iRet && fail_count++ < MAX_MSGS_TO_PRINT)
         {
-            if (num_invalids++ < MAX_MSGS_TO_PRINT)
-            {
-                _dpd.errMsg("      (%d) => Can't insert IP Address: %s",
-                        addrline, lb);
-            }
+            _dpd.errMsg("      (%d) => Failed to insert address: \'%s\'\n", addrline, linebuf);
         }
-        else if (IP_INVALID == iRet)
+        else if (IP_INVALID == iRet && invalid_count++ < MAX_MSGS_TO_PRINT)
         {
-            if (num_invalids++ < MAX_MSGS_TO_PRINT)
-            {
-                _dpd.errMsg("      (%d) => Invalid IP Address: %s",
-                        addrline, lb);
-            }
+            _dpd.errMsg("      (%d) => Invalid address: \'%s\'\n", addrline, linebuf);
         }
-
+        else if (IP_INSERT_DUPLICATE == iRet && duplicate_count++ < MAX_MSGS_TO_PRINT)
+        {
+            _dpd.errMsg("      (%d) => Re-defined address: '%s'\n", addrline, linebuf );
+        }
         else if (IP_MEM_ALLOC_FAILURE == iRet)
         {
-            char errBuf[STD_BUF];
-            snprintf(errBuf, STD_BUF, "WARNING: %s(%d) => Memcap %u Mbytes reached when inserting IP Address: %s",
-                    full_path_filename, addrline, config->memcap,lb);
-            _dpd.logMsg("%s",errBuf);
+
+            _dpd.errMsg("WARNING: %s(%d) => Memcap %u Mbytes reached when inserting IP Address: %s\n",
+                full_path_filename, addrline, config->memcap,linebuf);
+
             if (config->statusBuf)
-                snprintf(config->statusBuf,config->statusBuf_len, "%s", errBuf);
+            {
+                snprintf(config->statusBuf, config->statusBuf_len,
+                    "WARNING: %s(%d) => Memcap %u Mbytes reached when inserting IP Address: %s\n",
+                    full_path_filename, addrline, config->memcap,linebuf);
+                config->statusBuf[config->statusBuf_len] = '\0';
+            }
             config->memCapReached = true;
             break;
         }
-        else if (IP_INSERT_DUPLICATE == iRet)
-        {
-            if (num_duplicates++ < MAX_MSGS_TO_PRINT)
-            {
-                _dpd.logMsg("      (%d) => Re-defined address:  %s",
-                        addrline, lb );
-            }
-
-        }
-
-        lb = list_buf;
     }
 
-    total_duplicates += num_duplicates;
-    total_invalids += num_invalids;
+    total_duplicates += duplicate_count;
+    total_invalids += invalid_count;
     /*Print out the summary*/
-    if (num_invalids > MAX_MSGS_TO_PRINT)
-        _dpd.logMsg("      Additional address is invalid but not printed.\n");
-    if (num_duplicates > MAX_MSGS_TO_PRINT)
-        _dpd.logMsg("      Additional address has been redefined but not printed.\n");
+    if (fail_count > MAX_MSGS_TO_PRINT)
+        _dpd.errMsg("    Additional addresses failed insertion but were not listed.\n");
+    if (invalid_count > MAX_MSGS_TO_PRINT)
+        _dpd.errMsg("    Additional invalid addresses were not listed.\n");
+    if (duplicate_count > MAX_MSGS_TO_PRINT)
+        _dpd.errMsg("    Additional duplicate addresses were not listed.\n");
 
-    _dpd.logMsg("    Reputation entries loaded: %u, invalid: %u, re-defined: %u  (from file %s)\n",
-            sfrt_flat_num_entries(config->iplist)- num_loaded_before,num_invalids,num_duplicates,
-            full_path_filename);
+    _dpd.logMsg("    Reputation entries loaded: %u, invalid: %u, re-defined: %u (from file %s)\n",
+            sfrt_flat_num_entries(config->iplist) - num_loaded_before,
+            invalid_count, duplicate_count, full_path_filename);
 
     fclose(fp);
-
 }
 
 /********************************************************************
@@ -1612,7 +1849,7 @@ void ParseReputationArgs(ReputationConfig *config, u_char* argp)
     free(argcpyp);
 }
 
-void ReputationRepInfo(IPrepInfo * repInfo, uint8_t *base, char *repInfoBuff, 
+void ReputationRepInfo(IPrepInfo * repInfo, uint8_t *base, char *repInfoBuff,
     int bufLen)
 {
 
@@ -1661,38 +1898,12 @@ void ReputationPrintRepInfo(IPrepInfo * repInfo, uint8_t *base)
 {
 
     char repInfoBuff[STD_BUF];
-    char *index = repInfoBuff;
     int  len = STD_BUF -1 ;
 
-    while(repInfo)
-    {
-        int i;
-        int writed;
-        for(i = 0; i < NUM_INDEX_PER_ENTRY; i++)
-        {
-            writed = snprintf(index, len, "%d,",repInfo->listIndexes[i]);
-            if (writed < 0)
-                return;
-            else
-            {
-                index += writed;
-                len -=writed;
-            }
+    repInfoBuff[STD_BUF -1] = '\0';
 
-        }
-        writed = snprintf(index, len, "->");
-        if (writed < 0)
-            return;
-        else
-        {
-            index += writed;
-            len -=writed;
-        }
+    ReputationRepInfo(repInfo, base, repInfoBuff, len);
 
-        if (!repInfo->next) break;
-
-        repInfo = (IPrepInfo *)(&base[repInfo->next]);
-    }
     DEBUG_WRAP(DebugMessage(DEBUG_REPUTATION, "Reputation Info: %s \n",
             repInfoBuff););
 }

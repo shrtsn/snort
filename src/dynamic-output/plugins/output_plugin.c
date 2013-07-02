@@ -74,9 +74,9 @@ int GetVlanId(void* p)
    return (VTH_VLAN(packet->vh));
 }
 
-tSfPolicyId GetParserPolicy(void)
+tSfPolicyId GetParserPolicy(struct _SnortConfig *sc)
 {
-    return getParserPolicy();
+    return getParserPolicy(sc);
 }
 
 tSfPolicyId GetRuntimePolicy(void)

@@ -2,8 +2,6 @@ AUTOMAKE_OPTIONS=foreign no-dependencies
 
 INCLUDES = -I$(top_srcdir)/src/dynamic-output/plugins -I$(top_srcdir)/src -I$(top_srcdir)/src/sfutil -I$(top_srcdir)/src/dynamic-plugins -I$(top_srcdir)/src/preprocessors
 
-if HAVE_DYNAMIC_PLUGINS
-
 if SO_WITH_STATIC_LIB
 
 outputlibdir=$(pkglibdir)/dynamic_output
@@ -42,8 +40,6 @@ nodist_outputlibinclude_HEADERS = $(external_headers)
 
 pkgconfigdir = $(libdir)/pkgconfig
 pkgconfig_DATA = snort_output.pc
-
-endif
 
 endif
 

@@ -82,8 +82,8 @@ typedef struct _SyslogData
     int options;
 } SyslogData;
 
-static void AlertSyslogInit(char *);
-static SyslogData *ParseSyslogArgs(char *);
+static void AlertSyslogInit(struct _SnortConfig *, char *);
+static SyslogData *ParseSyslogArgs(struct _SnortConfig *, char *);
 static void AlertSyslog(Packet *, char *, void *, Event *);
 static void AlertSyslogCleanExit(int, void *);
 
@@ -121,13 +121,13 @@ void AlertSyslogSetup(void)
  * Returns: void function
  *
  */
-static void AlertSyslogInit(char *args)
+static void AlertSyslogInit(struct _SnortConfig *sc, char *args)
 {
     SyslogData *data;
     DEBUG_WRAP(DebugMessage(DEBUG_INIT, "Output: Alert-Syslog Initialized\n"););
 
     /* parse the argument list from the rules file */
-    data = ParseSyslogArgs(args);
+    data = ParseSyslogArgs(sc, args);
 
     if (ScDaemonMode())
         data->options |= LOG_PID;
@@ -137,14 +137,14 @@ static void AlertSyslogInit(char *args)
     DEBUG_WRAP(DebugMessage(DEBUG_INIT,"Linking syslog alert function to call list...\n"););
 
     /* Set the preprocessor function into the function list */
-    AddFuncToOutputList(AlertSyslog, OUTPUT_TYPE__ALERT, data);
+    AddFuncToOutputList(sc, AlertSyslog, OUTPUT_TYPE__ALERT, data);
     AddFuncToCleanExitList(AlertSyslogCleanExit, data);
 }
 
 
 
 /*
- * Function: ParseSyslogArgs(char *)
+ * Function: ParseSyslogArgs(struct _SnortConfig *, char *)
  *
  * Purpose: Process the preprocessor arguements from the rules file and
  *          initialize the preprocessor's data struct.  This function doesn't
@@ -156,7 +156,7 @@ static void AlertSyslogInit(char *args)
  * Returns: void function
  *
  */
-static SyslogData *ParseSyslogArgs(char *args)
+static SyslogData *ParseSyslogArgs(struct _SnortConfig *sc, char *args)
 {
 #ifdef WIN32
     char *DEFAULT_SYSLOG_HOST = "127.0.0.1";
@@ -284,7 +284,7 @@ static SyslogData *ParseSyslogArgs(char *args)
     {
         if(*facility_toks[i] == '$')
         {
-            if((tmp = VarGet(facility_toks[i]+1)) == NULL)
+            if((tmp = VarGet(sc, facility_toks[i]+1)) == NULL)
             {
                 FatalError("%s(%d) => Undefined variable %s\n",
                         file_name, file_line, facility_toks[i]);

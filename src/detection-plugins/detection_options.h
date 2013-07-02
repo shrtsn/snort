@@ -23,7 +23,7 @@
 **  @file        detection_options.h
 **
 **  @author      Steven Sturges
-** 
+**
 **  @brief       Support functions for rule option tree
 **
 **  This implements tree processing for rule options, evaluating common
@@ -60,11 +60,10 @@ typedef struct _detection_option_tree_node
     struct _detection_option_tree_node **children;
     int relative_children;
     int result;
-    struct 
+    struct
     {
         struct timeval ts;
         uint64_t packet_number;
-        uint32_t pipeline_number;
         uint32_t rebuild_flag;
         char result;
         char is_relative;
@@ -91,7 +90,7 @@ typedef struct _detection_option_tree_root
 #ifdef PPM_MGR
     uint64_t ppm_suspend_time; /* PPM */
     uint64_t ppm_disable_cnt; /*PPM */
-    int tree_state; 
+    int tree_state;
 #endif
 } detection_option_tree_root_t;
 
@@ -104,8 +103,8 @@ typedef struct _detection_option_eval_data
     char flowbit_noalert;
 } detection_option_eval_data_t;
 
-int add_detection_option(option_type_t type, void *option_data, void **existing_data);
-int add_detection_option_tree(detection_option_tree_node_t *option_tree, void **existing_data);
+int add_detection_option(struct _SnortConfig *, option_type_t type, void *option_data, void **existing_data);
+int add_detection_option_tree(struct _SnortConfig *, detection_option_tree_node_t *option_tree, void **existing_data);
 int detection_option_node_evaluate(detection_option_tree_node_t *node, detection_option_eval_data_t *eval_data);
 void DetectionHashTableFree(SFXHASH *);
 void DetectionTreeHashTableFree(SFXHASH *);

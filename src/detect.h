@@ -76,8 +76,8 @@ int CheckDstPortNotEq(Packet *, struct _RuleTreeNode *, RuleFpList *, int);
 int RuleListEnd(Packet *, struct _RuleTreeNode *, RuleFpList *, int);
 int OptListEnd(void *option_data, Packet *p);
 
-void CallLogPlugins(Packet *, char *, void *, Event *);
-void CallAlertPlugins(Packet *, char *, void *, Event *);
+void CallLogPlugins(Packet *, char *, Event *);
+void CallAlertPlugins(Packet *, char *, Event *);
 void CallLogFuncs(Packet *, char *, ListHead *, Event *);
 void CallAlertFuncs(Packet *, char *, ListHead *, Event *);
 

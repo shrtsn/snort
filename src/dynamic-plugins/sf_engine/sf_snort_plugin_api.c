@@ -306,14 +306,13 @@ int setCursorInternal(void *p, int flags, int offset, const uint8_t **cursor)
     {
         *cursor = start + offset;
     }
+    else if ( flags & CONTENT_RELATIVE )
+    {
+        *cursor += offset;
+    }
     else
     {
-        if ( !(flags & CONTENT_RELATIVE) )
-            *cursor = start + offset;
-        else if (cursor)
-            *cursor += offset;
-        else /* if not set, don't try to use it */
-            *cursor = start + offset;
+        *cursor = start + offset;
     }
 
     return CURSOR_IN_BOUNDS;
@@ -444,11 +443,7 @@ static int checkFlowInternal(void *p, FlowFlags *flowFlags)
     /* check if this rule only applies to reassembled */
     if (flowFlags->flags & FLOW_ONLY_REASSEMBLED)
     {
-        if ( !(sp->flags & FLAG_REBUILT_STREAM)
-#ifdef ENABLE_PAF
-            && !PacketHasFullPDU(sp)
-#endif
-        )
+        if ( !(sp->flags & FLAG_REBUILT_STREAM) && !PacketHasFullPDU(sp))
             return RULE_NOMATCH;
     }
     /* check if this rule only applies to non-reassembled */

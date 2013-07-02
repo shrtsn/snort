@@ -51,6 +51,13 @@ PRE_UNINSTALL = :
 POST_UNINSTALL = :
 build_triplet = @build@
 host_triplet = @host@
+@BUILD_HA_TRUE@am__append_1 = \
+@BUILD_HA_TRUE@stream5_ha.c \
+@BUILD_HA_TRUE@stream5_ha.h
+
+@BUILD_HA_TRUE@am__append_2 = \
+@BUILD_HA_TRUE@stream5_ha.o
+
 subdir = src/preprocessors/Stream5
 DIST_COMMON = $(srcdir)/Makefile.am $(srcdir)/Makefile.in
 ACLOCAL_M4 = $(top_srcdir)/aclocal.m4
@@ -66,11 +73,20 @@ ARFLAGS = cru
 libstream5_a_AR = $(AR) $(ARFLAGS)
 libstream5_a_DEPENDENCIES = snort_stream5_tcp.o snort_stream5_udp.o \
 	snort_stream5_icmp.o snort_stream5_ip.o \
-	snort_stream5_session.o stream5_paf.o stream5_common.o
+	snort_stream5_session.o stream5_paf.o stream5_common.o \
+	$(am__append_2)
+am__libstream5_a_SOURCES_DIST = snort_stream5_tcp.c \
+	snort_stream5_tcp.h snort_stream5_udp.c snort_stream5_udp.h \
+	snort_stream5_icmp.c snort_stream5_icmp.h snort_stream5_ip.c \
+	snort_stream5_ip.h snort_stream5_session.c \
+	snort_stream5_session.h stream5_paf.c stream5_paf.h \
+	stream5_common.c stream5_common.h stream5_ha.c stream5_ha.h
+@BUILD_HA_TRUE@am__objects_1 = stream5_ha.$(OBJEXT)
 am_libstream5_a_OBJECTS = snort_stream5_tcp.$(OBJEXT) \
 	snort_stream5_udp.$(OBJEXT) snort_stream5_icmp.$(OBJEXT) \
 	snort_stream5_ip.$(OBJEXT) snort_stream5_session.$(OBJEXT) \
-	stream5_paf.$(OBJEXT) stream5_common.$(OBJEXT)
+	stream5_paf.$(OBJEXT) stream5_common.$(OBJEXT) \
+	$(am__objects_1)
 libstream5_a_OBJECTS = $(am_libstream5_a_OBJECTS)
 DEFAULT_INCLUDES = -I.@am__isrc@ -I$(top_builddir)
 depcomp =
@@ -85,7 +101,7 @@ LINK = $(LIBTOOL) --tag=CC $(AM_LIBTOOLFLAGS) $(LIBTOOLFLAGS) \
 	--mode=link $(CCLD) $(AM_CFLAGS) $(CFLAGS) $(AM_LDFLAGS) \
 	$(LDFLAGS) -o $@
 SOURCES = $(libstream5_a_SOURCES)
-DIST_SOURCES = $(libstream5_a_SOURCES)
+DIST_SOURCES = $(am__libstream5_a_SOURCES_DIST)
 am__can_run_installinfo = \
   case $$AM_UPDATE_INFO_DIR in \
     n|no|NO) false;; \
@@ -227,31 +243,16 @@ top_builddir = @top_builddir@
 top_srcdir = @top_srcdir@
 AUTOMAKE_OPTIONS = foreign no-dependencies
 noinst_LIBRARIES = libstream5.a
-libstream5_a_SOURCES = \
-snort_stream5_tcp.c \
-snort_stream5_tcp.h \
-snort_stream5_udp.c \
-snort_stream5_udp.h \
-snort_stream5_icmp.c \
-snort_stream5_icmp.h \
-snort_stream5_ip.c \
-snort_stream5_ip.h \
-snort_stream5_session.c \
-snort_stream5_session.h \
-stream5_paf.c \
-stream5_paf.h \
-stream5_common.c \
-stream5_common.h 
-
-libstream5_a_LIBADD = \
-snort_stream5_tcp.o \
-snort_stream5_udp.o \
-snort_stream5_icmp.o \
-snort_stream5_ip.o \
-snort_stream5_session.o \
-stream5_paf.o \
-stream5_common.o
-
+libstream5_a_SOURCES = snort_stream5_tcp.c snort_stream5_tcp.h \
+	snort_stream5_udp.c snort_stream5_udp.h snort_stream5_icmp.c \
+	snort_stream5_icmp.h snort_stream5_ip.c snort_stream5_ip.h \
+	snort_stream5_session.c snort_stream5_session.h stream5_paf.c \
+	stream5_paf.h stream5_common.c stream5_common.h \
+	$(am__append_1)
+libstream5_a_LIBADD = snort_stream5_tcp.o snort_stream5_udp.o \
+	snort_stream5_icmp.o snort_stream5_ip.o \
+	snort_stream5_session.o stream5_paf.o stream5_common.o \
+	$(am__append_2)
 all: all-am
 
 .SUFFIXES:

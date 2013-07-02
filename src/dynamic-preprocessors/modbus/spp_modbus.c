@@ -58,9 +58,6 @@ const char *PREPROC_NAME = "SF_MODBUS";
 
 /* Preprocessor config objects */
 static tSfPolicyUserContextId modbus_context_id = NULL;
-#ifdef SNORT_RELOAD
-static tSfPolicyUserContextId modbus_swap_context_id = NULL;
-#endif
 static modbus_config_t *modbus_eval_config = NULL;
 
 
@@ -70,27 +67,27 @@ int16_t modbus_app_id = SFTARGET_UNKNOWN_PROTOCOL;
 #endif
 
 /* Prototypes */
-static void ModbusInit(char *argp);
-static inline void ModbusOneTimeInit(void);
-static inline modbus_config_t * ModbusPerPolicyInit(tSfPolicyUserContextId);
+static void ModbusInit(struct _SnortConfig *, char *);
+static inline void ModbusOneTimeInit(struct _SnortConfig *);
+static inline modbus_config_t * ModbusPerPolicyInit(struct _SnortConfig *, tSfPolicyUserContextId);
 
 static void ProcessModbus(void *, void *);
 
 #ifdef SNORT_RELOAD
-static void ModbusReload(char *);
-static int ModbusReloadVerify(void);
-static void * ModbusReloadSwap(void);
+static void ModbusReload(struct _SnortConfig *, char *, void **);
+static int ModbusReloadVerify(struct _SnortConfig *, void *);
+static void * ModbusReloadSwap(struct _SnortConfig *, void *);
 static void ModbusReloadSwapFree(void *);
 #endif
 
-static void _addPortsToStream5Filter(modbus_config_t *, tSfPolicyId);
+static void _addPortsToStream5Filter(struct _SnortConfig *, modbus_config_t *, tSfPolicyId);
 #ifdef TARGET_BASED
-static void _addServicesToStream5Filter(tSfPolicyId);
+static void _addServicesToStream5Filter(struct _SnortConfig *, tSfPolicyId);
 #endif
 
 static void ModbusFreeConfig(tSfPolicyUserContextId context_id);
 static void FreeModbusData(void *);
-static void ModbusCheckConfig(void);
+static int ModbusCheckConfig(struct _SnortConfig *);
 static void ModbusCleanExit(int, void *);
 
 static void ParseModbusArgs(modbus_config_t *config, char *args);
@@ -106,31 +103,35 @@ void SetupModbus(void)
     _dpd.registerPreproc("modbus", ModbusInit);
 #else
     _dpd.registerPreproc("modbus", ModbusInit, ModbusReload,
-                         ModbusReloadSwap, ModbusReloadSwapFree);
+                         ModbusReloadVerify, ModbusReloadSwap,
+                         ModbusReloadSwapFree);
 #endif
 }
 
 /* Allocate memory for preprocessor config, parse the args, set up callbacks */
-static void ModbusInit(char *argp)
+static void ModbusInit(struct _SnortConfig *sc, char *argp)
 {
     modbus_config_t *modbus_policy = NULL;
 
     if (modbus_context_id == NULL)
     {
-        ModbusOneTimeInit();
+        ModbusOneTimeInit(sc);
     }
 
-    modbus_policy = ModbusPerPolicyInit(modbus_context_id);
+    modbus_policy = ModbusPerPolicyInit(sc, modbus_context_id);
 
     ParseModbusArgs(modbus_policy, argp);
 
     /* Can't add ports until they've been parsed... */
-    ModbusAddPortsToPaf(modbus_policy, _dpd.getParserPolicy());
+    ModbusAddPortsToPaf(sc, modbus_policy, _dpd.getParserPolicy(sc));
+#ifdef TARGET_BASED
+    ModbusAddServiceToPaf(sc, modbus_app_id, _dpd.getParserPolicy(sc));
+#endif
 
     ModbusPrintConfig(modbus_policy);
 }
 
-static inline void ModbusOneTimeInit()
+static inline void ModbusOneTimeInit(struct _SnortConfig *sc)
 {
     /* context creation & error checking */
     modbus_context_id = sfPolicyConfigCreate();
@@ -147,7 +148,7 @@ static inline void ModbusOneTimeInit()
     }
 
     /* callback registration */
-    _dpd.addPreprocConfCheck(ModbusCheckConfig);
+    _dpd.addPreprocConfCheck(sc, ModbusCheckConfig);
     _dpd.addPreprocExit(ModbusCleanExit, NULL, PRIORITY_LAST, PP_MODBUS);
 
 #ifdef PERF_PROFILING
@@ -163,9 +164,9 @@ static inline void ModbusOneTimeInit()
 }
 
 /* Responsible for allocating a Modbus policy. Never returns NULL. */
-static inline modbus_config_t * ModbusPerPolicyInit(tSfPolicyUserContextId context_id)
+static inline modbus_config_t * ModbusPerPolicyInit(struct _SnortConfig *sc, tSfPolicyUserContextId context_id)
 {
-    tSfPolicyId policy_id = _dpd.getParserPolicy();
+    tSfPolicyId policy_id = _dpd.getParserPolicy(sc);
     modbus_config_t *modbus_policy = NULL;
 
     /* Check for existing policy & bail if found */
@@ -189,17 +190,17 @@ static inline modbus_config_t * ModbusPerPolicyInit(tSfPolicyUserContextId conte
     sfPolicyUserDataSetCurrent(context_id, modbus_policy);
 
     /* Register callbacks that are done for each policy */
-    _dpd.addPreproc(ProcessModbus, PRIORITY_APPLICATION, PP_MODBUS, PROTO_BIT__TCP);
-    _addPortsToStream5Filter(modbus_policy, policy_id);
+    _dpd.addPreproc(sc, ProcessModbus, PRIORITY_APPLICATION, PP_MODBUS, PROTO_BIT__TCP);
+    _addPortsToStream5Filter(sc, modbus_policy, policy_id);
 #ifdef TARGET_BASED
-    _addServicesToStream5Filter(policy_id);
+    _addServicesToStream5Filter(sc, policy_id);
 #endif
 
     /* Add preprocessor rule options here */
     /* _dpd.preprocOptRegister("foo_bar", FOO_init, FOO_rule_eval, free, NULL, NULL, NULL, NULL); */
-    _dpd.preprocOptRegister("modbus_func", ModbusFuncInit, ModbusRuleEval, free, NULL, NULL, NULL, NULL);
-    _dpd.preprocOptRegister("modbus_unit", ModbusUnitInit, ModbusRuleEval, free, NULL, NULL, NULL, NULL);
-    _dpd.preprocOptRegister("modbus_data", ModbusDataInit, ModbusRuleEval, free, NULL, NULL, NULL, NULL);
+    _dpd.preprocOptRegister(sc, "modbus_func", ModbusFuncInit, ModbusRuleEval, free, NULL, NULL, NULL, NULL);
+    _dpd.preprocOptRegister(sc, "modbus_unit", ModbusUnitInit, ModbusRuleEval, free, NULL, NULL, NULL, NULL);
+    _dpd.preprocOptRegister(sc, "modbus_data", ModbusDataInit, ModbusRuleEval, free, NULL, NULL, NULL, NULL);
 
     return modbus_policy;
 }
@@ -343,7 +344,7 @@ static void ProcessModbus(void *ipacketp, void *contextp)
 
     /* Look for a previously-allocated session data. */
     sessp = _dpd.streamAPI->get_application_data(packetp->stream_session_ptr, PP_MODBUS);
-    
+
     if (sessp == NULL)
     {
         /* No existing session. Check those ports. */
@@ -367,7 +368,7 @@ static void ProcessModbus(void *ipacketp, void *contextp)
         PREPROC_PROFILE_END(modbusPerfStats);
         return;
     }
-    
+
     if (sessp == NULL)
     {
         /* Create session data and attach it to the Stream5 session */
@@ -451,8 +452,9 @@ static modbus_session_data_t * ModbusCreateSessionData(SFSnortPacket *packet)
 /* Reload functions */
 #ifdef SNORT_RELOAD
 /* Almost like ModbusInit, but not quite. */
-static void ModbusReload(char *args)
+static void ModbusReload(struct _SnortConfig *sc, char *args, void **new_config)
 {
+    tSfPolicyUserContextId modbus_swap_context_id = (tSfPolicyUserContextId)*new_config;
     modbus_config_t *modbus_policy = NULL;
 
     if (modbus_swap_context_id == NULL)
@@ -469,25 +471,25 @@ static void ModbusReload(char *args)
             _dpd.fatalMsg("SetupModbus(): The Stream preprocessor "
                                             "must be enabled.\n");
         }
+        *new_config = (void *)modbus_swap_context_id;
     }
 
-    modbus_policy = ModbusPerPolicyInit(modbus_swap_context_id);
+    modbus_policy = ModbusPerPolicyInit(sc, modbus_swap_context_id);
 
     ParseModbusArgs(modbus_policy, args);
 
     /* Can't add ports until they've been parsed... */
-    ModbusAddPortsToPaf(modbus_policy, _dpd.getParserPolicy());
+    ModbusAddPortsToPaf(sc, modbus_policy, _dpd.getParserPolicy(sc));
 
     ModbusPrintConfig(modbus_policy);
-
-    _dpd.addPreprocReloadVerify(ModbusReloadVerify);
 }
 
-static int ModbusReloadVerify(void)
+static int ModbusReloadVerify(struct _SnortConfig *sc, void *swap_config)
 {
-    if (!_dpd.isPreprocEnabled(PP_STREAM5))
+    if (!_dpd.isPreprocEnabled(sc, PP_STREAM5))
     {
-        _dpd.fatalMsg("SetupModbus(): The Stream preprocessor must be enabled.\n");
+        _dpd.errMsg("SetupModbus(): The Stream preprocessor must be enabled.\n");
+        return -1;
     }
 
     return 0;
@@ -511,17 +513,17 @@ static int ModbusFreeUnusedConfigPolicy(
     return 0;
 }
 
-static void * ModbusReloadSwap(void)
+static void * ModbusReloadSwap(struct _SnortConfig *sc, void *swap_config)
 {
+    tSfPolicyUserContextId modbus_swap_context_id = (tSfPolicyUserContextId)swap_config;
     tSfPolicyUserContextId old_context_id = modbus_context_id;
 
     if (modbus_swap_context_id == NULL)
         return NULL;
 
     modbus_context_id = modbus_swap_context_id;
-    modbus_swap_context_id = NULL;
 
-    sfPolicyUserDataIterate(old_context_id, ModbusFreeUnusedConfigPolicy);
+    sfPolicyUserDataFreeIterate(old_context_id, ModbusFreeUnusedConfigPolicy);
 
     if (sfPolicyUserPolicyGetActive(old_context_id) == 0)
     {
@@ -542,7 +544,7 @@ static void ModbusReloadSwapFree(void *data)
 #endif
 
 /* Stream5 filter functions */
-static void _addPortsToStream5Filter(modbus_config_t *config, tSfPolicyId policy_id)
+static void _addPortsToStream5Filter(struct _SnortConfig *sc, modbus_config_t *config, tSfPolicyId policy_id)
 {
     if (config == NULL)
         return;
@@ -557,7 +559,7 @@ static void _addPortsToStream5Filter(modbus_config_t *config, tSfPolicyId policy
             {
                 //Add port the port
                 _dpd.streamAPI->set_port_filter_status(
-                    IPPROTO_TCP, (uint16_t)portNum, PORT_MONITOR_SESSION, policy_id, 1);
+                    sc, IPPROTO_TCP, (uint16_t)portNum, PORT_MONITOR_SESSION, policy_id, 1);
             }
         }
     }
@@ -565,9 +567,9 @@ static void _addPortsToStream5Filter(modbus_config_t *config, tSfPolicyId policy
 }
 
 #ifdef TARGET_BASED
-static void _addServicesToStream5Filter(tSfPolicyId policy_id)
+static void _addServicesToStream5Filter(struct _SnortConfig *sc, tSfPolicyId policy_id)
 {
-    _dpd.streamAPI->set_service_filter_status(modbus_app_id, PORT_MONITOR_SESSION, policy_id, 1);
+    _dpd.streamAPI->set_service_filter_status(sc, modbus_app_id, PORT_MONITOR_SESSION, policy_id, 1);
 }
 #endif
 
@@ -591,29 +593,36 @@ static void ModbusFreeConfig(tSfPolicyUserContextId context_id)
     if (context_id == NULL)
         return;
 
-    sfPolicyUserDataIterate(context_id, ModbusFreeConfigPolicy);
+    sfPolicyUserDataFreeIterate(context_id, ModbusFreeConfigPolicy);
     sfPolicyConfigDelete(context_id);
 }
 
 static int ModbusCheckPolicyConfig(
+    struct _SnortConfig *sc,
     tSfPolicyUserContextId context_id,
     tSfPolicyId policy_id,
     void *data
     )
 {
-    _dpd.setParserPolicy(policy_id);
+    _dpd.setParserPolicy(sc, policy_id);
 
-    if (!_dpd.isPreprocEnabled(PP_STREAM5))
+    if (!_dpd.isPreprocEnabled(sc, PP_STREAM5))
     {
-        _dpd.fatalMsg("%s(%d) ModbusCheckPolicyConfig(): The Stream preprocessor "
+        _dpd.errMsg("%s(%d) ModbusCheckPolicyConfig(): The Stream preprocessor "
                       "must be enabled.\n", *_dpd.config_file, *_dpd.config_line);
+        return -1;
     }
     return 0;
 }
 
-static void ModbusCheckConfig(void)
+static int ModbusCheckConfig(struct _SnortConfig *sc)
 {
-    sfPolicyUserDataIterate(modbus_context_id, ModbusCheckPolicyConfig);
+    int rval;
+
+    if ((rval = sfPolicyUserDataIterate(sc, modbus_context_id, ModbusCheckPolicyConfig)))
+        return rval;
+
+    return 0;
 }
 
 static void ModbusCleanExit(int signal, void *data)

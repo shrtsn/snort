@@ -37,7 +37,8 @@
 void* s5_paf_new(void);     // create new paf config (per policy)
 void s5_paf_delete(void*);  // free config
 
-bool s5_paf_register(
+bool s5_paf_register_port(
+    struct _SnortConfig *, // snort configuration
     tSfPolicyId,     // applicable policy
     uint16_t port,   // server port
     bool toServer,   // direction of interest relative to server port
@@ -45,10 +46,18 @@ bool s5_paf_register(
     bool autoEnable  // enable PAF reassembly regardless of s5 ports config
 );
 
-void s5_paf_print(tSfPolicyId, void*);  // print instance config
+bool s5_paf_register_service(
+    struct _SnortConfig *, // snort configuration
+    tSfPolicyId,      // same as above
+    uint16_t service, // service ordinal
+    bool toServer,
+    PAF_Callback,
+    bool autoEnable
+);
 
 // flush indicates s5 port config
-bool s5_paf_enabled(void* pv, uint16_t port, bool toServer, bool flush);
+uint8_t s5_paf_port_registration (void* pv, uint16_t port, bool c2s, bool flush);
+uint8_t s5_paf_service_registration (void* pv, uint16_t service, bool c2s, bool flush);
 
 typedef struct {
     void* user;      // arbitrary user data
@@ -64,7 +73,7 @@ typedef struct {
 } PAF_State;         // per session direction
 
 // called at session start
-void s5_paf_setup(void* paf_config, PAF_State* ps, uint16_t port, bool c2s);
+void s5_paf_setup(PAF_State*, uint8_t registration);
 void s5_paf_clear(PAF_State*);  // called at session end
 
 static inline uint32_t s5_paf_position (PAF_State* ps)

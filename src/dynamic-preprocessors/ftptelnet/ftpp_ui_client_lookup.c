@@ -104,7 +104,7 @@ int ftpp_ui_client_lookup_cleanup(CLIENT_LOOKUP **ClientLookup)
 
 /*
  * Function: ftpp_ui_client_lookup_add(CLIENT_LOOKUP *ClientLookup,
- *                                 char *ip, int len,
+ *                                 sfip_t* Ip, 
  *                                 FTP_CLIENT_PROTO_CONF *ClientConf)
  *
  * Purpose: Add a client configuration to the list.
@@ -116,7 +116,6 @@ int ftpp_ui_client_lookup_cleanup(CLIENT_LOOKUP **ClientLookup)
  *
  * Arguments: ClientLookup => a pointer to the lookup structure
  *            IP           => the ftp client address
- *            len          => Length of the address
  *            ClientConf   => a pointer to the client configuration structure
  *
  * Returns: int => return code indicating error or success
@@ -124,8 +123,7 @@ int ftpp_ui_client_lookup_cleanup(CLIENT_LOOKUP **ClientLookup)
  */
 int ftpp_ui_client_lookup_add(
     CLIENT_LOOKUP *ClientLookup,
-    sfip_t* Ip, FTP_CLIENT_PROTO_CONF *ClientConf
-)
+    sfip_t* Ip, FTP_CLIENT_PROTO_CONF *ClientConf)
 {
     int iRet;
 
@@ -134,12 +132,8 @@ int ftpp_ui_client_lookup_add(
         return FTPP_INVALID_ARG;
     }
 
-    iRet = sfrt_insert((void *)Ip, (unsigned char)Ip->bits, (void *)ClientConf, RT_FAVOR_SPECIFIC, ClientLookup);
-
-    if (iRet)
-    {
-        return FTPP_MEM_ALLOC_FAIL;
-    }
+    iRet = sfrt_insert((void *)Ip, (unsigned char)Ip->bits,
+        (void *)ClientConf, RT_FAVOR_SPECIFIC, ClientLookup);
 
     if (iRet)
     {

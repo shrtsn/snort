@@ -34,10 +34,10 @@
 #define DNP3_DATA_NAME "dnp3_data"
 
 /* Rule registration functions */
-int DNP3FuncInit(char *name, char *params, void **data);
-int DNP3ObjInit(char *name, char *params, void **data);
-int DNP3IndInit(char *name, char *params, void **data);
-int DNP3DataInit(char *name, char *params, void **data);
+int DNP3FuncInit(struct _SnortConfig *sc, char *name, char *params, void **data);
+int DNP3ObjInit(struct _SnortConfig *sc, char *name, char *params, void **data);
+int DNP3IndInit(struct _SnortConfig *sc, char *name, char *params, void **data);
+int DNP3DataInit(struct _SnortConfig *sc, char *name, char *params, void **data);
 
 /* Rule evaluation functions */
 int DNP3FuncEval(void *raw_packet, const uint8_t **cursor, void *data);

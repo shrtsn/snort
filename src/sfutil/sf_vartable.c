@@ -173,6 +173,7 @@ static char * sfvt_expand_value(vartable_t *table, char *value)
     return ret;
 
 sfvt_expand_value_error:
+    free(ret);
     free(tmp);
     return NULL;
 }

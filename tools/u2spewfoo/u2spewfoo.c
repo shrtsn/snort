@@ -159,6 +159,7 @@ void free_iterator(u2iterator *it) {
 
 int get_record(u2iterator *it, u2record *record) {
     uint32_t bytes_read;
+    uint8_t *tmp;
 
     if(!it || !it->file) return FAILURE;
 
@@ -195,11 +196,21 @@ int get_record(u2iterator *it, u2record *record) {
 
     s_pos = ftell(it->file);
 
-    record->data = (uint8_t *)realloc(record->data, record->length);
+    tmp = (uint8_t *)realloc(record->data, record->length);
+    
+    if (!tmp)
+    {
+        puts("get_record: (2) Failed to allocate memory.");
+        free(record->data);
+        return FAILURE;
+    }
+
+    record->data = tmp;
+
     bytes_read = fread(record->data, 1, record->length, it->file);
 
     if(bytes_read != record->length) {
-        puts("get_record: (2) Failed to read all of record data.");
+        puts("get_record: (3) Failed to read all of record data.");
         printf("\tRead %u of %u bytes\n", bytes_read, record->length);
 
         if ( record->type != UNIFIED2_PACKET || 

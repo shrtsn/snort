@@ -45,6 +45,7 @@
 #include "sfPolicyUserData.h"
 #include "mempool.h"
 #include "sf_email_attach_decode.h"
+#include "file_api.h"
 
 #ifdef DEBUG
 #include "sf_types.h"
@@ -88,6 +89,11 @@
 #define IMAP_FLAG_EMAIL_ATTACH               0x00000020
 #define IMAP_FLAG_MULTIPLE_EMAIL_ATTACH      0x00000040
 #define IMAP_FLAG_MIME_END                   0x00000080
+#define IMAP_FLAG_IN_CONT_DISP               0x00000200
+#define IMAP_FLAG_IN_CONT_DISP_CONT          0x00000400
+
+/* log flags */
+#define IMAP_FLAG_FILENAME_PRESENT           0x00000004
 
 /* session flags */
 #define IMAP_FLAG_NEXT_STATE_UNKNOWN         0x00000004
@@ -186,6 +192,7 @@ typedef enum _IMAPHdrEnum
 {
     HDR_CONTENT_TYPE = 0,
     HDR_CONT_TRANS_ENC,
+    HDR_CONT_DISP,
     HDR_LAST
 
 } IMAPHdrEnum;
@@ -228,6 +235,7 @@ typedef struct _IMAP
     int state;
     int data_state;
     int state_flags;
+    int log_flags;
     int session_flags;
     int alert_mask;
     int reassembling;
@@ -240,6 +248,7 @@ typedef struct _IMAP
     MemBucket *decode_bkt;
     IMAPMimeBoundary  mime_boundary;
     Email_DecodeState *decode_state;
+    MAIL_LogState *log_state;
 
     tSfPolicyId policy_id;
     tSfPolicyUserContextId config;
@@ -259,7 +268,7 @@ void SnortIMAP(SFSnortPacket *);
 int  IMAP_IsServer(uint16_t);
 void IMAP_FreeConfig(IMAPConfig *);
 void IMAP_FreeConfigs(tSfPolicyUserContextId);
-
+int  IMAP_GetFilename(void *data, uint8_t **buf, uint32_t *len, uint32_t *type);
 /**************************************************************************/
 
 #endif  /* __IMAP_H__ */

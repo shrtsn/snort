@@ -41,8 +41,6 @@
  *
  *
  */
-#ifdef DYNAMIC_PLUGIN
-
 #ifdef HAVE_CONFIG_H
 #include "config.h"
 #endif
@@ -107,6 +105,7 @@ void PreprocessorRuleOptionsFree(SFGHASH *preproc_rule_options)
 }
 
 int RegisterPreprocessorRuleOption(
+        struct _SnortConfig *sc,
         char *optionName,
         PreprocOptionInit initFunc,
         PreprocOptionEval evalFunc,
@@ -119,7 +118,6 @@ int RegisterPreprocessorRuleOption(
 {
     int ret;
     PreprocessorOptionInfo *optionInfo;
-    SnortConfig *sc = snort_conf_for_parsing;
     SnortPolicy *p;
 
     if (sc == NULL)
@@ -128,7 +126,7 @@ int RegisterPreprocessorRuleOption(
                    __FILE__, __LINE__);
     }
 
-    p = sc->targeted_policies[getParserPolicy()];
+    p = sc->targeted_policies[getParserPolicy(sc)];
     if (p == NULL)
         FatalError("%s(%d) Targeted policy is NULL.\n", __FILE__, __LINE__);
 
@@ -163,6 +161,7 @@ int RegisterPreprocessorRuleOption(
 }
 
 int GetPreprocessorRuleOptionFuncs(
+    SnortConfig *sc,
     char *optionName,
     PreprocOptionInit* initFunc,
     PreprocOptionEval* evalFunc,
@@ -172,7 +171,6 @@ int GetPreprocessorRuleOptionFuncs(
     )
 {
     PreprocessorOptionInfo *optionInfo;
-    SnortConfig *sc = snort_conf_for_parsing;
     SnortPolicy *p;
 
     if (sc == NULL)
@@ -181,7 +179,7 @@ int GetPreprocessorRuleOptionFuncs(
                    __FILE__, __LINE__);
     }
 
-    p = sc->targeted_policies[getParserPolicy()];
+    p = sc->targeted_policies[getParserPolicy(sc)];
     if (p == NULL)
         return 0;
 
@@ -318,13 +316,12 @@ int GetPreprocFastPatterns(void *data, int proto, int direction, FPContentInfo *
     return -1;
 }
 
-int AddPreprocessorRuleOption(char *optionName, OptTreeNode *otn, void *data, PreprocOptionEval evalFunc)
+int AddPreprocessorRuleOption(SnortConfig *sc, char *optionName, OptTreeNode *otn, void *data, PreprocOptionEval evalFunc)
 {
     OptFpList *fpl;
     PreprocessorOptionInfo *optionInfo;
     PreprocessorOptionInfo *saveOptionInfo;
     void *option_dup;
-    SnortConfig *sc = snort_conf_for_parsing;
     SnortPolicy *p;
 
     if (sc == NULL)
@@ -333,7 +330,7 @@ int AddPreprocessorRuleOption(char *optionName, OptTreeNode *otn, void *data, Pr
                    __FILE__, __LINE__);
     }
 
-    p = sc->targeted_policies[getParserPolicy()];
+    p = sc->targeted_policies[getParserPolicy(sc)];
     if (p == NULL)
         return 0;
 
@@ -357,7 +354,7 @@ int AddPreprocessorRuleOption(char *optionName, OptTreeNode *otn, void *data, Pr
      */
     fpl->context = (void *) saveOptionInfo;
 
-    if (add_detection_option(RULE_OPTION_TYPE_PREPROCESSOR,
+    if (add_detection_option(sc, RULE_OPTION_TYPE_PREPROCESSOR,
                              (void *)saveOptionInfo, &option_dup) == DETECTION_OPTION_EQUAL)
     {
         PreprocessorRuleOptionsFreeFunc(saveOptionInfo);
@@ -368,13 +365,12 @@ int AddPreprocessorRuleOption(char *optionName, OptTreeNode *otn, void *data, Pr
     return 1;
 }
 
-void PreprocessorRuleOptionOverrideFunc(char *keyword, char *option, char *args, OptTreeNode *otn, int protocol)
+void PreprocessorRuleOptionOverrideFunc(SnortConfig *sc, char *keyword, char *option, char *args, OptTreeNode *otn, int protocol)
 {
     PreprocessorOptionInfo *optionInfo;
     char *keyword_plus_option;
     void *opt_data;
     int name_len = strlen(keyword) + strlen(option) + 2;
-    SnortConfig *sc = snort_conf_for_parsing;
     SnortPolicy *p;
 
     if (sc == NULL)
@@ -383,7 +379,7 @@ void PreprocessorRuleOptionOverrideFunc(char *keyword, char *option, char *args,
                    __FILE__, __LINE__);
     }
 
-    p = sc->targeted_policies[getParserPolicy()];
+    p = sc->targeted_policies[getParserPolicy(sc)];
     if (p == NULL)
         FatalError("%s(%d) Targeted policy is NULL.\n", __FILE__, __LINE__);
 
@@ -397,13 +393,14 @@ void PreprocessorRuleOptionOverrideFunc(char *keyword, char *option, char *args,
         return;
     }
 
-    optionInfo->optionInit(keyword, args, &opt_data);
-    AddPreprocessorRuleOption(keyword_plus_option, otn, opt_data, optionInfo->optionEval);
+    optionInfo->optionInit(sc, keyword, args, &opt_data);
+    AddPreprocessorRuleOption(sc, keyword_plus_option, otn, opt_data, optionInfo->optionEval);
 
     free(keyword_plus_option);
 }
 
 void RegisterPreprocessorRuleOptionOverride(
+        struct _SnortConfig *sc,
         char *keyword,
         char *option,
         PreprocOptionInit initFunc,
@@ -422,7 +419,7 @@ void RegisterPreprocessorRuleOptionOverride(
     keyword_plus_option = (char *)SnortAlloc(name_len);
     SnortSnprintf(keyword_plus_option, name_len, "%s %s", keyword, option);
 
-    ret = RegisterPreprocessorRuleOption(keyword_plus_option, initFunc, evalFunc,
+    ret = RegisterPreprocessorRuleOption(sc, keyword_plus_option, initFunc, evalFunc,
             cleanupFunc, hashFunc, keyCompareFunc, otnHandler, fpFunc);
 
     /* Hash table allocs and manages keys internally */
@@ -438,5 +435,3 @@ void RegisterPreprocessorRuleOptionByteOrder(char *keyword, PreprocOptionByteOrd
 {
     RegisterByteOrderKeyword(keyword, boo_func);
 }
-
-#endif /* DYNAMIC_PLUGIN */

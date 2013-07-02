@@ -79,7 +79,7 @@ typedef struct _GTP_InfoRuleOptData
 /********************************************************************
  * Public function prototypes
  ********************************************************************/
-void GTP_RegRuleOptions(void);
+void GTP_RegRuleOptions(struct _SnortConfig *sc);
 
 
 #endif  /* _GTP_ROPTIONS_H_ */

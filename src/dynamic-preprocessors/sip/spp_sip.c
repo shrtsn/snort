@@ -87,17 +87,17 @@ int16_t sip_app_id = SFTARGET_UNKNOWN_PROTOCOL;
  * Function prototype(s)
  */
 SIPData * SIPGetNewSession(SFSnortPacket *, tSfPolicyId);
-static void SIPInit( char* );
-static void SIPCheckConfig(void);
+static void SIPInit( struct _SnortConfig *, char* );
+static int SIPCheckConfig(struct _SnortConfig *);
 static void FreeSIPData( void* );
 static inline int SIP_Process(SFSnortPacket *, SIPData*);
 static void SIPmain( void*, void* );
 static inline int CheckSIPPort( uint16_t );
 static void SIPFreeConfig(tSfPolicyUserContextId);
-static void _addPortsToStream5Filter(SIPConfig *, tSfPolicyId);
+static void _addPortsToStream5Filter(struct _SnortConfig *, SIPConfig *, tSfPolicyId);
 static void SIP_PrintStats(int);
 #ifdef TARGET_BASED
-static void _addServicesToStream5Filter(tSfPolicyId);
+static void _addServicesToStream5Filter(struct _SnortConfig *, tSfPolicyId);
 #endif
 
 static void SIPCleanExit(int, void *);
@@ -111,10 +111,9 @@ SIPConfig *sip_eval_config;
 tSfPolicyUserContextId sip_config;
 
 #ifdef SNORT_RELOAD
-static tSfPolicyUserContextId sip_swap_config = NULL;
-static void SIPReload(char *);
-static int SIPReloadVerify(void);
-static void * SIPReloadSwap(void);
+static void SIPReload(struct _SnortConfig *, char *, void **);
+static int SIPReloadVerify(struct _SnortConfig *, void *);
+static void * SIPReloadSwap(struct _SnortConfig *, void *);
 static void SIPReloadSwapFree(void *);
 #endif
 
@@ -135,10 +134,22 @@ void SetupSIP(void)
     _dpd.registerPreproc( "sip", SIPInit );
 #else
     _dpd.registerPreproc("sip", SIPInit, SIPReload,
-            SIPReloadSwap, SIPReloadSwapFree);
+            SIPReloadVerify, SIPReloadSwap, SIPReloadSwapFree);
 #endif
 }
 
+SIPConfig *getParsingSIPConfig(struct _SnortConfig *sc)
+{
+    SIPConfig * sip_parsing_config;
+#ifdef SNORT_RELOAD
+    tSfPolicyUserContextId sip_swap_config = (tSfPolicyUserContextId)_dpd.getRelatedReloadData(sc, "sip");
+    if (sip_swap_config)
+        sip_parsing_config = sfPolicyUserDataGetCurrent(sip_swap_config);
+    else
+#endif
+        sip_parsing_config = sfPolicyUserDataGetCurrent(sip_config);
+    return sip_parsing_config;
+}
 /* Initializes the SIP preprocessor module and registers
  * it in the preprocessor list.
  *
@@ -149,9 +160,9 @@ void SetupSIP(void)
  *
  * RETURNS:     Nothing.
  */
-static void SIPInit(char *argp)
+static void SIPInit(struct _SnortConfig *sc, char *argp)
 {
-    tSfPolicyId policy_id = _dpd.getParserPolicy();
+    tSfPolicyId policy_id = _dpd.getParserPolicy(sc);
     SIPConfig *pDefaultPolicyConfig = NULL;
     SIPConfig *pPolicyConfig = NULL;
 
@@ -166,7 +177,7 @@ static void SIPInit(char *argp)
                     "for SIP config.\n");
         }
 
-        _dpd.addPreprocConfCheck(SIPCheckConfig);
+        _dpd.addPreprocConfCheck(sc, SIPCheckConfig);
         _dpd.registerPreprocStats(SIP_NAME, SIP_PrintStats);
         _dpd.addPreprocExit(SIPCleanExit, NULL, PRIORITY_LAST, PP_SIP);
 
@@ -200,7 +211,7 @@ static void SIPInit(char *argp)
 
     sfPolicyUserDataSetCurrent(sip_config, pPolicyConfig);
 
-    SIP_RegRuleOptions();
+    SIP_RegRuleOptions(sc);
 
     ParseSIPArgs(pPolicyConfig, (u_char *)argp);
 
@@ -213,12 +224,12 @@ static void SIPInit(char *argp)
         DynamicPreprocessorFatalMessage("SetupSIP(): The Stream preprocessor must be enabled.\n");
     }
 
-    _dpd.addPreproc( SIPmain, PRIORITY_APPLICATION, PP_SIP, PROTO_BIT__UDP|PROTO_BIT__TCP );
+    _dpd.addPreproc( sc, SIPmain, PRIORITY_APPLICATION, PP_SIP, PROTO_BIT__UDP|PROTO_BIT__TCP );
 
-    _addPortsToStream5Filter(pPolicyConfig, policy_id);
+    _addPortsToStream5Filter(sc, pPolicyConfig, policy_id);
 
 #ifdef TARGET_BASED
-    _addServicesToStream5Filter(policy_id);
+    _addServicesToStream5Filter(sc, policy_id);
 #endif
 }
 /*********************************************************************
@@ -591,7 +602,7 @@ static inline int CheckSIPPort( uint16_t port )
     return SIP_FALSE;
 }
 
-static void _addPortsToStream5Filter(SIPConfig *config, tSfPolicyId policy_id)
+static void _addPortsToStream5Filter(struct _SnortConfig *sc, SIPConfig *config, tSfPolicyId policy_id)
 {
     int portNum;
 
@@ -603,37 +614,43 @@ static void _addPortsToStream5Filter(SIPConfig *config, tSfPolicyId policy_id)
         if(config->ports[(portNum/8)] & (1<<(portNum%8)))
         {
             //Add port the port
-            _dpd.streamAPI->set_port_filter_status(IPPROTO_UDP, (uint16_t)portNum, PORT_MONITOR_SESSION, policy_id, 1);
-            _dpd.streamAPI->set_port_filter_status(IPPROTO_TCP, (uint16_t)portNum, PORT_MONITOR_SESSION, policy_id, 1);
+            _dpd.streamAPI->set_port_filter_status(sc, IPPROTO_UDP, (uint16_t)portNum, PORT_MONITOR_SESSION, policy_id, 1);
+            _dpd.streamAPI->set_port_filter_status(sc, IPPROTO_TCP, (uint16_t)portNum, PORT_MONITOR_SESSION, policy_id, 1);
         }
     }
 
 }
 #ifdef TARGET_BASED
 
-static void _addServicesToStream5Filter(tSfPolicyId policy_id)
+static void _addServicesToStream5Filter(struct _SnortConfig *sc, tSfPolicyId policy_id)
 {
-    _dpd.streamAPI->set_service_filter_status(sip_app_id, PORT_MONITOR_SESSION, policy_id, 1);
+    _dpd.streamAPI->set_service_filter_status(sc, sip_app_id, PORT_MONITOR_SESSION, policy_id, 1);
 }
 #endif
-static int SIPCheckPolicyConfig(tSfPolicyUserContextId config, tSfPolicyId policyId, void* pData)
+static int SIPCheckPolicyConfig(struct _SnortConfig *sc, tSfPolicyUserContextId config, tSfPolicyId policyId, void* pData)
 {
     SIPConfig *pPolicyConfig = (SIPConfig *)pData;
 
-    _dpd.setParserPolicy(policyId);
+    _dpd.setParserPolicy(sc, policyId);
 
     if (pPolicyConfig->disabled)
         return 0;
 
-    if (!_dpd.isPreprocEnabled(PP_STREAM5))
+    if (!_dpd.isPreprocEnabled(sc, PP_STREAM5))
     {
-        DynamicPreprocessorFatalMessage("SIPCheckPolicyConfig(): The Stream preprocessor must be enabled.\n");
+        _dpd.errMsg("SIPCheckPolicyConfig(): The Stream preprocessor must be enabled.\n");
+        return -1;
     }
     return 0;
 }
-void SIPCheckConfig(void)
+int SIPCheckConfig(struct _SnortConfig *sc)
 {
-    sfPolicyUserDataIterate (sip_config, SIPCheckPolicyConfig);
+    int rval;
+
+    if ((rval = sfPolicyUserDataIterate (sc, sip_config, SIPCheckPolicyConfig)))
+        return rval;
+
+    return 0;
 }
 
 
@@ -666,7 +683,7 @@ void SIPFreeConfig(tSfPolicyUserContextId config)
     if (config == NULL)
         return;
 
-    sfPolicyUserDataIterate (config, SIPFreeConfigPolicy);
+    sfPolicyUserDataFreeIterate (config, SIPFreeConfigPolicy);
     sfPolicyConfigDelete(config);
 }
 /******************************************************************
@@ -710,9 +727,10 @@ static void SIP_PrintStats(int exiting)
     }
 }
 #ifdef SNORT_RELOAD
-static void SIPReload(char *args)
+static void SIPReload(struct _SnortConfig *sc, char *args, void **new_config)
 {
-    tSfPolicyId policy_id = _dpd.getParserPolicy();
+    tSfPolicyUserContextId sip_swap_config = (tSfPolicyUserContextId)*new_config;
+    tSfPolicyId policy_id = _dpd.getParserPolicy(sc);
     SIPConfig * pPolicyConfig = NULL;
 
     if (sip_swap_config == NULL)
@@ -724,7 +742,7 @@ static void SIPReload(char *args)
             DynamicPreprocessorFatalMessage("Failed to allocate memory "
                     "for SIP config.\n");
         }
-
+        *new_config = (void *)sip_swap_config;
     }
 
     sfPolicyUserPolicySet (sip_swap_config, policy_id);
@@ -743,7 +761,7 @@ static void SIPReload(char *args)
     }
     sfPolicyUserDataSetCurrent(sip_swap_config, pPolicyConfig);
 
-    SIP_RegRuleOptions();
+    SIP_RegRuleOptions(sc);
 
     ParseSIPArgs(pPolicyConfig, (u_char *)args);
 
@@ -755,18 +773,18 @@ static void SIPReload(char *args)
         DynamicPreprocessorFatalMessage("SetupSIP(): The Stream preprocessor must be enabled.\n");
     }
 
-    _dpd.addPreproc( SIPmain, PRIORITY_APPLICATION, PP_SIP, PROTO_BIT__UDP|PROTO_BIT__TCP );
-    _dpd.addPreprocReloadVerify(SIPReloadVerify);
+    _dpd.addPreproc( sc, SIPmain, PRIORITY_APPLICATION, PP_SIP, PROTO_BIT__UDP|PROTO_BIT__TCP );
 
-    _addPortsToStream5Filter(pPolicyConfig, policy_id);
+    _addPortsToStream5Filter(sc, pPolicyConfig, policy_id);
 
 #ifdef TARGET_BASED
-    _addServicesToStream5Filter(policy_id);
+    _addServicesToStream5Filter(sc, policy_id);
 #endif
 }
 
-static int SIPReloadVerify(void)
+static int SIPReloadVerify(struct _SnortConfig *sc, void *swap_config)
 {
+    tSfPolicyUserContextId sip_swap_config = (tSfPolicyUserContextId)swap_config;
     SIPConfig * pPolicyConfig = NULL;
     SIPConfig * pCurrentConfig = NULL;
 
@@ -781,9 +799,10 @@ static int SIPReloadVerify(void)
     if ( pPolicyConfig->disabled )
         return 0;
 
-    if (!_dpd.isPreprocEnabled(PP_STREAM5))
+    if (!_dpd.isPreprocEnabled(sc, PP_STREAM5))
     {
-        DynamicPreprocessorFatalMessage("SetupSIP(): The Stream preprocessor must be enabled.\n");
+        _dpd.errMsg("SetupSIP(): The Stream preprocessor must be enabled.\n");
+        return -1;
     }
 
     if (sip_config != NULL)
@@ -797,8 +816,6 @@ static int SIPReloadVerify(void)
     if (pPolicyConfig->maxNumSessions != pCurrentConfig->maxNumSessions)
     {
         _dpd.errMsg("SIP reload: Changing the max_sessions requires a restart.\n");
-        SIPFreeConfig(sip_swap_config);
-        sip_swap_config = NULL;
         return -1;
     }
 
@@ -821,17 +838,17 @@ static int SIPFreeUnusedConfigPolicy(
     return 0;
 }
 
-static void * SIPReloadSwap(void)
+static void * SIPReloadSwap(struct _SnortConfig *sc, void *swap_config)
 {
+    tSfPolicyUserContextId sip_swap_config = (tSfPolicyUserContextId)swap_config;
     tSfPolicyUserContextId old_config = sip_config;
 
     if (sip_swap_config == NULL)
         return NULL;
 
     sip_config = sip_swap_config;
-    sip_swap_config = NULL;
 
-    sfPolicyUserDataIterate (old_config, SIPFreeUnusedConfigPolicy);
+    sfPolicyUserDataFreeIterate (old_config, SIPFreeUnusedConfigPolicy);
 
     if (sfPolicyUserPolicyGetActive(old_config) == 0)
     {

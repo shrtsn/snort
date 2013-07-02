@@ -111,12 +111,14 @@
 #include "config.h"
 #endif
 
+#include "snort.h"
 #include "decode.h"
 #include "portscan.h"
 #include "packet_time.h"
 #include "sfxhash.h"
 #include "ipobj.h"
 #include "stream_api.h"
+#include "sfPolicyData.h"
 #include "sfPolicyUserData.h"
 
 # define CLEARED &cleared
@@ -140,10 +142,6 @@ typedef struct s_PS_ALERT_CONF
 
 extern tSfPolicyUserContextId portscan_config;
 extern PortscanConfig *portscan_eval_config;
-
-#ifdef SNORT_RELOAD
-extern tSfPolicyUserContextId portscan_swap_config;
-#endif
 
 static SFXHASH *portscan_hash = NULL;
 
@@ -240,7 +238,7 @@ static int ps_tracker_free(void *key, void *data)
     **  Cycle through the protos to see if it's past the time.
     **  We only get here if we ARE a priority node.
     */
-    if(tracker->proto.window >= packet_timeofday())
+    if(tracker->proto.window >= packet_time())
         return 1;
 
     return 0;
@@ -258,10 +256,10 @@ static int ps_tracker_free(void *key, void *data)
 **
 **  @retval -2 memcap is too low
 */
-int ps_init(PortscanConfig *config, int detect_scans, int detect_scan_type,
+int ps_init(struct _SnortConfig *sc, PortscanConfig *config, int detect_scans, int detect_scan_type,
             int sense_level, IPSET *scanner, IPSET *scanned, IPSET *watch, unsigned long memcap)
 {
-    if (getParserPolicy() != getDefaultPolicy())
+    if (getParserPolicy(sc) != getDefaultPolicy())
     {
         /**checks valid for non-default policy only. Default is allowed to specify
          * just memcap.
@@ -882,7 +880,7 @@ static int ps_tracker_update_tcp(PS_PKT *ps_pkt, PS_TRACKER *scanner,
     IP_CLEAR(cleared);
 
     p = (Packet *)ps_pkt->pkt;
-    pkt_time = packet_timeofday();
+    pkt_time = packet_time();
 
     /*
     **  Handle the initiating packet.
@@ -1063,7 +1061,7 @@ static int ps_tracker_update_ip(PS_PKT *ps_pkt, PS_TRACKER *scanner,
     IP_CLEAR(cleared);
 
     p = (Packet *)ps_pkt->pkt;
-    pkt_time = packet_timeofday();
+    pkt_time = packet_time();
 
     if(p->iph)
     {
@@ -1097,7 +1095,7 @@ static int ps_tracker_update_udp(PS_PKT *ps_pkt, PS_TRACKER *scanner,
     IP_CLEAR(cleared);
 
     p = (Packet *)ps_pkt->pkt;
-    pkt_time = packet_timeofday();
+    pkt_time = packet_time();
 
     if(p->icmph)
     {
@@ -1157,7 +1155,7 @@ static int ps_tracker_update_icmp(PS_PKT *ps_pkt, PS_TRACKER *scanner,
     IP_CLEAR(cleared);
 
     p = (Packet *)ps_pkt->pkt;
-    pkt_time = packet_timeofday();
+    pkt_time = packet_time();
 
     if(p->icmph)
     {
@@ -1842,7 +1840,7 @@ void ps_tracker_print(PS_TRACKER* ps_tracker)
 }
 #endif
 
-int ps_get_protocols(tSfPolicyId policyId)
+int ps_get_protocols(struct _SnortConfig *sc, tSfPolicyId policyId)
 {
     tSfPolicyUserContextId config = portscan_config;
     PortscanConfig *pPolicyConfig = NULL;
@@ -1850,6 +1848,8 @@ int ps_get_protocols(tSfPolicyId policyId)
 #ifdef SNORT_RELOAD
     /* This is called during configuration time so use the swap
      * config if it exists */
+    tSfPolicyUserContextId portscan_swap_config;
+    portscan_swap_config = (tSfPolicyUserContextId)GetRelatedReloadData(sc, "sfportscan");
     if (portscan_swap_config != NULL)
         config = portscan_swap_config;
 #endif

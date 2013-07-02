@@ -56,7 +56,7 @@
 #include "snort.h"
 
 /* list of function prototypes for this output plugin */
-static void LogNullInit(char *);
+static void LogNullInit(struct _SnortConfig *, char *);
 static void LogNull(Packet *, char *, void *, Event *);
 static void LogNullCleanExitFunc(int, void *);
 
@@ -70,12 +70,12 @@ void LogNullSetup(void)
 }
 
 
-static void LogNullInit(char *args)
+static void LogNullInit(struct _SnortConfig *sc, char *args)
 {
     DEBUG_WRAP(DebugMessage(DEBUG_PLUGIN, "Output: LogNull Initialized\n"););
 
     /* Set the preprocessor function into the function list */
-    AddFuncToOutputList(LogNull, OUTPUT_TYPE__LOG, NULL);
+    AddFuncToOutputList(sc, LogNull, OUTPUT_TYPE__LOG, NULL);
     AddFuncToCleanExitList(LogNullCleanExitFunc, NULL);
 }
 

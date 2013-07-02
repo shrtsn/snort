@@ -37,18 +37,13 @@
 #include "sfPolicyUserData.h"
 #include "treenodes.h"
 
-extern tSfPolicyUserContextId sdf_context_id;
-extern sdf_tree_node *head_node;
-extern uint32_t num_patterns;
-
 #ifdef SNORT_RELOAD
-extern tSfPolicyUserContextId sdf_swap_context_id;
 extern sdf_tree_node *swap_head_node;
 extern uint32_t swap_num_patterns;
 #endif
 
-void AddPortsToConf(SDFConfig *config, OptTreeNode *otn);
-void AddProtocolsToConf(SDFConfig *config, OptTreeNode *otn);
+void AddPortsToConf(struct _SnortConfig *sc, SDFConfig *config, OptTreeNode *otn);
+void AddProtocolsToConf(struct _SnortConfig *sc, SDFConfig *config, OptTreeNode *otn);
 
 /* Function: SDFOptionInit
  * Purpose:  Parses a SDF rule option.
@@ -60,7 +55,7 @@ void AddProtocolsToConf(SDFConfig *config, OptTreeNode *otn);
  *          0 if name is incorrect
  *          Fatal Error if invalid arguments
  */
-int SDFOptionInit(char *name, char *args, void **data)
+int SDFOptionInit(struct _SnortConfig *sc, char *name, char *args, void **data)
 {
     char *token, *endptr;
     unsigned long int tmpcount;
@@ -143,7 +138,7 @@ int SDFOptionInit(char *name, char *args, void **data)
 
 /* This function receives the OTN of a fully-parsed rule, checks that it is a
    SDF rule, then adds pattern & OTN to the SDF pattern-matching tree. */
-int SDFOtnHandler(void *potn)
+int SDFOtnHandler(struct _SnortConfig *sc, void *potn)
 {
     OptTreeNode *otn = (OptTreeNode *)potn;
     SDFConfig *config;
@@ -151,24 +146,26 @@ int SDFOtnHandler(void *potn)
     SDFOptionData *sdf_data;
     OptFpList *tmp = otn->opt_func;
     PreprocessorOptionInfo *preproc_info = NULL;
-    tSfPolicyUserContextId context_to_use = sdf_context_id;
-    sdf_tree_node *head_node_to_use = head_node;
-    uint32_t *num_patterns_to_use = &num_patterns;
+    tSfPolicyUserContextId context_to_use = sdf_context->context_id;
+    sdf_tree_node *head_node_to_use = sdf_context->head_node;
+    uint32_t *num_patterns_to_use = &sdf_context->num_patterns;
     int sdf_option_added = 0;
 
 #ifdef SNORT_RELOAD
     /* If we are reloading, use that context instead.
        This should work since preprocessors get configured before rule parsing */
-    if (sdf_swap_context_id != NULL)
+    SDFContext *sdf_swap_context;
+    sdf_swap_context = (SDFContext *)_dpd.getRelatedReloadData(sc, "sensitive_data");
+    if (sdf_swap_context != NULL)
     {
-        context_to_use = sdf_swap_context_id;
-        head_node_to_use = swap_head_node;
-        num_patterns_to_use = &swap_num_patterns;
+        context_to_use = sdf_swap_context->context_id;
+        head_node_to_use = sdf_swap_context->head_node;
+        num_patterns_to_use = &sdf_swap_context->num_patterns;
     }
 #endif
 
     /* Retrieve the current policy being parsed */
-    policy_id = _dpd.getParserPolicy();
+    policy_id = _dpd.getParserPolicy(sc);
     sfPolicyUserPolicySet(context_to_use, policy_id);
     config = (SDFConfig *) sfPolicyUserDataGetCurrent(context_to_use);
 
@@ -207,8 +204,8 @@ int SDFOtnHandler(void *potn)
         AddPii(head_node_to_use, sdf_data);
         sdf_data->counter_index = (*num_patterns_to_use)++;
 
-        AddPortsToConf(config, otn);
-        AddProtocolsToConf(config, otn);
+        AddPortsToConf(sc, config, otn);
+        AddProtocolsToConf(sc, config, otn);
 
         sdf_option_added = 1;
         preproc_info = NULL;
@@ -219,7 +216,7 @@ int SDFOtnHandler(void *potn)
 }
 
 /* Take a port object's ports and add them to the preprocessor's port array. */
-void AddPortsToConf(SDFConfig *config, OptTreeNode *otn)
+void AddPortsToConf(struct _SnortConfig *sc, SDFConfig *config, OptTreeNode *otn)
 {
     int i, nports;
     char *src_parray, *dst_parray;
@@ -229,7 +226,7 @@ void AddPortsToConf(SDFConfig *config, OptTreeNode *otn)
         return;
 
     /* RTNs vary based on which policy the rule appears in. */
-    rtn = otn->proto_nodes[_dpd.getParserPolicy()];
+    rtn = otn->proto_nodes[_dpd.getParserPolicy(sc)];
 
     /* Take the source port object and add ports to the preproc's array */
     src_parray = _dpd.portObjectCharPortArray(NULL, rtn->src_portobject, &nports);
@@ -278,12 +275,12 @@ void AddPortsToConf(SDFConfig *config, OptTreeNode *otn)
         free(dst_parray);
 }
 
-void AddProtocolsToConf(SDFConfig *config, OptTreeNode *otn)
+void AddProtocolsToConf(struct _SnortConfig *sc, SDFConfig *config, OptTreeNode *otn)
 {
 #ifdef TARGET_BASED
     unsigned int i;
     int16_t ordinal;
-    tSfPolicyId policy_id = _dpd.getParserPolicy();
+    tSfPolicyId policy_id = _dpd.getParserPolicy(sc);
 
     if (config == NULL || otn == NULL)
         return;
@@ -295,7 +292,7 @@ void AddProtocolsToConf(SDFConfig *config, OptTreeNode *otn)
             config->protocol_ordinals[ordinal] = 1;
 
         _dpd.streamAPI->set_service_filter_status(
-            ordinal, PORT_MONITOR_SESSION, policy_id, 1);
+            sc, ordinal, PORT_MONITOR_SESSION, policy_id, 1);
     }
 #endif
 }

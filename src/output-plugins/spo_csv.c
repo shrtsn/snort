@@ -91,8 +91,8 @@ typedef struct _AlertCSVData
 
 
 /* list of function prototypes for this preprocessor */
-static void AlertCSVInit(char *);
-static AlertCSVData *AlertCSVParseArgs(char *);
+static void AlertCSVInit(struct _SnortConfig *, char *);
+static AlertCSVData *AlertCSVParseArgs(struct _SnortConfig *, char *);
 static void AlertCSV(Packet *, char *, void *, Event *);
 static void AlertCSVCleanExit(int, void *);
 static void RealAlertCSV(
@@ -132,18 +132,18 @@ void AlertCSVSetup(void)
  * Returns: void function
  *
  */
-static void AlertCSVInit(char *args)
+static void AlertCSVInit(struct _SnortConfig *sc, char *args)
 {
     AlertCSVData *data;
     DEBUG_WRAP(DebugMessage(DEBUG_INIT, "Output: CSV Initialized\n"););
 
     /* parse the argument list from the rules file */
-    data = AlertCSVParseArgs(args);
+    data = AlertCSVParseArgs(sc, args);
 
     DEBUG_WRAP(DebugMessage(DEBUG_INIT, "Linking CSV functions to call lists...\n"););
 
     /* Set the preprocessor function into the function list */
-    AddFuncToOutputList(AlertCSV, OUTPUT_TYPE__ALERT, data);
+    AddFuncToOutputList(sc, AlertCSV, OUTPUT_TYPE__ALERT, data);
     AddFuncToCleanExitList(AlertCSVCleanExit, data);
 }
 
@@ -160,7 +160,7 @@ static void AlertCSVInit(char *args)
  *
  * Returns: void function
  */
-static AlertCSVData *AlertCSVParseArgs(char *args)
+static AlertCSVData *AlertCSVParseArgs(struct _SnortConfig *sc, char *args)
 {
     char **toks;
     int num_toks;
@@ -186,7 +186,7 @@ static AlertCSVData *AlertCSVParseArgs(char *args)
                 if ( !strcasecmp(tok, "stdout") )
                     filename = SnortStrdup(tok);
                 else
-                    filename = ProcessFileOption(snort_conf_for_parsing, tok);
+                    filename = ProcessFileOption(sc, tok);
                 break;
 
             case 1:
@@ -220,7 +220,7 @@ static AlertCSVData *AlertCSVParseArgs(char *args)
         }
     }
     if ( !data->csvargs ) data->csvargs = strdup(DEFAULT_CSV);
-    if ( !filename ) filename = ProcessFileOption(snort_conf_for_parsing, DEFAULT_FILE);
+    if ( !filename ) filename = ProcessFileOption(sc, DEFAULT_FILE);
 
     mSplitFree(&toks, num_toks);
     toks = mSplit(data->csvargs, ",", 0, &num_toks, 0);

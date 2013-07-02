@@ -45,7 +45,7 @@
 #define CONF_SEPARATORS " \t\n\r"
 
 /*
- * These are the definitions of the parser section delimiting 
+ * These are the definitions of the parser section delimiting
  * keywords to configure FtpTelnet.  When one of these keywords
  * are seen, we begin a new section.
  */
@@ -56,28 +56,37 @@
 #define CLIENT        "client"
 #define SERVER        "server"
 
+#ifdef TARGET_BASED
+extern int16_t ftp_app_id;
+extern int16_t ftp_data_app_id;
+extern int16_t telnet_app_id;
+#endif
 
 void FTPTelnetFreeConfigs(tSfPolicyUserContextId GlobalConf);
 void FTPTelnetFreeConfig(FTPTELNET_GLOBAL_CONF *GlobalConf);
 int SnortFTPTelnet(SFSnortPacket *p);
-void FTPConfigCheck(void);
+#ifdef TARGET_BASED
+int SnortFTPData(SFSnortPacket *p);
+#endif
+int FTPConfigCheck(struct _SnortConfig *);
 int FtpTelnetInitGlobalConfig(FTPTELNET_GLOBAL_CONF *, char *, int);
 char *NextToken(char *delimiters);
 
-int FTPPBounceInit(char *name, char *parameters, void **dataPtr);
+int FTPPBounceInit(struct _SnortConfig *sc, char *name, char *parameters, void **dataPtr);
 int FTPPBounceEval(void *p, const uint8_t **cursor, void *dataPtr);
+
+void FTPTelnetChecks(void *pkt, void *context);
 
 void FTPTelnetCleanupFTPServerConf(void *serverConf);
 void FTPTelnetCleanupFTPCMDConf(void *ftpCmd);
 void FTPTelnetCleanupFTPClientConf(void *clientConf);
 void FTPTelnetCleanupFTPBounceTo(void *ftpBounce);
-void FTPTelnetCheckFTPServerConfigs(FTPTELNET_GLOBAL_CONF *);
-void _FTPTelnetAddPortsOfInterest(FTPTELNET_GLOBAL_CONF *, tSfPolicyId);
+int FTPTelnetCheckFTPServerConfigs(struct _SnortConfig *, FTPTELNET_GLOBAL_CONF *);
 
 int ProcessFTPGlobalConf(FTPTELNET_GLOBAL_CONF *, char *, int);
 int ProcessTelnetConf(FTPTELNET_GLOBAL_CONF *, char *, int);
 int ProcessFTPClientConf(FTPTELNET_GLOBAL_CONF *, char *, int);
 int ProcessFTPServerConf(FTPTELNET_GLOBAL_CONF *, char *, int);
 int PrintFTPGlobalConf(FTPTELNET_GLOBAL_CONF *);
-int FTPTelnetCheckConfigs( void* , tSfPolicyId );
+int FTPTelnetCheckConfigs(struct _SnortConfig *, void* , tSfPolicyId );
 #endif

@@ -276,16 +276,19 @@ static void DisplaySIPConfig(SIPConfig *config)
  */
 static void SIP_SetDefaultMethods(SIPConfig *config)
 {
-
     int i;
     config->methodsConfig = SIP_METHOD_DEFAULT;
     for (i = 0; i < 6 ; i++)
     {
-        SIP_AddMethodToList(StandardMethods[i].name, StandardMethods[i].methodFlag, &config->methods);
+        if (SIP_AddMethodToList(StandardMethods[i].name,
+                    StandardMethods[i].methodFlag, &config->methods) == NULL)
+        {
+            DynamicPreprocessorFatalMessage("%s(%d) => Failed to add SIP "
+                    "default method: %s.\n", *(_dpd.config_file),
+                    *(_dpd.config_line), StandardMethods[i].name);
+        }
     }
-
 }
-
 
 /********************************************************************
  * Function: SIP_ParsePortList()
@@ -443,12 +446,23 @@ static void SIP_ParseMethods(char **ptr, uint32_t *methodsConfig, SIPMethodlist*
         if (METHOD_NOT_FOUND != i_method )
         {
             *methodsConfig |= 1 << (StandardMethods[i_method].methodFlag - 1);
-            SIP_AddMethodToList(cur_tokenp,StandardMethods[i_method].methodFlag, pmethods);
-
+            if (SIP_AddMethodToList(cur_tokenp,
+                        StandardMethods[i_method].methodFlag, pmethods) == NULL)
+            {
+                DynamicPreprocessorFatalMessage(
+                        "%s(%d) => Failed to add SIP method: %s.\n",
+                        *(_dpd.config_file), *(_dpd.config_line), cur_tokenp);
+            }
         }
         else
         {
-            SIP_AddUserDefinedMethod(cur_tokenp, methodsConfig, pmethods);
+            if (SIP_AddUserDefinedMethod(cur_tokenp,
+                        methodsConfig, pmethods) == NULL)
+            {
+                DynamicPreprocessorFatalMessage(
+                        "%s(%d) => Failed to add user defined SIP method: %s.\n",
+                        *(_dpd.config_file), *(_dpd.config_line), cur_tokenp);
+            }
         }
         cur_tokenp = strtok( NULL, SIP_CONFIG_VALUE_SEPERATORS);
 

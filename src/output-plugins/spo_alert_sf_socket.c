@@ -80,9 +80,9 @@ typedef struct _AlertSFSocketGidSid
 } AlertSFSocketGidSid;
 static AlertSFSocketGidSid *sid_list = NULL;
 
-static void AlertSFSocket_Init(char *args);
-static void AlertSFSocketSid_Init(char *args);
-void AlertSFSocketSid_InitFinalize(int unused, void *also_unused);
+static void AlertSFSocket_Init(struct _SnortConfig *, char *args);
+static void AlertSFSocketSid_Init(struct _SnortConfig *, char *args);
+void AlertSFSocketSid_InitFinalize(struct _SnortConfig *sc, int unused, void *also_unused);
 void AlertSFSocket(Packet *packet, char *msg, void *arg, Event *event);
 
 static int AlertSFSocket_Connect(void);
@@ -109,7 +109,7 @@ void AlertSFSocket_Setup(void)
 #define UNIX_PATH_MAX 108
 #endif
 
-static void AlertSFSocket_Init(char *args)
+static void AlertSFSocket_Init(struct _SnortConfig *sc, char *args)
 {
     /* process argument */
     char *sockname;
@@ -214,7 +214,7 @@ int GidSid2UInt(char * args, uint32_t * sidValue, uint32_t * gidValue)
     return SNORT_SUCCESS;
 }
 
-static void AlertSFSocketSid_Init(char *args)
+static void AlertSFSocketSid_Init(struct _SnortConfig *sc, char *args)
 {
     uint32_t sidValue;
     uint32_t gidValue;
@@ -240,12 +240,12 @@ static void AlertSFSocketSid_Init(char *args)
     }
     else
     {
-        AddFuncToPostConfigList(AlertSFSocketSid_InitFinalize, NULL);
+        AddFuncToPostConfigList(sc, AlertSFSocketSid_InitFinalize, NULL);
     }
     sid_list = new_sid;
 }
 
-void AlertSFSocketSid_InitFinalize(int unused, void *also_unused)
+void AlertSFSocketSid_InitFinalize(struct _SnortConfig *sc, int unused, void *also_unused)
 {
     AlertSFSocketGidSid *new_sid = sid_list;
     AlertSFSocketGidSid *next_sid;

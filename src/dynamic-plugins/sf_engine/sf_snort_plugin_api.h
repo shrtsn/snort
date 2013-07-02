@@ -414,7 +414,8 @@ typedef struct _Rule
 } Rule;
 
 
-ENGINE_LINKAGE int RegisterRules(Rule **rules);
+struct _SnortConfig;
+ENGINE_LINKAGE int RegisterRules(struct _SnortConfig *sc, Rule **rules);
 ENGINE_LINKAGE int DumpRules(char *rulesFileName, Rule **rules);
 
 ENGINE_LINKAGE int contentMatch(void *p, ContentInfo* content, const uint8_t **cursor);

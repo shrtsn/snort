@@ -174,17 +174,12 @@ static KEYNODE *  KMapAddKeyNode(KMAP * km,void * key, int n, void * userdata )
 {
     KEYNODE * knode;
 
-    if( n < 0 )
-    {
+    if (n <= 0)
         return 0;
-    }
 
     knode = (KEYNODE*) s_malloc( sizeof(KEYNODE) );
-
-    if( !knode )
-    {
+    if (!knode)
         return 0;
-    }
 
     memset(knode, 0, sizeof(KEYNODE) );
 

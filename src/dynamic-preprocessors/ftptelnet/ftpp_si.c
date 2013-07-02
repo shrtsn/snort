@@ -66,11 +66,6 @@
 
 extern tSfPolicyUserContextId ftp_telnet_config;
 
-#ifdef TARGET_BASED
-extern int16_t ftp_app_id;
-extern int16_t telnet_app_id;
-#endif
-
 static FTP_SESSION StaticSession;
 
 /*
@@ -320,27 +315,28 @@ int TelnetSessionInspection(SFSnortPacket *p, FTPTELNET_GLOBAL_CONF *GlobalConf,
     }
     else if (app_id && app_id != telnet_app_id)
     {
-            return FTPP_INVALID_PROTO;
-    }
-    else {
-#endif
-    iTelnetSip = PortMatch((PROTO_CONF*)GlobalConf->telnet_config,
-                           SiInput->sport);
-    iTelnetDip = PortMatch((PROTO_CONF*)GlobalConf->telnet_config,
-                           SiInput->dport);
-
-    if (iTelnetSip)
-    {
-        *piInspectMode = FTPP_SI_SERVER_MODE;
-    }
-    else if (iTelnetDip)
-    {
-        *piInspectMode = FTPP_SI_CLIENT_MODE;
+        return FTPP_INVALID_PROTO;
     }
     else
     {
-        return FTPP_INVALID_PROTO;
-    }
+#endif
+        iTelnetSip = PortMatch((PROTO_CONF*)GlobalConf->telnet_config,
+                               SiInput->sport);
+        iTelnetDip = PortMatch((PROTO_CONF*)GlobalConf->telnet_config,
+                               SiInput->dport);
+
+        if (iTelnetSip)
+        {
+            *piInspectMode = FTPP_SI_SERVER_MODE;
+        }
+        else if (iTelnetDip)
+        {
+            *piInspectMode = FTPP_SI_CLIENT_MODE;
+        }
+        else
+        {
+            return FTPP_INVALID_PROTO;
+        }
 #ifdef TARGET_BASED
     }
 #endif
@@ -691,8 +687,159 @@ static void FTPFreeSession(void *preproc_session)
         }
     }
 
+    if (ssn->filename)
+    {
+        free(ssn->filename);
+    }
+
     free(ssn);
 }
+
+#ifdef TARGET_BASED
+/* Function: FTPDataSessionNew
+ *
+ * Create an ftp-data session from a packet
+ */
+FTP_DATA_SESSION * FTPDataSessionNew(SFSnortPacket *p)
+{
+    FTP_DATA_SESSION *ftpdata = calloc(1, sizeof *ftpdata);
+
+    if (!ftpdata)
+        return NULL;
+
+    ftpdata->ft_ssn.proto = FTPP_SI_PROTO_FTP_DATA;
+
+    /* Get the ftp-ctrl session key */
+    ftpdata->ftp_key = _dpd.streamAPI->get_session_key(p);
+
+    if (!ftpdata->ftp_key)
+    {
+        free(ftpdata);
+        ftpdata = NULL;
+    }
+
+    return ftpdata;
+}
+
+/* 
+ * Function: FTPDataSessionFree
+ *
+ * Free an ftp-data session
+ */
+void FTPDataSessionFree(void *p_ssn)
+{
+    FTP_DATA_SESSION *ssn = (FTP_DATA_SESSION *)p_ssn;
+
+    if (!ssn)
+        return;
+
+    /* ftp-data key shouldn't exist without this but */
+    if (ssn->ftp_key)
+    {
+        free(ssn->ftp_key);
+    }
+
+    if (ssn->filename)
+    {
+        free(ssn->filename);
+    }
+
+    free(ssn);
+}
+
+/* Function: FTPDataDirection
+ *
+ * Return true if packet is from the "sending" host
+ * Return false if packet is from the "receiving" host
+ */
+bool FTPDataDirection(SFSnortPacket *p, FTP_DATA_SESSION *ftpdata)
+{
+    uint32_t direction;
+    uint32_t pktdir = _dpd.streamAPI->get_packet_direction(p); 
+
+    if (ftpdata->mode == FTPP_XFER_ACTIVE)
+        direction = ftpdata->direction ?  FLAG_FROM_SERVER : FLAG_FROM_CLIENT;
+    else
+        direction = ftpdata->direction ?  FLAG_FROM_CLIENT : FLAG_FROM_SERVER;
+
+    return (pktdir == direction);
+}
+
+/* Function: SetFTPDataEOFDirection
+ *
+ * Set EOF in the direction of Packet "p".
+ */
+void SetFTPDataEOFDirection(SFSnortPacket *p, FTP_DATA_SESSION *ftpdata)
+{
+    uint32_t direction = _dpd.streamAPI->get_packet_direction(p);
+
+    /* Active transfers are backwards */
+    if (ftpdata->mode == FTPP_XFER_ACTIVE)
+    {
+        if (direction == FLAG_FROM_SERVER)
+        {
+            ftpdata->flags |= FTPDATA_FLG_CLIENT_EOF;
+        }
+        else
+        {
+            ftpdata->flags |= FTPDATA_FLG_SERVER_EOF;
+        }
+    }
+    else
+    {
+        if (direction == FLAG_FROM_SERVER)
+        {
+            ftpdata->flags |= FTPDATA_FLG_SERVER_EOF;
+        }
+        else
+        {
+            ftpdata->flags |= FTPDATA_FLG_CLIENT_EOF;
+        }
+    }
+}
+
+/* Function: FTPDataEOFDirection
+ *
+ * Return true if we've seen EOF in the direction of Packet "p".
+ * Return false otherwise
+ */
+bool FTPDataEOFDirection(SFSnortPacket *p, FTP_DATA_SESSION *ftpdata)
+{
+    uint32_t direction = _dpd.streamAPI->get_packet_direction(p);
+    uint32_t eof = 0;
+
+    /* Then return which directions are set */
+    if (ftpdata->mode == FTPP_XFER_ACTIVE)
+    {
+        if (ftpdata->flags & FTPDATA_FLG_CLIENT_EOF)
+            eof |= FLAG_FROM_SERVER;
+
+        if (ftpdata->flags & FTPDATA_FLG_SERVER_EOF)
+            eof |= FLAG_FROM_CLIENT;
+    }
+    else
+    {
+        if (ftpdata->flags & FTPDATA_FLG_CLIENT_EOF)
+            eof |= FLAG_FROM_CLIENT;
+
+        if (ftpdata->flags & FTPDATA_FLG_SERVER_EOF)
+            eof |= FLAG_FROM_SERVER;
+    }
+
+    return (direction & eof);
+}
+
+/* Function: FTPDataEOF
+ *
+ * Return true if we've seen EOF from both sides of the connection.
+ * Return false otherwise.
+ */
+bool FTPDataEOF(FTP_DATA_SESSION *ftpdata)
+{
+    unsigned char mask = FTPDATA_FLG_SERVER_EOF|FTPDATA_FLG_CLIENT_EOF;
+    return ((ftpdata->flags & mask) == mask);
+}
+#endif /* TARGET_BASED */
 
 /*
  * Function: FTPResetSession(FTP_SESSION *FtpSession, int first)

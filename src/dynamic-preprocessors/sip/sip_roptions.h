@@ -64,7 +64,7 @@ typedef struct _SipStatCodeRuleOptData
 /********************************************************************
  * Public function prototypes
  ********************************************************************/
-void SIP_RegRuleOptions(void);
+void SIP_RegRuleOptions(struct _SnortConfig *);
 
 
 #endif  /* _SIP_ROPTIONS_H_ */

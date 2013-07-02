@@ -33,7 +33,8 @@
 #define IP6_HEADER_LEN 40
 
 /* Version is the first four bits of the uint32_t passed in */
-#define IP6_VER(x) ((x) >> 28)
+#define IP6_VER(x) \
+   (ntohl(x) >> 28)
 
 /* The 'Packet' structure is almost always allocated on the stack.
  * Likewise, return buffers will almost always be aswell.

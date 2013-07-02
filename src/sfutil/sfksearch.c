@@ -549,6 +549,56 @@ static int KTrieBuildMatchStateNode(KTRIENODE *root,
     return cnt;
 }
 
+static int KTrieBuildMatchStateNodeWithSnortConf(struct _SnortConfig *sc, KTRIENODE *root,
+                                                 int (*build_tree)(struct _SnortConfig *, void * id, void **existing_tree),
+                                                 int (*neg_list_func)(void *id, void **list))
+{
+    int cnt = 0;
+    KTRIEPATTERN *p;
+
+    if (!root)
+        return 0;
+
+    /* each and every prefix match at this root*/
+    if (root->pkeyword)
+    {
+        for (p = root->pkeyword; p; p = p->mnext)
+        {
+            if (p->id)
+            {
+                if (p->negative)
+                {
+                    neg_list_func(p->id, &root->pkeyword->neg_list);
+                }
+                else
+                {
+                    build_tree(sc, p->id, &root->pkeyword->rule_option_tree);
+                }
+            }
+
+            cnt++;
+        }
+
+        /* Last call to finalize the tree for this root */
+        build_tree(sc, NULL, &root->pkeyword->rule_option_tree);
+    }
+
+    /* for child of this root */
+    if (root->child)
+    {
+        cnt += KTrieBuildMatchStateNodeWithSnortConf(sc, root->child, build_tree, neg_list_func);
+    }
+
+    /* 1st sibling of this root -- other siblings will be processed from
+     * within the processing for root->sibling. */
+    if (root->sibling)
+    {
+        cnt += KTrieBuildMatchStateNodeWithSnortConf(sc, root->sibling, build_tree, neg_list_func);
+    }
+
+    return cnt;
+}
+
 static int KTrieBuildMatchStateTrees( KTRIE_STRUCT * ts,
                                       int (*build_tree)(void * id, void **existing_tree),
                                       int (*neg_list_func)(void *id, void **list))
@@ -570,13 +620,32 @@ static int KTrieBuildMatchStateTrees( KTRIE_STRUCT * ts,
     return cnt;
 }
 
+static int KTrieBuildMatchStateTreesWithSnortConf( struct _SnortConfig *sc, KTRIE_STRUCT * ts,
+                                                   int (*build_tree)(struct _SnortConfig *, void * id, void **existing_tree),
+                                                   int (*neg_list_func)(void *id, void **list))
+{
+    int i, cnt = 0;
+    KTRIENODE     * root;
+
+    /* Find the states that have a MatchList */
+    for (i = 0; i < KTRIE_ROOT_NODES; i++)
+    {
+        root = ts->root[i];
+        /* each and every prefix match at this root*/
+        if (root)
+        {
+            cnt += KTrieBuildMatchStateNodeWithSnortConf(sc, root, build_tree, neg_list_func);
+        }
+    }
+
+    return cnt;
+}
+
 /*
 *  Build the Keyword TRIE
 *
 */
-int KTrieCompile(KTRIE_STRUCT * ts,
-                 int (*build_tree)(void * id, void **existing_tree),
-                 int (*neg_list_func)(void *id, void **list))
+static inline int _KTrieCompile(KTRIE_STRUCT * ts)
 {
   KTRIEPATTERN * p;
   /*
@@ -601,12 +670,42 @@ int KTrieCompile(KTRIE_STRUCT * ts,
   tmem += ts->memory;
   printf(" Compile stats: %d patterns, %d chars, %d duplicate patterns, %d bytes, %d total-bytes\n",ts->npats,ts->nchars,ts->duplicates,ts->memory,tmem);
   */
-  if (build_tree && neg_list_func)
-  {
-      KTrieBuildMatchStateTrees(ts, build_tree, neg_list_func);
-  }
 
   return 0;
+}
+
+int KTrieCompile(KTRIE_STRUCT * ts,
+                 int (*build_tree)(void * id, void **existing_tree),
+                 int (*neg_list_func)(void *id, void **list))
+{
+    int rval;
+
+    if ((rval = _KTrieCompile(ts)))
+        return rval;
+
+    if (build_tree && neg_list_func)
+    {
+        KTrieBuildMatchStateTrees(ts, build_tree, neg_list_func);
+    }
+
+    return 0;
+}
+
+int KTrieCompileWithSnortConf(struct _SnortConfig *sc, KTRIE_STRUCT * ts,
+                              int (*build_tree)(struct _SnortConfig *, void * id, void **existing_tree),
+                              int (*neg_list_func)(void *id, void **list))
+{
+    int rval;
+
+    if ((rval = _KTrieCompile(ts)))
+        return rval;
+
+    if (build_tree && neg_list_func)
+    {
+        KTrieBuildMatchStateTreesWithSnortConf(sc, ts, build_tree, neg_list_func);
+    }
+
+    return 0;
 }
 
 void sfksearch_print_qinfo(void)

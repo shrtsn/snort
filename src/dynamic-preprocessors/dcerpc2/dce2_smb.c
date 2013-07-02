@@ -1675,10 +1675,16 @@ void DCE2_SmbSetRdata(DCE2_SmbSsnData *ssd, uint8_t *nb_ptr, uint16_t co_len)
 
         nb_hdr->length = htons((uint16_t)nb_len);
 
-        if (ptracker != NULL)
-            writex->smb_fid = SmbHtons((const uint16_t *)&ptracker->fid);
+        if ((ptracker != NULL) && (ptracker->fid > 0))
+        {
+            uint16_t fid = (uint16_t)ptracker->fid;
+            writex->smb_fid = SmbHtons(&fid);
+        }
         else
+        {
             writex->smb_fid = 0;
+        }
+
         writex->smb_countleft = SmbHtons(&co_len);
         writex->smb_dsize = SmbHtons(&co_len);
         writex->smb_bcc = SmbHtons(&co_len);
@@ -1721,12 +1727,6 @@ DCE2_SmbSsnData * DCE2_SmbSsnInit(SFSnortPacket *p)
 
     if (ssd == NULL)
         return NULL;
-
-    if ((DCE2_SsnFromClient(p) && (p->dst_port != 139))
-            || (DCE2_SsnFromServer(p) && (p->src_port != 139)))
-    {
-        ssd->ssn_state_flags |= DCE2_SMB_SSN_STATE__NBSS_POSITIVE;
-    }
 
     ssd->dialect_index = DCE2_SENTINEL;
     ssd->max_outstanding_requests = 10;  // Until Negotiate/SessionSetupAndX 
@@ -1821,11 +1821,6 @@ static DCE2_Ret DCE2_NbssHdrChecks(DCE2_SmbSsnData *ssd, const NbssHdr *nb_hdr)
             break;
 
         case NBSS_SESSION_TYPE__POS_RESPONSE:
-            if (DCE2_SsnFromServer(p))
-                ssd->ssn_state_flags |= DCE2_SMB_SSN_STATE__NBSS_POSITIVE;
-
-            // Fall through
-
         case NBSS_SESSION_TYPE__NEG_RESPONSE:
         case NBSS_SESSION_TYPE__RETARGET_RESPONSE:
             dce2_stats.smb_nbss_not_message++;
@@ -1908,8 +1903,6 @@ static DCE2_SmbRequestTracker * DCE2_SmbInspect(DCE2_SmbSsnData *ssd, const SmbN
         switch (smb_com)
         {
             case SMB_COM_NEGOTIATE:
-                if (!(ssd->ssn_state_flags & DCE2_SMB_SSN_STATE__NBSS_POSITIVE))
-                    return NULL;
                 if (ssd->ssn_state_flags & DCE2_SMB_SSN_STATE__NEGOTIATED)
                 {
                     DCE2_Alert(&ssd->sd, DCE2_EVENT__SMB_MULTIPLE_NEGOTIATIONS);
@@ -1917,8 +1910,6 @@ static DCE2_SmbRequestTracker * DCE2_SmbInspect(DCE2_SmbSsnData *ssd, const SmbN
                 }
                 break;
             case SMB_COM_SESSION_SETUP_ANDX:
-                if (!(ssd->ssn_state_flags & DCE2_SMB_SSN_STATE__NEGOTIATED))
-                    return NULL;
                 break;
             case SMB_COM_TREE_CONNECT:
             case SMB_COM_TREE_CONNECT_ANDX:
@@ -2285,6 +2276,9 @@ void DCE2_SmbProcess(DCE2_SmbSsnData *ssd)
                     continue;
                 }
 
+                if (!DCE2_BufferIsEmpty(*seg_buf))
+                    DCE2_MOVE(data_ptr, data_len, (uint16_t)data_need);
+
                 switch (ssd->pdu_state)
                 {
                     case DCE2_SMB_PDU_STATE__COMMAND:
@@ -2396,6 +2390,9 @@ void DCE2_SmbProcess(DCE2_SmbSsnData *ssd)
                     dce2_stats.smb_ignored_bytes += *ignore_bytes;
                     continue;
                 }
+
+                if (!DCE2_BufferIsEmpty(*seg_buf))
+                    DCE2_MOVE(data_ptr, data_len, (uint16_t)data_need);
 
                 *data_state = DCE2_SMB_DATA_STATE__NETBIOS_PDU;
 
@@ -4113,138 +4110,140 @@ static DCE2_Ret DCE2_SmbTransactionGetName(const uint8_t *nb_ptr,
         {
             return DCE2_RET__SUCCESS;
         }
+
+        // Samba accepts the following strings but doesn't check that
+        // they refer to the correct pipe.  Some Windows 95 thing.
+
+        // TODO The following code block should be updated for efficiency.
+        // Primary targets include the repeated checks on the same bytes,
+        // calling toupper() on '\0', etc.
+
+        if (unicode)
+        {
+            const uint8_t samr_unicode[] = {'S','\0','A','\0','M','\0','R','\0','\0','\0'};
+            const uint8_t wkssvc_unicode[] = {'W','\0','K','\0','S','\0','S','\0','V','\0','C','\0','\0','\0'};
+            const uint8_t srvsvc_unicode[] = {'S','\0','R','\0','V','\0','S','\0','V','\0','C','\0','\0','\0'};
+            const uint8_t winreg_unicode[] = {'W','\0','I','\0','N','\0','R','\0','E','\0','G','\0','\0','\0'};
+            const uint8_t lsarpc_unicode[] = {'L','\0','S','\0','A','\0','R','\0','P','\0','C','\0','\0','\0'};
+
+            // Check for SAMR
+            if (nb_len >= sizeof(samr_unicode))
+            {
+                for (i = 0; i < sizeof(samr_unicode); i++)
+                {
+                    if (toupper((int)nb_ptr[i]) != samr_unicode[i])
+                        break;
+                }
+
+                if (i == sizeof(samr_unicode))
+                    return DCE2_RET__SUCCESS;
+            }
+
+            if (nb_len >= sizeof(wkssvc_unicode))
+            {
+                // Check for WKSSVC
+                for (i = 0; i < sizeof(wkssvc_unicode); i++)
+                {
+                    if (toupper((int)nb_ptr[i]) != wkssvc_unicode[i])
+                        break;
+                }
+
+                if (i == sizeof(wkssvc_unicode))
+                    return DCE2_RET__SUCCESS;
+
+                // Check for SRVSVC
+                for (i = 0; i < sizeof(srvsvc_unicode); i++)
+                {
+                    if (toupper((int)nb_ptr[i]) != srvsvc_unicode[i])
+                        break;
+                }
+
+                if (i == sizeof(srvsvc_unicode))
+                    return DCE2_RET__SUCCESS;
+
+                // Check for WINREG
+                for (i = 0; i < sizeof(winreg_unicode); i++)
+                {
+                    if (toupper((int)nb_ptr[i]) != winreg_unicode[i])
+                        break;
+                }
+
+                if (i == sizeof(winreg_unicode))
+                    return DCE2_RET__SUCCESS;
+
+                // Check for LSARPC
+                for (i = 0; i < sizeof(lsarpc_unicode); i++)
+                {
+                    if (toupper((int)nb_ptr[i]) != lsarpc_unicode[i])
+                        break;
+                }
+
+                if (i == sizeof(lsarpc_unicode))
+                    return DCE2_RET__SUCCESS;
+            }
+        }
         else
         {
-            // Samba accepts the following strings but doesn't check that
-            // they refer to the correct pipe.  Some Windows 95 thing.
+            const uint8_t wkssvc_ascii[] = {'W','K','S','S','V','C','\0'};
+            const uint8_t srvsvc_ascii[] = {'S','R','V','S','V','C','\0'};
+            const uint8_t winreg_ascii[] = {'W','I','N','R','E','G','\0'};
+            const uint8_t samr_ascii[] = {'S','A','M','R','\0'};
+            const uint8_t lsarpc_ascii[] = {'L','S','A','R','P','C','\0'};
 
-            if (unicode)
+            // Check for SAMR
+            if (nb_len >= sizeof(samr_ascii))
             {
-                const uint8_t samr_unicode[] = {'S','\0','A','\0','M','\0','R','\0','\0','\0'};
-                const uint8_t wkssvc_unicode[] = {'W','\0','K','\0','S','\0','S','\0','V','\0','C','\0','\0','\0'};
-                const uint8_t srvsvc_unicode[] = {'S','\0','R','\0','V','\0','S','\0','V','\0','C','\0','\0','\0'};
-                const uint8_t winreg_unicode[] = {'W','\0','I','\0','N','\0','R','\0','E','\0','G','\0','\0','\0'};
-                const uint8_t lsarpc_unicode[] = {'L','\0','S','\0','A','\0','R','\0','P','\0','C','\0','\0','\0'};
-
-                // Check for SAMR
-                if (nb_len >= sizeof(samr_unicode))
+                for (i = 0; i < sizeof(samr_ascii); i++)
                 {
-                    for (i = 0; i < sizeof(samr_unicode); i++)
-                    {
-                        if (toupper((int)nb_ptr[i]) != samr_unicode[i])
-                            break;
-                    }
-
-                    if (i == sizeof(samr_unicode))
-                        return DCE2_RET__SUCCESS;
+                    if (toupper((int)nb_ptr[i]) != samr_ascii[i])
+                        break;
                 }
 
-                if (nb_len >= sizeof(wkssvc_unicode))
-                {
-                    // Check for WKSSVC
-                    for (i = 0; i < sizeof(wkssvc_unicode); i++)
-                    {
-                        if (toupper((int)nb_ptr[i]) != wkssvc_unicode[i])
-                            break;
-                    }
-
-                    if (i == sizeof(wkssvc_unicode))
-                        return DCE2_RET__SUCCESS;
-
-                    // Check for SRVSVC
-                    for (i = 0; i < sizeof(srvsvc_unicode); i++)
-                    {
-                        if (toupper((int)nb_ptr[i]) != srvsvc_unicode[i])
-                            break;
-                    }
-
-                    if (i == sizeof(srvsvc_unicode))
-                        return DCE2_RET__SUCCESS;
-
-                    // Check for WINREG
-                    for (i = 0; i < sizeof(winreg_unicode); i++)
-                    {
-                        if (toupper((int)nb_ptr[i]) != winreg_unicode[i])
-                            break;
-                    }
-
-                    if (i == sizeof(winreg_unicode))
-                        return DCE2_RET__SUCCESS;
-
-                    // Check for LSARPC
-                    for (i = 0; i < sizeof(lsarpc_unicode); i++)
-                    {
-                        if (toupper((int)nb_ptr[i]) != lsarpc_unicode[i])
-                            break;
-                    }
-
-                    if (i == sizeof(lsarpc_unicode))
-                        return DCE2_RET__SUCCESS;
-                }
+                if (i == sizeof(samr_ascii))
+                    return DCE2_RET__SUCCESS;
             }
-            else
+
+            if (nb_len >= sizeof(wkssvc_ascii))
             {
-                const uint8_t wkssvc_ascii[] = {'W','K','S','S','V','C','\0'};
-                const uint8_t srvsvc_ascii[] = {'S','R','V','S','V','C','\0'};
-                const uint8_t winreg_ascii[] = {'W','I','N','R','E','G','\0'};
-                const uint8_t samr_ascii[] = {'S','A','M','R','\0'};
-                const uint8_t lsarpc_ascii[] = {'L','S','A','R','P','C','\0'};
-
-                // Check for SAMR
-                if (nb_len >= sizeof(samr_ascii))
+                // Check for WKSSVC
+                for (i = 0; i < sizeof(wkssvc_ascii); i++)
                 {
-                    for (i = 0; i < sizeof(samr_ascii); i++)
-                    {
-                        if (toupper((int)nb_ptr[i]) != samr_ascii[i])
-                            break;
-                    }
-
-                    if (i == sizeof(samr_ascii))
-                        return DCE2_RET__SUCCESS;
+                    if (toupper((int)nb_ptr[i]) != wkssvc_ascii[i])
+                        break;
                 }
 
-                if (nb_len >= sizeof(wkssvc_ascii))
+                if (i == sizeof(wkssvc_ascii))
+                    return DCE2_RET__SUCCESS;
+
+                // Check for SRVSVC
+                for (i = 0; i < sizeof(srvsvc_ascii); i++)
                 {
-                    // Check for WKSSVC
-                    for (i = 0; i < sizeof(wkssvc_ascii); i++)
-                    {
-                        if (toupper((int)nb_ptr[i]) != wkssvc_ascii[i])
-                            break;
-                    }
-
-                    if (i == sizeof(wkssvc_ascii))
-                        return DCE2_RET__SUCCESS;
-
-                    // Check for SRVSVC
-                    for (i = 0; i < sizeof(srvsvc_ascii); i++)
-                    {
-                        if (toupper((int)nb_ptr[i]) != srvsvc_ascii[i])
-                            break;
-                    }
-
-                    if (i == sizeof(srvsvc_ascii))
-                        return DCE2_RET__SUCCESS;
-
-                    // Check for WINREG
-                    for (i = 0; i < sizeof(winreg_ascii); i++)
-                    {
-                        if (toupper((int)nb_ptr[i]) != winreg_ascii[i])
-                            break;
-                    }
-
-                    if (i == sizeof(winreg_ascii))
-                        return DCE2_RET__SUCCESS;
-
-                    // Check for LSARPC
-                    for (i = 0; i < sizeof(lsarpc_ascii); i++)
-                    {
-                        if (toupper((int)nb_ptr[i]) != lsarpc_ascii[i])
-                            break;
-                    }
-
-                    if (i == sizeof(lsarpc_ascii))
-                        return DCE2_RET__SUCCESS;
+                    if (toupper((int)nb_ptr[i]) != srvsvc_ascii[i])
+                        break;
                 }
+
+                if (i == sizeof(srvsvc_ascii))
+                    return DCE2_RET__SUCCESS;
+
+                // Check for WINREG
+                for (i = 0; i < sizeof(winreg_ascii); i++)
+                {
+                    if (toupper((int)nb_ptr[i]) != winreg_ascii[i])
+                        break;
+                }
+
+                if (i == sizeof(winreg_ascii))
+                    return DCE2_RET__SUCCESS;
+
+                // Check for LSARPC
+                for (i = 0; i < sizeof(lsarpc_ascii); i++)
+                {
+                    if (toupper((int)nb_ptr[i]) != lsarpc_ascii[i])
+                        break;
+                }
+
+                if (i == sizeof(lsarpc_ascii))
+                    return DCE2_RET__SUCCESS;
             }
         }
     }
@@ -5510,9 +5509,6 @@ static DCE2_Ret DCE2_SmbNegotiate(DCE2_SmbSsnData *ssd, const SmbNtHdr *smb_hdr,
 
         ssd->ssn_state_flags |= DCE2_SMB_SSN_STATE__NEGOTIATED;
 
-        if (!(ssd->ssn_state_flags & DCE2_SMB_SSN_STATE__NBSS_POSITIVE))
-            ssd->ssn_state_flags |= DCE2_SMB_SSN_STATE__NBSS_POSITIVE;
-
         if (DCE2_ComInfoWordCount(com_info) == 17)
         {
             ssd->max_outstanding_requests =
@@ -5854,8 +5850,6 @@ static DCE2_Ret DCE2_SmbSessionSetupAndX(DCE2_SmbSsnData *ssd, const SmbNtHdr *s
         DCE2_SmbInsertUid(ssd, uid);
         ssd->cur_rtracker->uid = uid;  // Set this in case there are chained commands
 
-        if (!(ssd->ssn_state_flags & DCE2_SMB_SSN_STATE__NBSS_POSITIVE))
-            ssd->ssn_state_flags |= DCE2_SMB_SSN_STATE__NBSS_POSITIVE;
         if (!(ssd->ssn_state_flags & DCE2_SMB_SSN_STATE__NEGOTIATED))
             ssd->ssn_state_flags |= DCE2_SMB_SSN_STATE__NEGOTIATED;
 
@@ -6677,12 +6671,6 @@ static inline DCE2_SmbRequestTracker * DCE2_SmbFindRequestTracker(DCE2_SmbSsnDat
 
     PREPROC_PROFILE_START(dce2_pstat_smb_req);
 
-    if (ssd == NULL)
-    {
-        PREPROC_PROFILE_END(dce2_pstat_smb_req);
-        return NULL;
-    }
-
     DEBUG_WRAP(DCE2_DebugMsg(DCE2_DEBUG__SMB, "Find request tracker => "
                 "Uid: %u, Tid: %u, Pid: %u, Mid: %u ... ", uid, tid, pid, mid));
 
@@ -7005,6 +6993,9 @@ static void DCE2_SmbRemoveUid(DCE2_SmbSsnData *ssd, const uint16_t uid)
 
                         // NULL out pipe trackers of any outstanding requests
                         // that reference this pipe tracker
+                        if (ssd->rtracker.ptracker == ptracker)
+                            ssd->rtracker.ptracker = NULL;
+
                         for (rtracker = DCE2_QueueFirst(ssd->rtrackers);
                                 rtracker != NULL;
                                 rtracker = DCE2_QueueNext(ssd->rtrackers))
@@ -7159,6 +7150,9 @@ static void DCE2_SmbRemoveTid(DCE2_SmbSsnData *ssd, const uint16_t tid)
 
                 // NULL out pipe trackers of any outstanding requests
                 // that reference this pipe tracker
+                if (ssd->rtracker.ptracker == ptracker)
+                    ssd->rtracker.ptracker = NULL;
+
                 for (rtracker = DCE2_QueueFirst(ssd->rtrackers);
                         rtracker != NULL;
                         rtracker = DCE2_QueueNext(ssd->rtrackers))
@@ -7583,6 +7577,9 @@ static void DCE2_SmbRemovePipeTracker(DCE2_SmbSsnData *ssd, DCE2_SmbPipeTracker 
 
         // NULL out pipe trackers of any outstanding requests
         // that reference this pipe tracker
+        if (ssd->rtracker.ptracker == ptracker)
+            ssd->rtracker.ptracker = NULL;
+
         for (rtracker = DCE2_QueueFirst(ssd->rtrackers);
                 rtracker != NULL;
                 rtracker = DCE2_QueueNext(ssd->rtrackers))

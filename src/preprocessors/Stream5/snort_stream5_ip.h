@@ -39,7 +39,7 @@ void Stream5IpPolicyInit(Stream5IpConfig*, char*);
 int Stream5VerifyIpConfig(Stream5IpConfig*, tSfPolicyId);
 void Stream5IpConfigFree(Stream5IpConfig*);
 
-int Stream5ProcessIp(Packet*);
+int Stream5ProcessIp(Packet *p, Stream5LWSession *lwssn, SessionKey *skey);
 
 uint32_t Stream5GetIpPrunes(void);
 void Stream5ResetIpPrunes(void);

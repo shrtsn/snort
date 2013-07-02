@@ -269,7 +269,6 @@ DCE2_Ret DCE2_Process(SFSnortPacket *p)
     {
         sd->wire_pkt = p;
 
-#ifdef ENABLE_PAF
         if (_dpd.isPafEnabled() && !DCE2_SsnIsPafActive(p))
         {
             DEBUG_WRAP(DCE2_DebugMsg(DCE2_DEBUG__MAIN, "PAF was aborted on "
@@ -278,7 +277,6 @@ DCE2_Ret DCE2_Process(SFSnortPacket *p)
             PREPROC_PROFILE_END(dce2_pstat_session);
             return DCE2_RET__NOT_INSPECTED;
         }
-#endif
 
         if (IsTCP(p) && !DCE2_SsnIsRebuilt(p))
         {
@@ -287,9 +285,7 @@ DCE2_Ret DCE2_Process(SFSnortPacket *p)
 
             if (DCE2_SsnIsStreamInsert(p))
             {
-#ifdef ENABLE_PAF
                 if (!_dpd.isPafEnabled())
-#endif
                 {
                     DEBUG_WRAP(DCE2_DebugMsg(DCE2_DEBUG__MAIN, "Flushing opposite direction.\n"));
                     DCE2_SsnFlush(p);
@@ -596,7 +592,7 @@ static DCE2_TransType DCE2_GetTransport(SFSnortPacket *p, const DCE2_ServerConfi
     *autodetected = 0;
 
 #ifdef TARGET_BASED
-    if (_dpd.isAdaptiveConfigured(_dpd.getRuntimePolicy(), 0))
+    if (_dpd.isAdaptiveConfigured(_dpd.getRuntimePolicy()))
     {
         proto_id = _dpd.streamAPI->get_application_protocol_id(p->stream_session_ptr);
 
@@ -924,10 +920,10 @@ SFSnortPacket * DCE2_GetRpkt(const SFSnortPacket *wire_pkt, DCE2_RpktType rpkt_t
     else
     {
         IP6RawHdr* ip6h = (IP6RawHdr*)rpkt->raw_ip6_header;
-        if ( ip6h ) rpkt->ip6h->len = ip6h->payload_len;
+        if ( ip6h ) rpkt->ip6h->len = ip6h->ip6_payload_len;
     }
 
-    rpkt->flags |= (FLAG_STREAM_EST | FLAG_ALLOW_MULTIPLE_DETECT);
+    rpkt->flags |= FLAG_STREAM_EST;
     if (DCE2_SsnFromClient(wire_pkt))
         rpkt->flags |= FLAG_FROM_CLIENT;
     else
@@ -1028,7 +1024,7 @@ DCE2_Ret DCE2_AddDataToRpkt(SFSnortPacket *rpkt, DCE2_RpktType rtype,
     else
     {
         IP6RawHdr* ip6h = (IP6RawHdr*)rpkt->raw_ip6_header;
-        if ( ip6h ) rpkt->ip6h->len = ip6h->payload_len;
+        if ( ip6h ) rpkt->ip6h->len = ip6h->ip6_payload_len;
     }
     return DCE2_RET__SUCCESS;
 }

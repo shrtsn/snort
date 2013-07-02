@@ -66,7 +66,9 @@ ARFLAGS = cru
 libfileAPI_a_AR = $(AR) $(ARFLAGS)
 libfileAPI_a_LIBADD =
 am_libfileAPI_a_OBJECTS = file_service.$(OBJEXT) \
-	file_service_config.$(OBJEXT)
+	file_service_config.$(OBJEXT) file_mime_process.$(OBJEXT) \
+	file_resume_block.$(OBJEXT) file_mime_config.$(OBJEXT) \
+	sf_email_attach_decode.$(OBJEXT)
 libfileAPI_a_OBJECTS = $(am_libfileAPI_a_OBJECTS)
 DEFAULT_INCLUDES = -I.@am__isrc@ -I$(top_builddir)
 depcomp =
@@ -261,7 +263,11 @@ top_builddir = @top_builddir@
 top_srcdir = @top_srcdir@
 AUTOMAKE_OPTIONS = foreign no-dependencies
 noinst_LIBRARIES = libfileAPI.a
-libfileAPI_a_SOURCES = file_service.c file_service.h file_service_config.c file_service_config.h file_api.h
+libfileAPI_a_SOURCES = file_service.c file_service.h file_service_config.c file_service_config.h file_api.h \
+                       file_mime_process.h file_mime_process.c file_resume_block.c file_resume_block.h \
+                       file_mime_config.c file_mime_config.h \
+                       ../sfutil/sf_email_attach_decode.c ../sfutil/sf_email_attach_decode.h  
+
 SUBDIRS = libs
 all: all-recursive
 
@@ -319,6 +325,12 @@ distclean-compile:
 
 .c.lo:
 	$(LTCOMPILE) -c -o $@ $<
+
+sf_email_attach_decode.o: ../sfutil/sf_email_attach_decode.c
+	$(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS) -c -o sf_email_attach_decode.o `test -f '../sfutil/sf_email_attach_decode.c' || echo '$(srcdir)/'`../sfutil/sf_email_attach_decode.c
+
+sf_email_attach_decode.obj: ../sfutil/sf_email_attach_decode.c
+	$(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS) -c -o sf_email_attach_decode.obj `if test -f '../sfutil/sf_email_attach_decode.c'; then $(CYGPATH_W) '../sfutil/sf_email_attach_decode.c'; else $(CYGPATH_W) '$(srcdir)/../sfutil/sf_email_attach_decode.c'; fi`
 
 mostlyclean-libtool:
 	-rm -f *.lo

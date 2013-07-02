@@ -75,7 +75,7 @@
 extern OptTreeNode *otn_tmp;
 
 /* internal functions */
-static void LogAsciiInit(char *args);
+static void LogAsciiInit(struct _SnortConfig *, char *args);
 static void LogAscii(Packet *p, char *msg, void *arg, Event *event);
 static void LogAsciiCleanExit(int signal, void *arg);
 static char *IcmpFileName(Packet * p);
@@ -97,12 +97,12 @@ void LogAsciiSetup(void)
     DEBUG_WRAP(DebugMessage(DEBUG_PLUGIN, "Output: LogAscii is setup\n"););
 }
 
-static void LogAsciiInit(char *args)
+static void LogAsciiInit(struct _SnortConfig *sc, char *args)
 {
     DEBUG_WRAP(DebugMessage(DEBUG_PLUGIN, "Output: Ascii logging initialized\n"););
 
     /* Set the preprocessor function into the function list */
-    AddFuncToOutputList(LogAscii, OUTPUT_TYPE__LOG, NULL);
+    AddFuncToOutputList(sc, LogAscii, OUTPUT_TYPE__LOG, NULL);
     AddFuncToCleanExitList(LogAsciiCleanExit, NULL);
 }
 

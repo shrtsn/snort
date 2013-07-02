@@ -42,6 +42,7 @@
 #include "snort_stream5_ip.h"
 #include "snort_stream5_session.h"
 #include "stream_expect.h"
+#include "stream5_ha.h"
 #include "util.h"
 
 #ifdef PERF_PROFILING
@@ -122,11 +123,11 @@ static void Stream5ParseIpArgs (char* args, Stream5IpPolicy* policy)
 
 void IpSessionCleanup (Stream5LWSession* lws)
 {
-    if (lws->session_flags & SSNFLAG_PRUNED)
+    if (lws->ha_state.session_flags & SSNFLAG_PRUNED)
     {
         CloseStreamSession(&sfBase, SESSION_CLOSED_PRUNED);
     }
-    else if (lws->session_flags & SSNFLAG_TIMEDOUT)
+    else if (lws->ha_state.session_flags & SSNFLAG_TIMEDOUT)
     {
         CloseStreamSession(&sfBase, SESSION_CLOSED_TIMEDOUT);
     }
@@ -138,12 +139,52 @@ void IpSessionCleanup (Stream5LWSession* lws)
     Stream5ResetFlowBits(lws);
     FreeLWApplicationData(lws);
 
-    lws->session_flags = SSNFLAG_NONE;
+    lws->ha_state.session_flags = SSNFLAG_NONE;
     lws->session_state = STREAM5_STATE_NONE;
 
     lws->expire_time = 0;
-    lws->ignore_direction = 0;
+    lws->ha_state.ignore_direction = 0;
 }
+
+//-------------------------------------------------------------------------
+// ip ha stuff
+//-------------------------------------------------------------------------
+
+static Stream5LWSession *GetLWIpSession (const SessionKey *key)
+{
+    return GetLWSessionFromKey(ip_lws_cache, key);
+}
+
+static Stream5LWSession *Stream5IPCreateSession (const SessionKey *key)
+{
+    setRuntimePolicy(getDefaultPolicy());
+
+    return NewLWSession(ip_lws_cache, NULL, key, NULL);
+}
+
+static int Stream5IPDeleteSession (const SessionKey *key)
+{
+    Stream5LWSession *lwssn = GetLWSessionFromKey(ip_lws_cache, key);
+
+    // use explicit IPPROTO_IP instead of lwssn->protocol
+    // because we might come here for icmp sessions
+    if ( lwssn && !Stream5SetRuntimeConfiguration(lwssn, IPPROTO_IP) )
+        DeleteLWSession(ip_lws_cache, lwssn, "ha sync");
+
+    return 0;
+}
+
+#ifdef ENABLE_HA
+
+static HA_Api ha_ip_api = {
+    /*.get_lws = */ GetLWIpSession,
+
+    /*.create_session = */ Stream5IPCreateSession,
+    /*.deactivate_session = */ NULL,
+    /*.delete_session = */ Stream5IPDeleteSession,
+};
+
+#endif
 
 //-------------------------------------------------------------------------
 // public methods
@@ -165,6 +206,10 @@ void Stream5InitIp (Stream5GlobalConfig* gconfig)
                        "stream inspection!\n");
         }
     }
+
+#ifdef ENABLE_HA
+    ha_set_api(IPPROTO_IP, &ha_ip_api);
+#endif
 }
 
 void Stream5ResetIp (void)
@@ -240,31 +285,18 @@ static inline void InitSession (Packet* p, Stream5LWSession* lws)
 
     s5stats.total_ip_sessions++;
 
-    lws->policy = s5_ip_eval_config;
-
     IP_COPY_VALUE(lws->client_ip, GET_SRC_IP(p));
     IP_COPY_VALUE(lws->server_ip, GET_DST_IP(p));
 }
 
-static inline void TimeoutSession (Packet* p, Stream5LWSession* lws)
-{
-    DEBUG_WRAP(DebugMessage(DEBUG_STREAM,
-        "Stream5 IP session timeout!\n"););
-
-    lws->session_flags |= SSNFLAG_TIMEDOUT;
-
-    IpSessionCleanup(lws);
-    lws->policy = s5_ip_eval_config;
-}
-
 static inline int BlockedSession (Packet* p, Stream5LWSession* lws)
 {
-    if ( !(lws->session_flags & (SSNFLAG_DROP_CLIENT|SSNFLAG_DROP_SERVER)) )
+    if ( !(lws->ha_state.session_flags & (SSNFLAG_DROP_CLIENT|SSNFLAG_DROP_SERVER)) )
         return 0;
 
     if (
-        ((p->packet_flags & PKT_FROM_SERVER) && (lws->session_flags & SSNFLAG_DROP_SERVER)) ||
-        ((p->packet_flags & PKT_FROM_CLIENT) && (lws->session_flags & SSNFLAG_DROP_CLIENT)) )
+        ((p->packet_flags & PKT_FROM_SERVER) && (lws->ha_state.session_flags & SSNFLAG_DROP_SERVER)) ||
+        ((p->packet_flags & PKT_FROM_CLIENT) && (lws->ha_state.session_flags & SSNFLAG_DROP_CLIENT)) )
     {
         DEBUG_WRAP(DebugMessage(DEBUG_STREAM_STATE,
             "Blocking %s packet as session was blocked\n",
@@ -286,8 +318,8 @@ static inline int BlockedSession (Packet* p, Stream5LWSession* lws)
 static inline int IgnoreSession (Packet* p, Stream5LWSession* lws)
 {
     if (
-        ((p->packet_flags & PKT_FROM_SERVER) && (lws->ignore_direction & SSN_DIR_CLIENT)) ||
-        ((p->packet_flags & PKT_FROM_CLIENT) && (lws->ignore_direction & SSN_DIR_SERVER)) )
+        ((p->packet_flags & PKT_FROM_SERVER) && (lws->ha_state.ignore_direction & SSN_DIR_CLIENT)) ||
+        ((p->packet_flags & PKT_FROM_CLIENT) && (lws->ha_state.ignore_direction & SSN_DIR_SERVER)) )
     {
         DEBUG_WRAP(DebugMessage(DEBUG_STREAM_STATE,
             "Stream5 Ignoring packet from %d. Session marked as ignore\n",
@@ -304,7 +336,7 @@ static inline int CheckExpectedSession (Packet* p, Stream5LWSession* lws)
 {
     int ignore;
 
-    ignore = SteamExpectCheck(p, lws);
+    ignore = StreamExpectCheck(p, lws);
 
     if (ignore)
     {
@@ -312,7 +344,7 @@ static inline int CheckExpectedSession (Packet* p, Stream5LWSession* lws)
             "Stream5: Ignoring packet from %d. Marking session marked as ignore.\n",
             p->packet_flags & PKT_FROM_CLIENT? "sender" : "responder"););
 
-        lws->ignore_direction = ignore;
+        lws->ha_state.ignore_direction = ignore;
         Stream5DisableInspection(lws, p);
         return 1;
     }
@@ -324,7 +356,7 @@ static inline void UpdateSession (Packet* p, Stream5LWSession* lws)
 {
     MarkupPacketFlags(p, lws);
 
-    if ( !(lws->session_flags & SSNFLAG_ESTABLISHED) )
+    if ( !(lws->ha_state.session_flags & SSNFLAG_ESTABLISHED) )
     {
 
         if ( p->packet_flags & PKT_FROM_CLIENT )
@@ -332,23 +364,23 @@ static inline void UpdateSession (Packet* p, Stream5LWSession* lws)
             DEBUG_WRAP(DebugMessage(DEBUG_STREAM_STATE,
                 "Stream5: Updating on packet from client\n"););
 
-            lws->session_flags |= SSNFLAG_SEEN_CLIENT;
+            lws->ha_state.session_flags |= SSNFLAG_SEEN_CLIENT;
         }
         else
         {
             DEBUG_WRAP(DebugMessage(DEBUG_STREAM_STATE,
                 "Stream5: Updating on packet from server\n"););
 
-            lws->session_flags |= SSNFLAG_SEEN_SERVER;
+            lws->ha_state.session_flags |= SSNFLAG_SEEN_SERVER;
         }
 
-        if ( (lws->session_flags & SSNFLAG_SEEN_CLIENT) &&
-             (lws->session_flags & SSNFLAG_SEEN_SERVER) )
+        if ( (lws->ha_state.session_flags & SSNFLAG_SEEN_CLIENT) &&
+             (lws->ha_state.session_flags & SSNFLAG_SEEN_SERVER) )
         {
             DEBUG_WRAP(DebugMessage(DEBUG_STREAM_STATE,
                 "Stream5: session established!\n"););
 
-            lws->session_flags |= SSNFLAG_ESTABLISHED;
+            lws->ha_state.session_flags |= SSNFLAG_ESTABLISHED;
 
 #ifdef ACTIVE_RESPONSE
             SetTTL(lws, p, 0);
@@ -356,7 +388,7 @@ static inline void UpdateSession (Packet* p, Stream5LWSession* lws)
         }
     }
 
-    // set timeout
+    // Reset the session timeout.
     {
         Stream5IpPolicy* policy;
         policy = (Stream5IpPolicy*)lws->policy;
@@ -368,51 +400,76 @@ static inline void UpdateSession (Packet* p, Stream5LWSession* lws)
 // public packet processing method
 //-------------------------------------------------------------------------
 
-int Stream5ProcessIp (Packet *p)
+int Stream5ProcessIp(Packet *p, Stream5LWSession *lwssn, SessionKey *skey)
 {
-    SessionKey key;
-    Stream5LWSession* lws = GetLWSession(ip_lws_cache, p, &key);
+    PROFILE_VARS;
 
-    if ( !lws )
+    PREPROC_PROFILE_START(s5IpPerfStats);
+
+    if (!lwssn)
     {
-        lws = NewLWSession(ip_lws_cache, p, &key, NULL);
+        lwssn = NewLWSession(ip_lws_cache, p, skey, (void *) s5_ip_eval_config);
 
-        if ( !lws )
+        if (!lwssn)
         {
-            DEBUG_WRAP(DebugMessage(DEBUG_STREAM,
-                "Stream5 IP session failure!\n"););
+            DEBUG_WRAP(DebugMessage(DEBUG_STREAM, "Stream5 IP session failure!\n"););
             return 0;
         }
-        InitSession(p, lws);
+        InitSession(p, lwssn);
 
 #ifdef ENABLE_EXPECTED_IP
-        if ( CheckExpectedSession(p, lws) )
+        if (CheckExpectedSession(p, lwssn))
+        {
+            PREPROC_PROFILE_END(s5IpPerfStats);
             return 0;
+        }
 #endif
     }
-    else if (
-        (lws->session_state & STREAM5_STATE_TIMEDOUT)
-        || Stream5Expire(p, lws))
+    else
     {
-        TimeoutSession(p, lws);
+        if ((lwssn->session_state & STREAM5_STATE_TIMEDOUT) || Stream5Expire(p, lwssn))
+        {
+            lwssn->ha_state.session_flags |= SSNFLAG_TIMEDOUT;
+
+            /* Session is timed out */
+            DEBUG_WRAP(DebugMessage(DEBUG_STREAM, "Stream5 IP session timeout!\n"););
+
+#ifdef ENABLE_HA
+            /* Notify the HA peer of the session cleanup/reset by way of a deletion notification. */
+            PREPROC_PROFILE_TMPEND(s5IpPerfStats);
+            Stream5HANotifyDeletion(lwssn);
+            lwssn->ha_flags = (HA_FLAG_NEW | HA_FLAG_MODIFIED | HA_FLAG_MAJOR_CHANGE);
+            PREPROC_PROFILE_TMPSTART(s5IpPerfStats);
+#endif
+
+            /* Clean it up */
+            IpSessionCleanup(lwssn);
 
 #ifdef ENABLE_EXPECTED_IP
-        if ( CheckExpectedSession(p, lws) )
-            return 0;
+            if (CheckExpectedSession(p, lwssn))
+            {
+                PREPROC_PROFILE_END(s5IpPerfStats);
+                return 0;
+            }
 #endif
+        }
+        /* If this is an existing LWSession that didn't have its policy set, set it now. */
+        if (lwssn->policy == NULL)
+            lwssn->policy = s5_ip_eval_config;
     }
 
-    GetLWPacketDirection(p, lws);
-    p->ssnptr = lws;
+    GetLWPacketDirection(p, lwssn);
+    p->ssnptr = lwssn;
 
-    if ( BlockedSession(p, lws) )
+    if (BlockedSession(p, lwssn) || IgnoreSession(p, lwssn))
+    {
+        PREPROC_PROFILE_END(s5IpPerfStats);
         return 0;
+    }
 
-    if ( IgnoreSession(p, lws) )
-        return 0;
+    UpdateSession(p, lwssn);
 
-    UpdateSession(p, lws);
+    PREPROC_PROFILE_END(s5IpPerfStats);
 
     return 0;
 }
-

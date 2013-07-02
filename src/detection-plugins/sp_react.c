@@ -78,8 +78,6 @@ static PreprocStats reactPerfStats;
 extern PreprocStats ruleOTNEvalPerfStats;
 #endif
 
-extern SnortConfig* snort_conf_for_parsing;
-
 static const char* MSG_KEY = "<>";
 static const char* MSG_PERCENT = "%";
 
@@ -140,12 +138,12 @@ static char* s_page = NULL;
 static uint32_t s_id = 1;
 
 // callback functions
-static void React_Init(char *, OptTreeNode *, int);
-static void React_Config(int signal, void *data);
+static void React_Init(struct _SnortConfig *, char *, OptTreeNode *, int);
 static void React_Cleanup(int signal, void *data);
+static void React_Config (struct _SnortConfig *, void *data);
 
 // core functions
-static void React_GetPage(void);
+static void React_GetPage(struct _SnortConfig *);
 static void React_Parse(char *, OptTreeNode *, ReactData *);
 static int React_Queue(Packet*, void*);
 static void React_Send(Packet*,  void*);
@@ -252,7 +250,7 @@ void SetupReact(void)
 //--------------------------------------------------------------------
 // callback functions
 
-static void React_Init(char *data, OptTreeNode *otn, int protocol)
+static void React_Init(struct _SnortConfig *sc, char *data, OptTreeNode *otn, int protocol)
 {
     ReactData* rd;
     void *idx_dup;
@@ -271,7 +269,7 @@ static void React_Init(char *data, OptTreeNode *otn, int protocol)
     {
         AddFuncToCleanExitList(React_Cleanup, NULL);
 
-        React_GetPage();
+        React_GetPage(sc);
 
         Active_SetEnabled(1);
         s_init = 0;
@@ -282,7 +280,7 @@ static void React_Init(char *data, OptTreeNode *otn, int protocol)
     React_Parse(data, otn, rd);
     rd->otn = otn;
 
-    if (add_detection_option(RULE_OPTION_TYPE_REACT, (void*)rd, &idx_dup)
+    if (add_detection_option(sc, RULE_OPTION_TYPE_REACT, (void*)rd, &idx_dup)
         == DETECTION_OPTION_EQUAL)
     {
         free(rd);
@@ -291,7 +289,7 @@ static void React_Init(char *data, OptTreeNode *otn, int protocol)
     /* finally, attach the option's detection function to the rule's
        detect function pointer list */
     AddRspFuncToList(React_Queue, otn, (void*)rd);
-    AddFuncToPostConfigList(React_Config, rd);
+    AddFuncToPreprocPostConfigList(sc, React_Config, rd);
 
     // this prevents multiple response options in rule
     otn->ds_list[PLUGIN_RESPONSE] = rd;
@@ -310,15 +308,13 @@ static void React_Cleanup(int signal, void* data)
 //--------------------------------------------------------------------
 // core functions
 
-static void React_GetPage (void)
+static void React_GetPage (struct _SnortConfig *sc)
 {
     char* msg;
     char* percent_s;
     struct stat fs;
     FILE* fd;
     size_t n;
-
-    SnortConfig* sc = snort_conf_for_parsing;
 
     if ( !sc )
         FatalError("react: %s(%d) Snort config for parsing is NULL.\n",
@@ -411,9 +407,9 @@ static void React_Parse(char* data, OptTreeNode* otn, ReactData* rd)
 //--------------------------------------------------------------------
 // format response buffer
 
-static void React_Config (int unused, void* data)
+static void React_Config (struct _SnortConfig *sc, void *data)
 {
-    ReactData* rd = (ReactData*)data;
+    ReactData *rd = (ReactData *)data;
     size_t body_len, head_len, total_len;
     char dummy;
 

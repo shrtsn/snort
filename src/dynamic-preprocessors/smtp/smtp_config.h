@@ -33,6 +33,8 @@
 
 #include "sfPolicyUserData.h"
 #include "sf_email_attach_decode.h"
+#include "file_api.h"
+
 #define CONF_SEPARATORS                  " \t\n\r"
 #define CONF_PORTS                       "ports"
 #define CONF_INSPECTION_TYPE             "inspection_type"
@@ -73,6 +75,9 @@
 #define CONF_ALL                         "all"
 #define CONF_NONE                        "none"
 #define CONF_CMDS                        "cmds"
+#define CONF_AUTH_CMDS                   "auth_cmds"
+#define CONF_DATA_CMDS                   "data_cmds"
+#define CONF_BDATA_CMDS                  "binary_data_cmds"
 #define CONF_START_LIST "{"
 #define CONF_END_LIST   "}"
 
@@ -106,10 +111,18 @@
 #define SMTP_DEFAULT_SERVER_PORT       25  /* SMTP normally runs on port 25 */
 #define SMTP_DEFAULT_SUBMISSION_PORT  587  /* SMTP Submission port - see RFC 2476 */
 #define XLINK2STATE_DEFAULT_PORT      691  /* XLINK2STATE sometimes runs on port 691 */
-#define MAX_FILE                      1024
-#define MAX_EMAIL                     1024
 
 #define ERRSTRLEN   512
+
+typedef enum _SMTPCmdTypeEnum
+{
+    SMTP_CMD_TYPE_NORMAL = 0,
+    SMTP_CMD_TYPE_DATA,
+    SMTP_CMD_TYPE_BDATA,
+    SMTP_CMD_TYPE_AUTH,
+    SMTP_CMD_TYPE_LAST
+
+} SMTPCmdTypeEnum;
 
 typedef struct _SMTPSearch
 {
@@ -123,6 +136,7 @@ typedef struct _SMTPToken
     char *name;
     int   name_len;
     int   search_id;
+    SMTPCmdTypeEnum type;
 
 } SMTPToken;
 
@@ -150,11 +164,7 @@ typedef struct _SMTPConfig
     char  drop_xlink2state;
     char  print_cmds;
     char  enable_mime_decoding;
-    char  log_mailfrom;
-    char  log_rcptto;
-    char  log_filename;
-    char  log_email_hdrs;
-    uint32_t   email_hdrs_log_depth;
+    MAIL_LogConfig log_config;
     uint32_t   memcap;
     int   max_mime_mem;
     int   max_mime_depth; 

@@ -60,7 +60,7 @@ extern char *file_name;  /* this is the file name from rules.c, generally used
 extern int file_line;    /* this is the file line number from rules.c that is
                             used to indicate file lines for error messages */
 
-static void Base64DataInit(char *, OptTreeNode *, int);
+static void Base64DataInit(struct _SnortConfig *, char *, OptTreeNode *, int);
 void Base64DataParse(char *, OptTreeNode *);
 int  Base64DataEval(void *option_data, Packet *p);
 
@@ -89,7 +89,7 @@ void SetupBase64Data(void)
 
 /****************************************************************************
  *
- * Function: Base64DataInit(char *, OptTreeNode *, int protocol)
+ * Function: Base64DataInit(struct _SnortConfig *, char *, OptTreeNode *, int protocol)
  *
  * Purpose: Generic rule configuration function.  Handles parsing the rule
  *          information and attaching the associated detection function to
@@ -102,7 +102,7 @@ void SetupBase64Data(void)
  * Returns: void function
  *
  ****************************************************************************/
-static void Base64DataInit(char *data, OptTreeNode *otn, int protocol)
+static void Base64DataInit(struct _SnortConfig *sc, char *data, OptTreeNode *otn, int protocol)
 {
     OptFpList *fpl;
     if(otn->ds_list[PLUGIN_BASE64_DECODE] == NULL )

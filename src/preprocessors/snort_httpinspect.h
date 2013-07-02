@@ -36,6 +36,8 @@
 #endif
 
 extern MemPool *http_mempool;
+extern MemPool *mime_decode_mempool;
+extern MemPool *mime_log_mempool;
 
 extern DataBuffer HttpDecodeBuf;
 
@@ -134,6 +136,7 @@ typedef struct _HttpSessionData
     uint8_t log_flags;
     uint8_t cli_small_chunk_count;
     uint8_t srv_small_chunk_count;
+    MimeState *mime_ssn;
 } HttpSessionData;
 
 typedef struct _HISearch
@@ -228,45 +231,6 @@ static inline sfip_t *GetTrueIPForSession(void *data)
     return hsd->true_ip;
 
 }
-
-static inline void HttpLogFuncs(HTTPINSPECT_GLOBAL_CONF *GlobalConf, HttpSessionData *hsd, Packet *p, int iCallDetect )
-{
-    if(!hsd)
-        return;
-
-    /* for pipelined HTTP requests */
-    if(!iCallDetect)
-        p->xtradata_mask = 0;
-
-    if(hsd->true_ip)
-    {
-        SetLogFuncs(p, GlobalConf->xtra_trueip_id, 0);
-    }
-
-    if(hsd->log_flags & HTTP_LOG_URI)
-    {
-        SetLogFuncs(p, GlobalConf->xtra_uri_id, 0);
-    }
-
-    if(hsd->log_flags & HTTP_LOG_HOSTNAME)
-    {
-        SetLogFuncs(p, GlobalConf->xtra_hname_id, 0);
-    }
-
-#ifndef SOURCEFIRE
-    if(hsd->log_flags & HTTP_LOG_JSNORM_DATA)
-    {
-        SetLogFuncs(p, GlobalConf->xtra_jsnorm_id, 1);
-    }
-#ifdef ZLIB
-    if(hsd->log_flags & HTTP_LOG_GZIP_DATA)
-    {
-        SetLogFuncs(p, GlobalConf->xtra_gzip_id, 1);
-    }
-#endif
-#endif
-}
-
 
 #ifdef ZLIB
 static inline void ResetGzipState(DECOMPRESS_STATE *ds)

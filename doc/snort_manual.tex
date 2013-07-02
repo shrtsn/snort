@@ -101,7 +101,7 @@
 
 \begin{document}
 
-\title{SNORT\textsuperscript{\textregistered} Users Manual\\2.9.4}
+\title{SNORT\textsuperscript{\textregistered} Users Manual\\2.9.5}
 
 \author{The Snort Project}
 
@@ -415,8 +415,8 @@ with the \emph{rev} option.
 \subsection{High Performance Configuration}
 
 If you want Snort to go \emph{fast} (like keep up with a 1000 Mbps connection),
-you need to use unified logging and a unified log reader such as
-\emph{barnyard}.  This allows Snort to log alerts in a binary form as fast as
+you need to use unified2 logging and a unified2 log reader such as
+\emph{barnyard2}.  This allows Snort to log alerts in a binary form as fast as
 possible while another program performs the slow actions, such as writing to a
 database.
 
@@ -474,10 +474,10 @@ when a pass rule is encountered, regardless of the use of
 \section{Packet Acquisition}
 
 Snort 2.9 introduces the DAQ, or Data Acquisition library, for packet I/O.  The
-DAQ replaces direct calls to PCAP functions with an abstraction layer that
+DAQ replaces direct calls to libpcap functions with an abstraction layer that
 facilitates operation on a variety of hardware and software interfaces without
 requiring changes to Snort.  It is possible to select the DAQ type and mode
-when invoking Snort to perform PCAP readback or inline operation, etc.
+when invoking Snort to perform pcap readback or inline operation, etc.
 
 \begin{note}
 
@@ -539,14 +539,18 @@ version is selected.  This applies to static and dynamic versions of the same
 library.
 
 \begin{verbatim}
-    ./snort [--daq-list <dir>]
+    ./snort --daq-list[=<dir>]
+    ./snort --daq-dir=<dir> --daq-list
 \end{verbatim}
 
-The above command searches the specified directory for DAQ modules and prints
+The above commands search the specified directories for DAQ modules and print
 type, version, and attributes of each.  This feature is not available in the
-conf.
+conf.  Snort stops processing after parsing --daq-list so if you want to add
+one or more directories add --daq-dir options before --daq-list on the command
+line.  (Since the directory is optional to --daq-list, you must use an =
+without spaces for this option.)
 
-\subsection{PCAP}
+\subsection{pcap}
 
 pcap is the default DAQ.  if snort is run w/o any DAQ arguments, it will
 operate as it always did using this module.  These are equivalent:
@@ -751,7 +755,7 @@ The action stats show "blocked" packets instead of "dropped" packets to avoid
 confusion between dropped packets (those Snort didn't actually see) and blocked
 packets (those Snort did not allow to pass).
 
-\section{Reading Pcaps}
+\section{Reading pcap files}
 
 Instead of having Snort listen on an interface, you can give it a packet
 capture to read.  Snort will read and analyze the packets as if they came off
@@ -784,8 +788,8 @@ Same as -r.  Added for completeness. \\
 \hline
 \texttt{--pcap-file=<file>} &
 
-File that contains a list of pcaps to read.  Can specify path to pcap or
-directory to recurse to get pcaps. \\
+File that contains a list of pcap files to read.  Can specify path to each
+pcap or directory to recurse to get pcaps. \\
 
 \hline
 \texttt{--pcap-list="<list>"} &
@@ -1128,14 +1132,14 @@ on subsequent packets.
 
 \item Int Blklst = packets that are GTP, Teredo, 6in4 or 4in6 encapsulated that are
 being blocked.  These packets could get the Blacklist verdict if \texttt{config
-tunnel\_verdicts} was set for the given protocol.  Note that this count are
+tunnel\_verdicts} was set for the given protocol.  Note that these counts are
 output only if non-zero.  Also, this count is incremented on the first packet
 in the flow that alerts.  The alerting packet and all following packets on the
 flow will be counted under Block.
 
 \item Int Whtlst = packets that are GTP, Teredo, 6in4 or 4in6 encapsulated that are
 being allowed.  These packets could get the Whitelist verdict if \texttt{config
-tunnel\_verdicts} was set for the given protocol.  Note that this count are
+tunnel\_verdicts} was set for the given protocol.  Note that these counts are
 output only if non-zero.  Also, this count is incremented for all packets on
 the flow starting with the alerting packet.
 \end{itemize}
@@ -2226,10 +2230,10 @@ hosts are ignored.  This option is only supported with a Host Attribute Table
 
 \hline
 \texttt{config max\_attribute\_services\_per\_host: <hosts>} & Sets a per host
-limit on the maximum number of services to read from the attribute table.
-Minimum value is 1 and the maximum is 65535.  The default is 10.  For a given
+limit on the maximum number of services to read from the attribute table. 
+Minimum value is 1 and the maximum is 65535.  The default is 100.  For a given
 host, if the number of services in the attribute table exceeds this value, an
-error is logged and the remainder of the services for that host are ignored.
+error is logged and the remainder of the services for that host are ignored. 
 This option is only supported with a Host Attribute Table (see section
 \ref{targetbased}). \\
 
@@ -2308,10 +2312,6 @@ in snort.conf takes effect when the configuration line in snort.conf is parsed.
 That may occur after other configuration settings that result in output to
 console or syslog.
 \\
-
-\hline
-\texttt{config read\_bin\_file: <pcap>} & Specifies a pcap file to
-use (instead of reading from network), same effect as -r $<$tf$>$ option.\\
 
 \hline
 \texttt{config reference: <ref>} & Adds a new reference system to Snort, eg:
@@ -2659,9 +2659,9 @@ one.
 \paragraph{Advanced Configuration}
 \begin{verbatim}
     preprocessor frag3_global: prealloc_nodes 8192 
-    preprocessor frag3_engine: policy linux, bind_to 192.168.1.0/24
-    preprocessor frag3_engine: policy first, bind_to [10.1.47.0/24,172.16.8.0/24]
-    preprocessor frag3_engine: policy last, detect_anomalies
+    preprocessor frag3_engine: policy linux bind_to 192.168.1.0/24
+    preprocessor frag3_engine: policy first bind_to [10.1.47.0/24,172.16.8.0/24]
+    preprocessor frag3_engine: policy last detect_anomalies
 \end{verbatim}
 
 \subsubsection{Frag 3 Alert Output}
@@ -3502,7 +3502,7 @@ system that doesn't print tagged packets is used, then the user won't see open
 port alerts.  The open port information is stored in the IP payload and
 contains the port that is open.
 
-The sfPortscan alert output was designed to work with unified packet logging,
+The sfPortscan alert output was designed to work with unified2 packet logging,
 so it is possible to extend favorite Snort GUIs to display portscan alerts and
 the additional information in the IP payload using the above packet
 characteristics.
@@ -3799,9 +3799,30 @@ The following options can be used with the performance monitor:
 
 \begin{itemize}
 
-\item \texttt{flow} - Prints out statistics about the type of traffic and
-protocol distributions that Snort is seeing. This option can produce large
+\item \texttt{flow} - Prints out statistics about the type and amount of traffic
+and protocol distributions that Snort is seeing. This option can produce large
 amounts of output.
+
+\item \texttt{flow-file} - Prints \texttt{flow} statistics in a comma-delimited
+format to the file that is specified.
+\begin{itemize}
+\item Timestamp
+\item Total \% TCP bytes
+\item Total \% UDP bytes
+\item Total \% ICMP bytes
+\item Total \% OTHER bytes
+\item Number of Packet length entries
+\item Packet length entries - bytes,\%total
+\item Number of TCP port flow entries
+\item TCP port flow entries : port,\%total,\%src,\%dst
+\item \% TCP high port to high port
+\item Number of UDP port flow entries
+\item UDP port flow entries : port,\%total,\%src,\%dst
+\item \% UDP high port to high port
+\item Number of ICMP type entries
+\item ICMP type entries : type,\%total
+\end{itemize}
+Specifying this option implicitly enables \texttt{flow} statistics.
 
 \item \texttt{events} - Turns on event reporting.  This prints out statistics
 as to the number of rules that were evaluated and didn't match
@@ -3844,6 +3865,15 @@ statistics are kept by the operating system. By default, \texttt{reset} is
 used.
 
 \item \texttt{atexitonly} - Dump stats for entire life of Snort.
+One or more of the following arguments can be given to specify specific
+statistic types to dump at exit:
+\begin{itemize}
+\item \texttt{base-stats}
+\item \texttt{flow-stats}
+\item \texttt{flow-ip-stats}
+\item \texttt{events-stats}
+\end{itemize}
+Without any arguments, all enabled stats will be dumped only when Snort exits.
 
 \item \texttt{max\_file\_size} - Defines the maximum size of the
 comma-delimited file.  Before the file exceeds this size, it will be rolled
@@ -3912,6 +3942,12 @@ to free memory.  This value is in bytes and the default value is
 
     preprocessor perfmonitor: \
         time 30 flow-ip flow-ip-file flow-ip-stats.csv pktcnt 1000
+
+    preprocessor perfmonitor: \
+        time 30 pktcnt 1000 snortfile base.csv flow-file flows.csv atexitonly flow-stats
+
+    preprocessor perfmonitor: \
+        time 30 pktcnt 1000 flow events atexitonly base-stats flow-stats console
 \end{verbatim}
 
 \subsection{HTTP Inspect}
@@ -5149,10 +5185,30 @@ Alert if this command is sent from client side.  Default is an empty list.
 List of valid commands.  We do not alert on commands in this list.  Default is
 an empty list, but preprocessor has this list hard-coded:
 
-\{ ATRN AUTH BDAT DATA DEBUG EHLO EMAL ESAM ESND ESOM ETRN EVFY EXPN \}
-\{ HELO HELP IDENT MAIL NOOP QUIT RCPT RSET SAML SOML SEND ONEX QUEU \}
-\{ STARTTLS TICK TIME TURN TURNME VERB VRFY X-EXPS X-LINK2STATE \}
-\{ XADR XAUTH XCIR XEXCH50 XGEN XLICENSE XQUE XSTA XTRN XUSR  \}
+\begin{itemize}
+\item[]
+\{ ATRN AUTH BDAT DATA DEBUG EHLO EMAL ESAM ESND ESOM ETRN EVFY EXPN
+HELO HELP IDENT MAIL NOOP QUIT RCPT RSET SAML SOML SEND ONEX QUEU
+STARTTLS TICK TIME TURN TURNME VERB VRFY X-EXPS X-LINK2STATE
+XADR XAUTH XCIR XEXCH50 XGEN XLICENSE XQUE XSTA XTRN XUSR \}
+\end{itemize}
+
+\item \texttt{data\_cmds \{ <Space-delimited list of commands> \}}
+
+List of commands that initiate sending of data with an end of data delimiter
+the same as that of the DATA command per RFC 5321 - \texttt{"<CRLF>.<CRLF>"}.
+Default is \{ DATA \}.
+
+\item \texttt{binary\_data\_cmds \{ <Space-delimited list of commands> \}}
+
+List of commands that initiate sending of data and use a length value after
+the command to indicate the amount of data to be sent, similar to that of the
+BDAT command per RFC 3030.  Default is \{ BDAT XEXCH50 \}.
+
+\item \texttt{auth\_cmds \{ <Space-delimited list of commands> \}}
+
+List of commands that initiate an authentication exchange between client
+and server.  Default is \{ AUTH XAUTH X-EXPS \}.
 
 \item \texttt{alert\_unknown\_cmds}
 
@@ -7035,8 +7091,8 @@ to do defragmentation.
 
 \item[] Specifies the maximum fragment size that will be added to the
 defragmention module. If a fragment is greater than this size, it is truncated
-before being added to the defragmentation module.  Default is set to -1. The 
-allowed range for this option is 1514 - 65535.
+before being added to the defragmentation module.  The allowed range for this
+option is 1514 - 65535.
 
 \end{itemize}
 
@@ -7960,6 +8016,16 @@ rules processing) at the beginning of the DCE/RPC stub data, regardless of
 preceding rule options. There are no arguments to this option.  This option
 matches if there is DCE/RPC stub data.
 
+The cursor is moved to the beginning of the stub data.  All ensuing rule
+options will be considered "sticky" to this buffer.  The first rule option
+following \texttt{dce\_stub\_data} should use absolute location modifiers if it is
+position-dependent.  Subsequent rule options should use a relative modifier if
+they are meant to be relative to a previous rule option match in the stub data
+buffer.  Any rule option that does not specify a relative modifier will be
+evaluated from the start of the stub data buffer.  To leave the stub data buffer
+and return to the main payload buffer, use the \texttt{pkt\_data} rule option -
+see section \ref{sub:pkt_data} for details).
+
 \end{itemize}
 \texttt{byte\_test} and \texttt{byte\_jump} with \texttt{dce}\label{dcerpc2:byte_test_jump}
 \begin{itemize}
@@ -8039,14 +8105,14 @@ isset flowbit) rules that are necessary if the new rule options are not used:
     alert tcp $EXTERNAL_NET any -> $HOME_NET [135,139,445,593,1024:] \
         (msg:"dns R_Dnssrv funcs2 overflow attempt"; flow:established,to_server; \
         dce_iface:50abc2a4-574d-40b3-9d66-ee4fd5fba076; dce_opnum:0-11; dce_stub_data; \
-        pcre:"/^.{12}(\x00\x00\x00\x00|.{12})/sR"; byte_jump:4,-4,relative,align,dce; \
+        pcre:"/^.{12}(\x00\x00\x00\x00|.{12})/s"; byte_jump:4,-4,relative,align,dce; \
         byte_test:4,>,256,4,relative,dce; reference:bugtraq,23470; reference:cve,2007-1748; \
         classtype:attempted-admin; sid:1000068;)
 
     alert udp $EXTERNAL_NET any -> $HOME_NET [135,1024:] \
         (msg:"dns R_Dnssrv funcs2 overflow attempt"; flow:established,to_server; \
         dce_iface:50abc2a4-574d-40b3-9d66-ee4fd5fba076; dce_opnum:0-11; dce_stub_data; \
-        pcre:"/^.{12}(\x00\x00\x00\x00|.{12})/sR"; byte_jump:4,-4,relative,align,dce; \
+        pcre:"/^.{12}(\x00\x00\x00\x00|.{12})/s"; byte_jump:4,-4,relative,align,dce; \
         byte_test:4,>,256,4,relative,dce; reference:bugtraq,23470; reference:cve,2007-1748; \
         classtype:attempted-admin; sid:1000069;)
 \end{verbatim}
@@ -9261,7 +9327,7 @@ SID & Description\\
          For example:
       \begin{verbatim}
        ./configure --enable-gre --enable-sourcefire --enable-flexresp3 
-       --enable-dynamicplugin --enable-pthread --enable-linux-smp-stats 
+       --enable-pthread --enable-linux-smp-stats 
        --enable-targetbased --enable-shared-rep --enable-control-socket
       \end{verbatim}
    \item Put your IP list file into a directory, where snort has full access. \\
@@ -11333,7 +11399,7 @@ The general configuration of the event queue is as follows:
     config event_queue: [max_queue [size]] [log [size]] [order_events [TYPE]]
 \end{verbatim}
 
-\paragraph{Event Queue Configuration Options}
+\subsubsection{Event Queue Configuration Options}
 
 There are three configuration options to the configuration parameter
 'event\_queue'.
@@ -11376,7 +11442,7 @@ alert, log, etc.
 The default value is content\_length.
 \end{slist}
 
-\paragraph{Event Queue Configuration Examples}
+\subsubsection{Event Queue Configuration Examples}
 
 The default configuration:
 
@@ -11400,6 +11466,65 @@ Use the default event queue values but change the number of logged events:
 
 \begin{verbatim}
     config event_queue: log 2
+\end{verbatim}
+
+\subsection{Event Trace}
+\label{eventtrace}
+
+Snort supports logging additional information to a file about the events it is
+generating relative to specific blocks of data that are matching the rule.
+The blocks of data logged include information about the event, the GID, SID,
+and other data related to the event itself, plus packet data including sizes,
+timestamps, raw, normalized, and decompressed buffers extracted from the packet
+that may have been used in evaluating the rule.  The amount of packet data
+written is limited with each entry.  This is useful in debugging rules.
+
+The \texttt{config} option \texttt{event\_trace} to \texttt{snort.conf}
+provides this control.
+
+The general configuration for event tracing is as follows:
+
+\begin{verbatim}
+    config event_trace: [file <filename>] [max_data <int>]
+\end{verbatim}
+
+The are two configuration options for \texttt{event\_trace}.
+
+\begin{slist}
+\item \texttt{file}
+
+This sets the file name into which the trace data is written, within
+Snort's log directory (see -l command line option).
+
+The default is event\_trace.txt.
+
+\item \texttt{max\_data}
+
+This specifies the maximum number of bytes from each buffer of data to write into
+the file.
+
+The default is 64 bytes and valid values range from 1 to 65535 bytes.
+
+\end{slist}
+
+\subsubsection{Event Trace Examples}
+
+The default configuration:
+
+\begin{verbatim}
+    config event_trace: file event_trace.txt max_data 64
+\end{verbatim}
+
+Use the default file, but change the amount of data logged:
+
+\begin{verbatim}
+    config event_trace: max_data 128
+\end{verbatim}
+
+Change the file name to which event traces are logged:
+
+\begin{verbatim}
+    config event_trace: file snort_event_trace.out
 \end{verbatim}
 
 \section{Performance Profiling}
@@ -12071,7 +12196,7 @@ The minimum is 1 KB.  See \ref{Log Limits} for more information.
 
 Sets up a UNIX domain socket and sends alert reports to it. External
 programs/processes can listen in on this socket and receive Snort alert and
-packet data in real time. This is currently an experimental interface.
+packet data in real time.
 
 \subsubsection{Format}
 
@@ -12084,6 +12209,24 @@ packet data in real time. This is currently an experimental interface.
 \begin{verbatim}
     output alert_unixsock
 \end{verbatim}
+
+\begin{note}
+On FreeBSD, the default \texttt{sysctl} value for \texttt{net.local.dgram.recvspace}
+is too low for \texttt{alert\_unixsock} datagrams and you will likely not receive any
+data.  You can change this value after booting by running:
+\begin{verbatim}
+
+$ sudo sysctl net.local.dgram.recvspace=100000
+
+\end{verbatim}
+To have this value set on each boot automatically, add the following to \texttt{/etc/sysctl.conf}:
+\begin{verbatim}
+
+net.local.dgram.recvspace=100000
+
+\end{verbatim}
+Note that the value of 100000 may be slightly generous, but the value should be at least 65864.
+\end{note}
 
 \subsection{log\_tcpdump}
 
@@ -12180,47 +12323,7 @@ The minimum is 1 KB.  See \ref{Log Limits} for more information.
     output alert_csv: /var/log/alert.csv timestamp, msg
 \end{verbatim}
 
-\subsection{unified}
-\label{unified}
-
-The unified output plugin is designed to be the fastest possible method of
-logging Snort events.  The unified output plugin logs events in binary format,
-allowing another programs to handle complex logging mechanisms that would
-otherwise diminish the performance of Snort.
-
-The name \emph{unified} is a misnomer, as the unified output plugin creates two
-different files, an \emph{alert} file, and a \emph{log} file.   The alert file
-contains the high-level details of an event (eg: IPs, protocol, port, message
-id).  The log file contains the detailed packet information (a packet dump with
-the associated event ID).  Both file types are written in a binary format
-described in \emph{spo\_unified.h}.
-
-\begin{note}
-
-Files have the file creation time (in Unix Epoch format) appended to each file
-when it is created.
-
-\end{note}
-
-\subsubsection{Format}
-
-\begin{verbatim}
-    output alert_unified: <base file name> [, <limit <file size limit in MB>]
-    output log_unified: <base file name> [, <limit <file size limit in MB>]
-\end{verbatim}
-
-\subsubsection{Example}
-
-\begin{verbatim}
-    output alert_unified: snort.alert, limit 128
-    output log_unified: snort.log, limit 128
-\end{verbatim}
-
 \subsection{unified 2}
-
-The unified2 output plugin is a replacement for the unified output plugin.  It
-has the same performance characteristics, but a slightly different logging
-format.  See section \ref{unified} on unified logging for more information.
 
 Unified2 can work in one of three modes, packet logging, alert logging, or true
 unified logging.  Packet logging includes a capture of the entire packet and is
@@ -12448,7 +12551,7 @@ line option but it is able to work within a ruletype.
 
 This section pertains to logs produced by \texttt{alert\_fast},
 \texttt{alert\_full}, \texttt{alert\_csv}, and \texttt{log\_tcpdump}.
-\texttt{unified} and \texttt{unified2} also may be given limits.  Those limits
+\texttt{unified2} also may be given limits.  Those limits
 are described in the respective sections.
 
 When a configured limit is reached, the current log is closed and a new log is
@@ -12758,11 +12861,6 @@ sid:10000007;)
 Dynamically loadable modules were introduced with Snort 2.6.  They can be
 loaded via directives in \texttt{snort.conf} or via command-line options.
 
-\begin{note}
-To disable use of dynamic modules, Snort must be configured with the
-\texttt{--disable-dynamicplugin} flag.
-\end{note}
-
 \subsection{Format}
 
 \begin{verbatim}
@@ -12916,7 +13014,6 @@ config nolog
 config no_promisc
 config pkt_count
 config rate_filter
-config read_bin_file
 config response
 config set_gid
 config set_uid
@@ -13712,6 +13809,10 @@ osvdb&
 http://osvdb.org/show/osvdb/\\
 
 \hline 
+msb&
+http://technet.microsoft.com/en-us/security/bulletin/\\
+
+\hline 
 url&
 http://\\
 
@@ -14286,14 +14387,15 @@ for the specific pattern, ignoring case.  nocase modifies the previous
 
 The rawbytes keyword allows rules to look at the raw packet data, ignoring any
 decoding that was done by preprocessors.  This acts as a modifier to the
-previous content \ref{sub:content} option. 
-
-Several preprocessors, such as Telnet, RPC, and SMTP, use decoded/normalized data for
-content match by default, if \texttt{rawbytes} is not specified explicitly. Therefore, 
-\texttt{rawbytes} should be specified in order to inspect raw data for those traffic.
+previous content \ref{sub:content} option.
 
 HTTP Inspect has a set of keywords to use raw data, such as 
-\texttt{http\_raw\_cookie}, \texttt{http\_raw\_header}, \texttt{http\_raw\_uri} etc.
+\texttt{http\_raw\_cookie}, \texttt{http\_raw\_header}, \texttt{http\_raw\_uri} etc
+that match on specific portions of the raw HTTP requests and responses.
+
+Most other preprocessors use decoded/normalized data for content match by default, if
+\texttt{rawbytes} is not specified explicitly.  Therefore, \texttt{rawbytes} should
+be specified in order to inspect arbitrary raw data from the packet.
 
 \subsubsection{format}
 
@@ -15855,9 +15957,9 @@ positive or negative. \\
 \hline
 \texttt{relative\_offset $<$value$>$} &
 
-This is the relative offset from the last content match or byte\_test/jump.
+This is the relative offset from the last content match, pcre or byte\_jump.
 \texttt{relative\_offset} has one argument, the offset number.  So if you
-wanted to start decoding and ASN.1 sequence right after the content ``foo'',
+wanted to start decoding an ASN.1 sequence right after the content ``foo'',
 you would specify \verb!'content:"foo"; asn1:bitstring_overflow, relative_offset 0'!.
 Offset values may be positive or negative. \\ 
 
@@ -17897,8 +17999,7 @@ Our full rule would be:
 \chapter{Dynamic Modules}\label{Dynamic Modules}
 
 Preprocessors, detection capabilities, and rules can now be developed as
-dynamically loadable module to snort.  When enabled via the {\em
---enable-dynamicplugin} configure option, the dynamic API presents a means for
+dynamically loadable modules to snort.  The dynamic API presents a means for
 loading dynamic libraries and allowing the module to utilize certain functions
 within the main snort code.
 
@@ -19450,54 +19551,60 @@ while Snort is running in inline-test mode.
 \\
 \textbf{Snort QA Team}
 & Chris Spencer\\
-& Andrew Blunck\\
-& Dan Erxleben\\
 & Jigeshwar Patel\\
+& Albert Lewis\\
+& Nihal Desai\\
 \\
-\textbf{Snort Rules Team}
+\textbf{Vulnerability Research Team}
 & Matt Watchinski\\
+& Aaron Benson\\
 & Nathan Benson\\
+& Andrew Blunck\\
 & Christoph Cordes\\
 & Joel Esler\\
-& William Freeman\\
+& Douglas Goddard\\
 & Ethan Gulla\\
-& Luca Gibelli\\
 & Nigel Houghton\\
+& Pawel Janic\\
 & Richard Johnson\\
 & Tom Judge\\
 & Alex Kambis\\
 & Alex Kirk\\
-& Tomasz Kojm\\
 & Chris Marshall\\
 & Christopher McBee\\
+& Alex McDonnell\\
 & Kevin Miklavcic\\
+& Steve Morgan\\
 & Patrick Mullen\\
+& Katie Nolan\\
 & Matt Olney\\
+& Carlos Pacho\\
 & Ryan Pentney\\
-& David Shyu\\
-& Edvin Torok\\
+& Nick Randolph\\
+& Dave Raynor\\
+& Marcos Rodriguez\\
+& Ryan Steinmetz\\
+& Brandon Stultz\\
 & Andy Walker\\
-& Alberto Wu\\
+& Shawn Webb\\
+& Carl Wu\\
+& Yves Younan\\
 & Alain Zidouemba\\ 
 \\
 \textbf{Win32 Maintainer}
 & Snort Team\\
-\\
-\textbf{Snort Product Manager}
-& Steve Kane\\
 \\
 \textbf{Snort Community Manager}
 & Joel Esler\\
 \\
 \textbf{Snort Web Team}
 & Aaron Norling\\
-& Sarah Zelechoski\\
+& Mike Verbeck\\
 \\
 \end{tabular}
 
 \begin{tabular}{p{3in} p{3in}}
 \textbf{Major Contributors}
-& Ryan Jordan\\
 & Erek Adams\\
 & Michael Altizer\\
 & Ayushi Agarwal\\
@@ -19533,8 +19640,8 @@ while Snort is running in inline-test mode.
 & Marc Norton\\
 & Judy Novak\\
 & Andreas Ostling\\
+& William Parker\\
 & Chris Reid\\
-& Marcos Rodriguez\\
 & Daniel Roelker\\
 & Dragos Ruiu\\
 & Chris Sherwin\\

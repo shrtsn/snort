@@ -78,7 +78,7 @@ typedef sfip_t *snort_ip_p;
 /* XXX make sure these aren't getting confused with sfip_is_valid within the code */
 #define IPH_IS_VALID(p) iph_is_valid(p)
 
-#define IP_CLEAR(x) (x).bits = (x).family = (x).ip32[0] = (x).ip32[1] = (x).ip32[2] = (x).ip32[3] = 0;
+#define IP_CLEAR(x) (x).bits = (x).family = 0; (x).ip32[0] = (x).ip32[1] = (x).ip32[2] = (x).ip32[3] = 0;
 
 #define IP_IS_SET(x) sfip_is_set(&x)
 

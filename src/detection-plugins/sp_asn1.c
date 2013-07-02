@@ -304,7 +304,7 @@ int Asn1Detect(void *context, Packet *p)
     return DETECTION_OPTION_NO_MATCH;
 }
 
-static void Asn1Init(char *data, OptTreeNode *otn, int protocol)
+static void Asn1Init(struct _SnortConfig *sc, char *data, OptTreeNode *otn, int protocol)
 {
     ASN1_CTXT *asn1;
     void *ds_ptr_dup;
@@ -318,7 +318,7 @@ static void Asn1Init(char *data, OptTreeNode *otn, int protocol)
 
     Asn1RuleParse(data, otn, asn1);
 
-    if (add_detection_option(RULE_OPTION_TYPE_ASN1, (void *)asn1, &ds_ptr_dup) == DETECTION_OPTION_EQUAL)
+    if (add_detection_option(sc, RULE_OPTION_TYPE_ASN1, (void *)asn1, &ds_ptr_dup) == DETECTION_OPTION_EQUAL)
     {
         free(asn1);
         asn1 = ds_ptr_dup;

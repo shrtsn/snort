@@ -67,9 +67,9 @@ const char *PREPROC_NAME = "SF_SDF";
 #define SetupSDF DYNAMIC_PREPROC_SETUP
 
 /* PROTOTYPES */
-static void SDFInit(char *args);
+static void SDFInit(struct _SnortConfig *, char *args);
 static void ProcessSDF(void *p, void *context);
-static SDFConfig * NewSDFConfig(tSfPolicyUserContextId);
+static SDFConfig * NewSDFConfig(struct _SnortConfig *, tSfPolicyUserContextId);
 static void ParseSDFArgs(SDFConfig *config, char *args);
 static void SDFCleanExit(int signal, void *unused);
 static int SDFFreeConfig(tSfPolicyUserContextId context, tSfPolicyId id, void *pData);
@@ -79,20 +79,17 @@ static void SDFPrintPseudoPacket(SDFConfig *config, SDFSessionData *session,
                                  SFSnortPacket *real_packet);
 
 #ifdef SNORT_RELOAD
-static void SDFReload(char *);
-static void * SDFReloadSwap(void);
+static void SDFReload(struct _SnortConfig *, char *, void **);
+static void * SDFReloadSwap(struct _SnortConfig *, void *);
 static void SDFReloadSwapFree(void *);
 #endif
 
 /* GLOBALS :( */
-sdf_tree_node *head_node = NULL;
-uint32_t num_patterns = 0;
-tSfPolicyUserContextId sdf_context_id = NULL;
+SDFContext *sdf_context = NULL;
 
 #ifdef SNORT_RELOAD
 sdf_tree_node *swap_head_node = NULL;
 uint32_t swap_num_patterns = 0;
-tSfPolicyUserContextId sdf_swap_context_id = NULL;
 #endif
 
 #ifdef PERF_PROFILING
@@ -117,7 +114,7 @@ void SetupSDF(void)
 #ifndef SNORT_RELOAD
     _dpd.registerPreproc("sensitive_data", SDFInit);
 #else
-    _dpd.registerPreproc("sensitive_data", SDFInit, SDFReload, SDFReloadSwap,
+    _dpd.registerPreproc("sensitive_data", SDFInit, SDFReload, NULL, SDFReloadSwap,
                          SDFReloadSwapFree);
 #endif
 }
@@ -133,7 +130,7 @@ void SetupSDF(void)
  * Returns: void
  *
  */
-void SDFInit(char *args)
+void SDFInit(struct _SnortConfig *sc, char *args)
 {
     SDFConfig *config = NULL;
 
@@ -144,12 +141,18 @@ void SDFInit(char *args)
     }
 
     /* Create context id, register callbacks. This is only done once. */
-    if (sdf_context_id == NULL)
+    if (sdf_context == NULL)
     {
-        sdf_context_id = sfPolicyConfigCreate();
-        /* Allocate the head of the pattern-matching tree */
-        head_node = (sdf_tree_node *)calloc(1, sizeof(sdf_tree_node));
-        if (!head_node)
+        sdf_context = (SDFContext *)calloc(1, sizeof(*sdf_context));
+        if (!sdf_context)
+            DynamicPreprocessorFatalMessage("Failed to allocate memory for SDF "
+                                            "configuration.\n");
+        sdf_context->context_id = sfPolicyConfigCreate();
+        if (!sdf_context->context_id)
+            DynamicPreprocessorFatalMessage("Failed to allocate memory for SDF "
+                                            "configuration.\n");
+        sdf_context->head_node = (sdf_tree_node *)calloc(1, sizeof(*sdf_context->head_node));
+        if (!sdf_context->head_node)
             DynamicPreprocessorFatalMessage("Failed to allocate memory for SDF "
                                             "configuration.\n");
 
@@ -161,13 +164,13 @@ void SDFInit(char *args)
     }
 
     /* Handle configuration. This is done once for each policy. */
-    config = NewSDFConfig(sdf_context_id);
+    config = NewSDFConfig(sc, sdf_context->context_id);
     ParseSDFArgs(config, args);
 
     /* Register callbacks */
-    _dpd.addDetect(ProcessSDF, PRIORITY_FIRST, PP_SDF,
+    _dpd.addDetect(sc, ProcessSDF, PRIORITY_FIRST, PP_SDF,
                     PROTO_BIT__TCP | PROTO_BIT__UDP);
-    _dpd.preprocOptRegister(SDF_OPTION_NAME, SDFOptionInit, SDFOptionEval,
+    _dpd.preprocOptRegister(sc, SDF_OPTION_NAME, SDFOptionInit, SDFOptionEval,
                             NULL, NULL, NULL, SDFOtnHandler, NULL);
 }
 
@@ -242,7 +245,7 @@ static SDFSessionData * NewSDFSession(SDFConfig *config, SFSnortPacket *packet)
     }
 
     /* Allocate counters in the session data */
-    session->num_patterns = num_patterns;
+    session->num_patterns = sdf_context->num_patterns;
     session->counters = calloc(session->num_patterns, sizeof(uint8_t));
     session->rtns_matched = calloc(session->num_patterns, sizeof(int8_t));
     if (session->counters == NULL || session->rtns_matched == NULL)
@@ -268,7 +271,7 @@ static void SDFSearch(SDFConfig *config, SFSnortPacket *packet,
         sdf_tree_node *matched_node = NULL;
 
         /* Traverse the pattern tree and match PII against our data */
-        matched_node = FindPii(head_node, position, &match_length,
+        matched_node = FindPii(sdf_context->head_node, position, &match_length,
                                buflen, config);
 
         /* Iterate through the SDFOptionData that matches this pattern. */
@@ -420,8 +423,8 @@ static void ProcessSDF(void *p, void *context)
 
     /* Retrieve the corresponding config for this packet */
     policy_id = _dpd.getRuntimePolicy();
-    sfPolicyUserPolicySet (sdf_context_id, policy_id);
-    config = sfPolicyUserDataGetCurrent(sdf_context_id);
+    sfPolicyUserPolicySet (sdf_context->context_id, policy_id);
+    config = sfPolicyUserDataGetCurrent(sdf_context->context_id);
 
     /* Retrieve stream session data. Create one if it doesn't exist. */
     session = _dpd.streamAPI->get_application_data(packet->stream_session_ptr, PP_SDF);
@@ -627,10 +630,10 @@ static int SDFPacketInit(SDFConfig *config)
  * Returns: Pointer to newly created SDFConfig struct.
  *
  */
-static SDFConfig * NewSDFConfig(tSfPolicyUserContextId context)
+static SDFConfig * NewSDFConfig(struct _SnortConfig *sc, tSfPolicyUserContextId context)
 {
     SDFConfig *config = NULL;
-    tSfPolicyId policy_id = _dpd.getParserPolicy();
+    tSfPolicyId policy_id = _dpd.getParserPolicy(sc);
 
     /* Check for an existing configuration in this policy */
     sfPolicyUserPolicySet(context, policy_id);
@@ -666,15 +669,14 @@ static SDFConfig * NewSDFConfig(tSfPolicyUserContextId context)
 static void SDFCleanExit(int signal, void *unused)
 {
     /* Free the individual configs. */
-    if (sdf_context_id == NULL)
+    if (sdf_context == NULL)
         return;
 
-    sfPolicyUserDataIterate(sdf_context_id, SDFFreeConfig);
-    sfPolicyConfigDelete(sdf_context_id);
-    sdf_context_id = NULL;
-
-    if (head_node)
-        FreePiiTree(head_node);
+    sfPolicyUserDataFreeIterate(sdf_context->context_id, SDFFreeConfig);
+    sfPolicyConfigDelete(sdf_context->context_id);
+    FreePiiTree(sdf_context->head_node);
+    free(sdf_context);
+    sdf_context = NULL;
 }
 
 /*
@@ -704,72 +706,64 @@ static int SDFFreeConfig(tSfPolicyUserContextId context, tSfPolicyId id, void *p
 }
 
 #ifdef SNORT_RELOAD
-static void SDFReload(char *args)
+static void SDFReload(struct _SnortConfig *sc, char *args, void **new_config)
 {
+    SDFContext *sdf_swap_context = (SDFContext *)*new_config;
     SDFConfig *config = NULL;
 
-    if (sdf_swap_context_id == NULL)
+    if (sdf_swap_context == NULL)
     {
-        sdf_swap_context_id = sfPolicyConfigCreate();
-
-        if (sdf_swap_context_id == NULL)
-        {
-            DynamicPreprocessorFatalMessage("Failed to allocate "
-                                            "memory for SDF config.\n");
-        }
-
-        if (_dpd.streamAPI == NULL)
-        {
+        if (!_dpd.streamAPI)
             DynamicPreprocessorFatalMessage("SetupSDF(): The Stream preprocessor "
                                             "must be enabled.\n");
-        }
 
-        /* Allocate the head of the pattern-matching tree */
-        swap_head_node = (sdf_tree_node *)calloc(1, sizeof(sdf_tree_node));
-        if (!swap_head_node)
-        DynamicPreprocessorFatalMessage("Failed to allocate memory for SDF "
-                                        "configuration.\n");
+        sdf_swap_context = (SDFContext *)calloc(1, sizeof(*sdf_context));
+        if (!sdf_swap_context)
+            DynamicPreprocessorFatalMessage("Failed to allocate memory for SDF "
+                                            "configuration.\n");
+        sdf_swap_context->context_id = sfPolicyConfigCreate();
+        if (!sdf_swap_context->context_id)
+            DynamicPreprocessorFatalMessage("Failed to allocate memory for SDF "
+                                            "configuration.\n");
+        sdf_swap_context->head_node = (sdf_tree_node *)calloc(1, sizeof(*sdf_swap_context->head_node));
+        if (!sdf_swap_context->head_node)
+            DynamicPreprocessorFatalMessage("Failed to allocate memory for SDF "
+                                            "configuration.\n");
+        *new_config = (void *)sdf_swap_context;
     }
 
-    config = NewSDFConfig(sdf_swap_context_id);
+    config = NewSDFConfig(sc, sdf_swap_context->context_id);
     ParseSDFArgs(config, args);
 
-    _dpd.addDetect(ProcessSDF, PRIORITY_FIRST, PP_SDF,
+    _dpd.addDetect(sc, ProcessSDF, PRIORITY_FIRST, PP_SDF,
             PROTO_BIT__TCP | PROTO_BIT__UDP);
-    _dpd.preprocOptRegister(SDF_OPTION_NAME, SDFOptionInit, SDFOptionEval,
+    _dpd.preprocOptRegister(sc, SDF_OPTION_NAME, SDFOptionInit, SDFOptionEval,
                                 NULL, NULL, NULL, SDFOtnHandler, NULL);
 }
 
-static void * SDFReloadSwap(void)
+static void * SDFReloadSwap(struct _SnortConfig *sc, void *swap_config)
 {
-    tSfPolicyUserContextId old_context_id = sdf_context_id;
-    sdf_tree_node *old_head_node = head_node;
+    SDFContext *sdf_swap_context = (SDFContext *)swap_config;
+    SDFContext *old_context = sdf_context;
 
-    if (old_context_id == NULL || sdf_swap_context_id == NULL ||
-        old_head_node == NULL || swap_head_node == NULL)
+    if (old_context == NULL || sdf_swap_context == NULL)
         return NULL;
 
-    sdf_context_id = sdf_swap_context_id;
-    sdf_swap_context_id = NULL;
+    sdf_context = sdf_swap_context;
 
-    head_node = swap_head_node;
-    num_patterns = swap_num_patterns;
-
-    FreePiiTree(old_head_node);
-    swap_head_node = NULL;
-    swap_num_patterns = 0;
-
-    return (void *) old_context_id;
+    return (void *) old_context;
 }
 
 static void SDFReloadSwapFree(void *data)
 {
-    tSfPolicyUserContextId context = (tSfPolicyUserContextId) data;
+    SDFContext *context = (SDFContext *) data;
     if (context == NULL)
         return;
 
-    sfPolicyUserDataIterate(context, SDFFreeConfig);
-    sfPolicyConfigDelete(context);
+    sfPolicyUserDataFreeIterate(context->context_id, SDFFreeConfig);
+    sfPolicyConfigDelete(context->context_id);
+    FreePiiTree(context->head_node);
+    free(context);
 }
 #endif
 
@@ -838,7 +832,7 @@ static void SDFPrintPseudoPacket(SDFConfig *config, SDFSessionData *session,
     }
 
     /* Fill in the payload with SDF alert info */
-    SDFFillPacket(head_node, session, p, &p->payload_size);
+    SDFFillPacket(sdf_context->head_node, session, p, &p->payload_size);
 
     _dpd.encodeUpdate(config->pseudo_packet);
 
@@ -849,7 +843,7 @@ static void SDFPrintPseudoPacket(SDFConfig *config, SDFSessionData *session,
     else
     {
         IP6RawHdr* ip6h = (IP6RawHdr*)p->raw_ip6_header;
-        if ( ip6h ) p->ip6h->len = ip6h->payload_len;
+        if ( ip6h ) p->ip6h->len = ip6h->ip6_payload_len;
     }
 }
 

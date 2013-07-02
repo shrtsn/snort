@@ -42,7 +42,7 @@ extern int lastType;
 
 static PatternMatchData* Replace_Parse(char*, OptTreeNode*);
 
-void PayloadReplaceInit(char *data, OptTreeNode * otn, int protocol)
+void PayloadReplaceInit(struct _SnortConfig *sc, char *data, OptTreeNode * otn, int protocol)
 {
     static int warned = 0;
     PatternMatchData *idx;

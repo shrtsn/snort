@@ -28,11 +28,15 @@
 
 /*#include "sdf_pattern_match.h"*/
 #include <stdint.h>
+#include "sfPolicyUserData.h"
 #include "sdf_us_ssn.h"
 #include "sdf_detection_option.h"
 
 #define GENERATOR_SPP_SDF_RULES 138
 #define GENERATOR_SPP_SDF_PREPROC 139
+
+/* This is the maximum defined area number */
+#define MAX_AREA 772
 
 #define MAX_PORTS 65536
 #define PORT_INDEX(port) port/8
@@ -54,6 +58,13 @@ typedef struct _SDFSessionData
     uint8_t *counters;
     int8_t *rtns_matched;
 } SDFSessionData;
+
+typedef struct _SDFContext
+{
+    tSfPolicyUserContextId context_id;
+    sdf_tree_node *head_node;
+    uint32_t num_patterns;
+} SDFContext;
 
 typedef struct _SDFConfig
 {
@@ -108,5 +119,7 @@ typedef struct _SDFConfig
 #define SDF_COMBO_ALERT_CLASS 1
 #define SDF_COMBO_ALERT_PRIORITY 1
 #define SDF_COMBO_ALERT_STR "(spp_sdf) SDF Combination Alert"
+
+extern SDFContext *sdf_context;
 
 #endif

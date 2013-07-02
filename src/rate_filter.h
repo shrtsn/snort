@@ -19,29 +19,29 @@
  * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
  *
  ****************************************************************************/
- 
+
 #ifndef _RATE_FILTER_H_
 #define _RATE_FILTER_H_
 
 /* @file  rate_filter.h
  * @brief rate filter interface for Snort
- * @ingroup rate_filter 
+ * @ingroup rate_filter
  * @author Dilbagh Chahal
 */
 
-/* @ingroup rate_filter 
+/* @ingroup rate_filter
  * @{
  */
 #include "decode.h"
 #include "rules.h"
 #include "treenodes.h"
-#include "rate_filter.h"
 
 RateFilterConfig * RateFilter_ConfigNew(void);
 void RateFilter_ConfigFree(RateFilterConfig *);
 void RateFilter_Cleanup(void);
 
-int RateFilter_Create(RateFilterConfig *, tSFRFConfigNode *);
+struct _SnortConfig;
+int RateFilter_Create(struct _SnortConfig *sc, RateFilterConfig *, tSFRFConfigNode *);
 void RateFilter_PrintConfig(RateFilterConfig *);
 
 int  RateFilter_Test(OptTreeNode*, Packet*);

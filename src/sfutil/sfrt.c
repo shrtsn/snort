@@ -264,18 +264,15 @@ table_t *sfrt_new(char table_type, char ip_type, long data_size, uint32_t mem_ca
             break;
     };
 
-    if(!table->rt)
+    if((!table->rt) || (!table->rt6))
     {
+        if (table->rt)
+            table->free( table->rt );
+        if (table->rt6)
+            table->free( table->rt6 );
         free(table->data);
         free(table);
         return NULL;
-    }
-
-    if (!table->rt6)
-    {
-        table->free( table->rt );
-        free(table->data);
-        free(table);
     }
 
     return table;
@@ -369,13 +366,34 @@ void sfrt_iterate(table_t* table, sfrt_iterator_callback userfunc)
     if (!table)
         return;
 
-    for (index = 0, count = 0; 
-            index < table->max_size; 
+    for (index = 0, count = 0;
+            index < table->max_size;
             index++)
     {
         if (table->data[index])
         {
             userfunc(table->data[index]);
+            if (++count == table->num_ent) break;
+        }
+    }
+
+    return;
+}
+
+void sfrt_iterate_with_snort_config(struct _SnortConfig *sc, table_t* table, sfrt_sc_iterator_callback userfunc)
+{
+    uint32_t index, count;
+
+    if (!table)
+        return;
+
+    for (index = 0, count = 0;
+            index < table->max_size;
+            index++)
+    {
+        if (table->data[index])
+        {
+            userfunc(sc, table->data[index]);
             if (++count == table->num_ent) break;
         }
     }
@@ -389,13 +407,35 @@ int sfrt_iterate2(table_t* table, sfrt_iterator_callback3 userfunc)
     if (!table)
         return 0;
 
-    for (index = 0, count = 0; 
-            index < table->max_size; 
+    for (index = 0, count = 0;
+            index < table->max_size;
             index++)
     {
         if (table->data[index])
         {
             int ret = userfunc(table->data[index]);
+            if (ret != 0)
+                return ret;
+            if (++count == table->num_ent) break;
+        }
+    }
+
+    return 0;
+}
+
+int sfrt_iterate2_with_snort_config(struct _SnortConfig *sc, table_t* table, sfrt_sc_iterator_callback3 userfunc)
+{
+    uint32_t index, count;
+    if (!table)
+        return 0;
+
+    for (index = 0, count = 0;
+            index < table->max_size;
+            index++)
+    {
+        if (table->data[index])
+        {
+            int ret = userfunc(sc, table->data[index]);
             if (ret != 0)
                 return ret;
             if (++count == table->num_ent) break;
@@ -415,8 +455,8 @@ void sfrt_cleanup2(
     if (!table)
         return;
 
-    for (index = 0, count = 0; 
-            index < table->max_size; 
+    for (index = 0, count = 0;
+            index < table->max_size;
             index++)
     {
         if (table->data[index])
@@ -439,8 +479,8 @@ void sfrt_cleanup(table_t* table, sfrt_iterator_callback cleanup_func)
     if (!table)
         return;
 
-    for (index = 0, count = 0; 
-            index < table->max_size; 
+    for (index = 0, count = 0;
+            index < table->max_size;
             index++)
     {
         if (table->data[index])
@@ -590,7 +630,7 @@ int sfrt_insert(void *adr, unsigned char len, GENERIC ptr,
 
     return res;
 }
-/** Pretty print table 
+/** Pretty print table
  * Pretty print sfrt table.
  * @param table - routing table.
  */
@@ -641,7 +681,7 @@ uint32_t sfrt_usage(table_t *table)
  * @param adr - IP address
  * @param len - length of netmask
  * @param ptr - void ** that is set to value associated with subnet
- * @param behavior - RT_FAVOR_SPECIFIC or RT_FAVOR_TIME 
+ * @param behavior - RT_FAVOR_SPECIFIC or RT_FAVOR_TIME
  * @note - For RT_FAVOR_TIME behavior, if partial subnet is removed then table->data[x] is nulled. Any remaining entries
  * will then point to null data. This can cause hung or crosslinked data. RT_FAVOR_SPECIFIC does not have this drawback.
  * hung or crosslinked entries.
@@ -721,7 +761,7 @@ static inline int allocateTableIndex(table_t *table)
     uint32_t index;
 
     //0 is special index for failed entries.
-    for (index = table->lastAllocatedIndex+1; 
+    for (index = table->lastAllocatedIndex+1;
             index != table->lastAllocatedIndex;
             index = (index+1) % table->max_size)
     {

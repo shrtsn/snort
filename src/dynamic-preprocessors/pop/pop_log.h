@@ -39,7 +39,9 @@
 #define POP_MEMCAP_EXCEEDED        3
 #define POP_B64_DECODING_FAILED    4
 #define POP_QP_DECODING_FAILED     5
-#define POP_BITENC_DECODING_FAILED 6
+/* Do not delete or reuse this SID. Commenting this SID as this alert is no longer valid.*
+* #define POP_BITENC_DECODING_FAILED 6
+*/
 #define POP_UU_DECODING_FAILED     7
 
 #define POP_EVENT_MAX  8
@@ -50,7 +52,6 @@
 #define POP_MEMCAP_EXCEEDED_STR             "(POP) No memory available for decoding. Memcap exceeded"
 #define POP_B64_DECODING_FAILED_STR         "(POP) Base64 Decoding failed."
 #define POP_QP_DECODING_FAILED_STR          "(POP) Quoted-Printable Decoding failed."
-#define POP_BITENC_DECODING_FAILED_STR      "(POP) Non-Encoded MIME attachment failed."
 #define POP_UU_DECODING_FAILED_STR          "(POP) Unix-to-Unix Decoding failed."
 
 #define EVENT_STR_LEN  256

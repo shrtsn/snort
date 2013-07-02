@@ -41,6 +41,9 @@
 #define LIST_CLOSE ']'
 
 static SFIP_RET sfvar_list_compare(sfip_node_t *, sfip_node_t *);
+static inline void sfip_node_free ( sfip_node_t * );
+static inline void sfip_node_freelist ( sfip_node_t * );
+
 
 static inline sfip_var_t *_alloc_var(void)
 {
@@ -49,8 +52,6 @@ static inline sfip_var_t *_alloc_var(void)
 
 void sfvar_free(sfip_var_t *var)
 {
-    sfip_node_t *p, *next;
-
     if(!var) return;
 
     if(var->name) free(var->name);
@@ -59,19 +60,8 @@ void sfvar_free(sfip_var_t *var)
 
     if(var->mode == SFIP_LIST)
     {
-        for(p=var->head; p; p=next)
-        {
-            next = p->next;
-            if(p->ip) sfip_free(p->ip);
-            free(p);
-        }
-
-        for(p=var->neg_head; p; p=next)
-        {
-            next = p->next;
-            if(p->ip) sfip_free(p->ip);
-            free(p);
-        }
+        sfip_node_freelist(var->head);
+        sfip_node_freelist(var->neg_head);
     }
     else if(var->mode == SFIP_TABLE)
     {
@@ -165,6 +155,31 @@ sfip_node_t *sfipnode_alloc(char *str, SFIP_RET *status)
     }
 
     return ret;
+}
+
+static inline void sfip_node_free ( sfip_node_t *node )
+{
+    if ( !node )
+        return;
+
+    if ( node->ip )
+        sfip_free(node->ip);
+    
+    free(node);
+}
+
+static inline void sfip_node_freelist ( sfip_node_t *root )
+{
+    sfip_node_t *node;
+
+    if ( !root )
+        return;
+
+    for ( node = root; node; node = root  )
+    {
+        root = root->next;
+        sfip_node_free(node);
+    }
 }
 
 /* Deep copy of src added to dst */
@@ -459,6 +474,7 @@ SFIP_RET sfvar_parse_iplist(vartable_t *table, sfip_var_t *var,
             if((end = _find_end_token(str)) == NULL)
             {
                 /* No trailing bracket found */
+                free(tok);
                 return SFIP_UNMATCHED_BRACKET;
             }
 
@@ -555,6 +571,7 @@ SFIP_RET sfvar_parse_iplist(vartable_t *table, sfip_var_t *var,
             /* Check if this is a negated, zero'ed IP (equivalent of a "!any") */
             if(!sfip_is_set(node->ip) && (node->flags & SFIP_NEGATED))
             {
+                sfip_node_free(node);
                 free(tok);
                 return SFIP_NOT_ANY;
             }
@@ -760,17 +777,17 @@ static inline sfip_node_t *_sfvar_deep_copy_list(const sfip_node_t *idx)
 
     for( ; idx; idx = idx->next)
     {
-
         prev = temp;
 
         if( (temp = (sfip_node_t*)calloc(1, sizeof(sfip_node_t))) == NULL )
         {
- // XXX WALK LIST AND DELETE NODES FIRST
+            sfip_node_freelist(ret);
             return NULL;
         }
         if( (temp->ip = (sfip_t*)calloc(1, sizeof(sfip_t))) == NULL )
         {
- // XXX WALK LIST AND DELETE NODES FIRST
+            sfip_node_freelist(ret);
+            free(temp);
             return NULL;
         }
 
@@ -784,9 +801,7 @@ static inline sfip_node_t *_sfvar_deep_copy_list(const sfip_node_t *idx)
         if(prev)
             prev->next = temp;
         else
-        {
             ret = temp;
-        }
     }
     return ret;
 }

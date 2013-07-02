@@ -28,6 +28,7 @@
 #include <string.h>
 #include <sys/types.h>
 #include <errno.h>
+#include <assert.h>
 
 #include "shmem_config.h"
 #include "shmem_common.h"
@@ -35,16 +36,22 @@
 #define MANIFEST_SEPARATORS         ",\r\n"
 #define MIN_MANIFEST_COLUMNS         3
 
-#define WHTITE_TYPE_KEYWORD       "white"
+#define WHITE_TYPE_KEYWORD       "white"
 #define BLACK_TYPE_KEYWORD        "block"
 #define MONITOR_TYPE_KEYWORD      "monitor"
 
 
 static const char* const MODULE_NAME = "ShmemFileMgmt";
 
-// FIXTHIS eliminate these globals
+// FIXME eliminate these globals
 ShmemDataFileList **filelist_ptr = NULL;
-int file_count = 0;
+int filelist_size = 0; // Number of slots in the filelist
+int filelist_count = 0; // Number of 'used' slots in the file list 
+
+static inline bool FileListFull( )
+{
+    return (filelist_count == filelist_size);
+}
 
 static int StringCompare(const void *elem1, const void *elem2)
 {
@@ -54,95 +61,148 @@ static int StringCompare(const void *elem1, const void *elem2)
     return strcmp((*a)->filename,(*b)->filename);
 }
 
-static int AllocShmemDataFileList()
+/* (Re)allocate *filelist to the next bucket size.
+ * See `man 3 realloc' for deeper insight.
+ */
+static ShmemDataFileList**
+ShmemDataFileList_Realloc ( ShmemDataFileList *filelist[] )
 {
-    if ((filelist_ptr = (ShmemDataFileList**)
-            realloc(filelist_ptr,(file_count + FILE_LIST_BUCKET_SIZE)*
-                    sizeof(ShmemDataFileList*))) == NULL)
+    ShmemDataFileList **temp;
+    int _size = filelist_size + FILE_LIST_BUCKET_SIZE;
+
+    // Don't call this function unnecessarily.
+    assert( filelist_size == 0 || filelist_size > filelist_count );
+
+    // Use errno to communicate any problems 
+    errno = 0;
+
+    if ( filelist_size >= MAX_IPLIST_FILES )
     {
-        DEBUG_WRAP(DebugMessage(DEBUG_REPUTATION,
-                "Cannot allocate memory to store shmem data files\n"););
-        return SF_ENOMEM;
+        errno = ENOSPC;
+        return NULL;
     }
-    return SF_SUCCESS;
+
+    if ( _size > MAX_IPLIST_FILES )
+        _size = MAX_IPLIST_FILES;
+
+    // Rely on errno being set by realloc. 
+    temp = realloc(filelist, _size * sizeof(*filelist));
+    if ( temp == NULL )
+        return NULL;
+
+    filelist_size = _size;
+    return temp;
 }
 
 static void FreeShmemDataFileListFiles()
 {
     int i;
 
-    if (!filelist_ptr)
+    if ( !filelist_count || !filelist_ptr )
         return;
 
-    for(i = 0; i < file_count ; i++)
+    for(i = 0; i < filelist_count; i++)
     {
         free(filelist_ptr[i]->filename);
         free(filelist_ptr[i]);
+        filelist_ptr[i] = NULL;
     }
-    file_count = 0;
+    filelist_count = 0;
+}
+
+void FreeShmemDataFileList()
+{
+    if ( !filelist_ptr )
+        return;
+
+    FreeShmemDataFileListFiles( );
+
+    free(filelist_ptr);
+    filelist_ptr = NULL;
+    filelist_size = 0;
 }
 
 static int ReadShmemDataFilesWithoutManifest()
 {
-    char   filename[PATH_MAX];
     struct dirent *de;
-    DIR    *dd;
-    int    max_files  = MAX_IPLIST_FILES;
-    char   *ext_end   = NULL;
-    int    type       = 0;
-    int    counter    = 0;
-    int    startup    = 1;
+    DIR *dd;
 
     FreeShmemDataFileListFiles();
 
     if ((dd = opendir(shmusr_ptr->path)) == NULL)
     {
-        DEBUG_WRAP(DebugMessage(DEBUG_REPUTATION,
-                "Could not open %s to read IPRep data files\n",shmusr_ptr->path););
+        _dpd.errMsg("%s: Could not access %s: %s\n",
+                MODULE_NAME, shmusr_ptr->path, strerror(errno));
         return SF_EINVAL;
     }
-    while ((de = readdir(dd)) != NULL && max_files)
+
+    while (( de = readdir(dd) ))
     {
-        //DEBUG_WRAP(DebugMessage(DEBUG_REPUTATION, "Files are %s\n",de->d_name););
-        if (strstr(de->d_name, ".blf") || strstr(de->d_name, ".wlf"))
+        char filename[PATH_MAX];
+        ShmemDataFileList *listinfo;
+        const char *ext;
+        int type;
+
+        ext = strrchr(de->d_name , '.');
+        if ( ext == NULL || *(ext + 1) == '\0' )
+            continue;
+
+        if ( strcasecmp(ext, ".blf") == 0 )
+            type = BLACK_LIST;
+        else if ( strcasecmp(ext, ".wlf") == 0 )
+            type = WHITE_LIST;
+        else 
+            continue;
+
+        if ( FileListFull() )
         {
-            //no need to check for NULL, established there is a period in strstr
-            ext_end = (char*)strrchr(de->d_name,'.'); 
+            ShmemDataFileList **_temp = ShmemDataFileList_Realloc( filelist_ptr );
 
-            if (strncasecmp(ext_end,".blf",4) == 0)
-                type = BLACK_LIST;
-            else if (strncasecmp(ext_end,".wlf",4) == 0)
-                type = WHITE_LIST;
-
-            if (type == 0) continue;
-
-            counter++;
-
-            if (startup || counter == FILE_LIST_BUCKET_SIZE)
+            if ( !_temp )
             {
-                startup=0;
-                counter=0;
-                if (AllocShmemDataFileList())
-                    return SF_ENOMEM;
-            }    
+                closedir(dd);
 
-            if ((filelist_ptr[file_count] = (ShmemDataFileList*)
-                    malloc(sizeof(ShmemDataFileList))) == NULL)
-            {
-                DEBUG_WRAP(DebugMessage(DEBUG_REPUTATION,
-                        "Cannot allocate memory to store file information\n"););
+                if ( errno == ENOSPC )
+                {
+                    _dpd.errMsg("%s: Cannot load more than %u ip lists.",
+                            MODULE_NAME, MAX_IPLIST_FILES);
+                    return SF_ENOSPC;
+                }
+
+                DynamicPreprocessorFatalMessage("%s: Failed to allocate filelist_ptr: %s\n",
+                        MODULE_NAME, strerror(errno));
                 return SF_ENOMEM;
             }
-            snprintf(filename, sizeof(filename), "%s/%s", shmusr_ptr->path,de->d_name);
-            filelist_ptr[file_count]->filename = strdup(filename);
-            filelist_ptr[file_count]->filetype = type;
-            filelist_ptr[file_count]->listid = 0;
-            memset(filelist_ptr[file_count]->zones, true, MAX_NUM_ZONES);
-            max_files--;
-            file_count++;
-            type = 0;
+
+            filelist_ptr = _temp;
         }
+        
+        listinfo = (ShmemDataFileList *)calloc(1, sizeof(*listinfo));
+        if ( listinfo == NULL )
+        {
+            DynamicPreprocessorFatalMessage(
+                "%s: Cannot allocate memory to store file information.\n",
+                MODULE_NAME);
+        }
+
+        snprintf(filename, sizeof(filename), "%s/%s", shmusr_ptr->path, de->d_name);
+        listinfo->filename = strdup(filename);
+        if ( listinfo->filename == NULL )
+        {
+            free(listinfo);
+            closedir(dd);
+            DynamicPreprocessorFatalMessage("%s: Error resolving filename: %s\n",
+                MODULE_NAME, strerror(errno));
+        }
+
+        listinfo->filetype = type;
+        listinfo->listid = 0;
+        memset(listinfo->zones, true, MAX_NUM_ZONES);
+
+        filelist_ptr[filelist_count] = listinfo;
+        filelist_count++;
     }
+
     closedir(dd);
     return SF_SUCCESS;
 }
@@ -160,7 +220,7 @@ static char *ignoreStartSpace(char *str)
 /*Get file type */
 static int getFileTypeFromName (char *typeName)
 {
-    int type = UNKNOW_LIST;
+    int type = UNKNOWN_LIST;
 
     /* Trim the starting spaces */
     if (!typeName)
@@ -168,10 +228,10 @@ static int getFileTypeFromName (char *typeName)
 
     typeName = ignoreStartSpace(typeName);
 
-    if (strncasecmp(typeName, WHTITE_TYPE_KEYWORD, strlen(WHTITE_TYPE_KEYWORD)) == 0)
+    if (strncasecmp(typeName, WHITE_TYPE_KEYWORD, strlen(WHITE_TYPE_KEYWORD)) == 0)
     {
         type = WHITE_LIST;
-        typeName += strlen(WHTITE_TYPE_KEYWORD);
+        typeName += strlen(WHITE_TYPE_KEYWORD);
     }
     else if (strncasecmp(typeName, BLACK_TYPE_KEYWORD, strlen(BLACK_TYPE_KEYWORD)) == 0)
     {
@@ -184,14 +244,14 @@ static int getFileTypeFromName (char *typeName)
         typeName += strlen(MONITOR_TYPE_KEYWORD);
     }
 
-    if (UNKNOW_LIST != type )
+    if (UNKNOWN_LIST != type )
     {
         /*Ignore spaces in the end*/
         typeName = ignoreStartSpace(typeName);
 
         if ( *typeName )
         {
-            type = UNKNOW_LIST;
+            type = UNKNOWN_LIST;
         }
 
     }
@@ -231,19 +291,22 @@ static ShmemDataFileList* processLineInManifest(char *manifest, char *line, int 
         long zone_id;
         long list_id;
 
-
         DEBUG_WRAP(DebugMessage(DEBUG_REPUTATION, "Process reputation list token: %s\n",token ););
 
         switch (tokenIndex)
         {
         case 0:    /* File name */
             DEBUG_WRAP(DebugMessage(DEBUG_REPUTATION, "Reputation list filename: %s\n",token ););
+
             snprintf(filename, sizeof(filename), "%s/%s", shmusr_ptr->path,token);
             listItem->filename = strdup(filename);
             if (listItem->filename == NULL)
             {
-                DynamicPreprocessorFatalMessage("%s(%d) => Failed to allocate memory for "
-                        "reputation manifest\n", manifest, linenumber);
+                free(listItem);
+                listItem = NULL;
+                DynamicPreprocessorFatalMessage(
+                        "%s(%d) => Error resolving filename: %s\n",
+                        manifest, linenumber, strerror(errno));
             }
             break;
 
@@ -271,12 +334,13 @@ static ShmemDataFileList* processLineInManifest(char *manifest, char *line, int 
             break;
 
         case 2:    /* Action */
+            token = ignoreStartSpace(token);
             listItem->filetype = getFileTypeFromName(token);
-            if (UNKNOW_LIST == listItem->filetype)
+            if (UNKNOWN_LIST == listItem->filetype)
             {
                 DynamicPreprocessorFatalMessage(" %s(%d) => Unknown action specified (%s)."
                         " Please specify a value: %s | %s | %s.\n", manifest, linenumber, token,
-                        WHTITE_TYPE_KEYWORD, BLACK_TYPE_KEYWORD, MONITOR_TYPE_KEYWORD);
+                        WHITE_TYPE_KEYWORD, BLACK_TYPE_KEYWORD, MONITOR_TYPE_KEYWORD);
             }
             break;
 
@@ -292,7 +356,7 @@ static ShmemDataFileList* processLineInManifest(char *manifest, char *line, int 
             /*Ignore spaces in the end*/
             endStr = ignoreStartSpace(endStr);
 
-            if ( *endStr)
+            if ( *endStr )
             {
                 DynamicPreprocessorFatalMessage("%s(%d) => Bad value (%s) specified for zone. "
                         "Please specify an integer between %d and %li.\n",
@@ -301,7 +365,7 @@ static ShmemDataFileList* processLineInManifest(char *manifest, char *line, int 
             if ((zone_id < 0)  || (zone_id >= MAX_NUM_ZONES ) || (errno == ERANGE))
             {
                 DynamicPreprocessorFatalMessage(" %s(%d) => Value specified (%s) for zone is "
-                        "out of bounds.  Please specify an integer between %d and %li.\n",
+                        "out of bounds. Please specify an integer between %d and %li.\n",
                         manifest, linenumber, token, 0, MAX_NUM_ZONES - 1);
             }
 
@@ -311,13 +375,13 @@ static ShmemDataFileList* processLineInManifest(char *manifest, char *line, int 
         tokenIndex++;
     }
 
-    if (tokenIndex < MIN_MANIFEST_COLUMNS)
+    if ( tokenIndex < MIN_MANIFEST_COLUMNS )
     {
-        /* Too few columns*/
         free(listItem);
-        if (tokenIndex)
+
+        if ( tokenIndex > 0 )
         {
-            DynamicPreprocessorFatalMessage("%s(%d) => Too few columns in line: %s.\n ",
+            DynamicPreprocessorFatalMessage("%s(%d) => Too few columns in line: %s.\n",
                     manifest, linenumber, line);
         }
         return NULL;
@@ -336,8 +400,6 @@ static int ReadShmemDataFilesWithManifest()
     FILE *fp;
     char line[MAX_MANIFEST_LINE_LENGTH];
     char manifest_file[PATH_MAX];
-    int  counter  = 0;
-    int  startup    = 1;
     int  line_number = 0;
 
     snprintf(manifest_file, sizeof(manifest_file),
@@ -347,7 +409,7 @@ static int ReadShmemDataFilesWithManifest()
     {
         DEBUG_WRAP(DebugMessage(DEBUG_REPUTATION,
                 "Error opening file at: %s\n", manifest_file););
-        return NO_FILE;
+        return SF_ENOENT;
     }
 
     FreeShmemDataFileListFiles();
@@ -361,38 +423,43 @@ static int ReadShmemDataFilesWithManifest()
 
         DEBUG_WRAP(DebugMessage(DEBUG_REPUTATION, "Reputation manifest: %s\n",line ););
         /* remove comments */
-        if((nextPtr = strchr(line, '#')) != NULL)
-        {
+
+        if( (nextPtr = strchr(line, '#')) )
             *nextPtr = '\0';
-        }
 
-        /* allocate memory if necessary*/
-        counter++;
-
-        if (startup || counter == FILE_LIST_BUCKET_SIZE)
+        if ( FileListFull() )
         {
-            startup=0;
-            counter=0;
-            if (AllocShmemDataFileList())
+            ShmemDataFileList **_temp = ShmemDataFileList_Realloc( filelist_ptr );
+
+            if ( !_temp )
+            {
+                fclose(fp);
+
+                if ( errno == ENOSPC )
+                {
+                    _dpd.errMsg("%s: Cannot load more than %u ip lists.",
+                            MODULE_NAME, MAX_IPLIST_FILES);
+                    return SF_ENOSPC;
+                }
+
+                DynamicPreprocessorFatalMessage("%s: Failed to allocate filelist_ptr: %s\n",
+                        MODULE_NAME, strerror(errno));
                 return SF_ENOMEM;
+            }
+
+            filelist_ptr = _temp;
         }
 
         /*Processing the line*/
         listItem = processLineInManifest(manifest_file, line, line_number);
-
-        if (listItem)
+        if ( listItem )
         {
-            filelist_ptr[file_count] = listItem;
-            if (file_count > MAX_IPLIST_FILES -1)
-                break;
-            file_count++;
-
+            filelist_ptr[filelist_count] = listItem;
+            filelist_count++;
         }
-
     }
 
     fclose(fp);
-
     DEBUG_WRAP(DebugMessage(DEBUG_REPUTATION,
             "Successfully processed manifest file: %s\n", MANIFEST_FILENAME););
 
@@ -403,15 +470,20 @@ int GetSortedListOfShmemDataFiles()
 {
     int rval;
 
-    if ((rval = ReadShmemDataFilesWithManifest()) == NO_FILE)
+    if ((rval = ReadShmemDataFilesWithManifest()) == SF_ENOENT)
     {
         if ((rval = ReadShmemDataFilesWithoutManifest()) != SF_SUCCESS)
+        {
             return rval;
+        }
 
-        qsort(filelist_ptr,file_count,sizeof(*filelist_ptr),StringCompare);
+        // Only sort when not using a manifest file; manifest ip-lists
+        // need to be used in the order specified used as-is.
+        qsort(filelist_ptr, filelist_count, sizeof(*filelist_ptr), StringCompare);
     }
-    return rval;
-}    
+
+    return SF_SUCCESS;
+}
 
 //valid version values are 1 through UINT_MAX
 int GetLatestShmemDataSetVersionOnDisk(uint32_t* shmemVersion)
@@ -420,7 +492,7 @@ int GetLatestShmemDataSetVersionOnDisk(uint32_t* shmemVersion)
     FILE *fp;
     char line[PATH_MAX];
     char version_file[PATH_MAX];
-    const char *const key = "VERSION"; 
+    const char *const key = "VERSION";
     char* keyend_ptr      = NULL;
 
     snprintf(version_file, sizeof(version_file),
@@ -430,33 +502,39 @@ int GetLatestShmemDataSetVersionOnDisk(uint32_t* shmemVersion)
     {
         DEBUG_WRAP(DebugMessage(DEBUG_REPUTATION,
                 "Error opening file at: %s\n", version_file););
-        return NO_FILE;
+        return SF_ENOENT;
     }
 
     while (fgets(line,sizeof(line),fp))
     {
         char *strptr;
-        if ( !strncmp(line,"#",1) )
+
+        if ( *line == '#' )
             continue;
+
         if ( (strptr = strstr(line, key )) && (strptr == line) )
         {
+            if ( strlen(line) <= (strlen(key) + 1) )
+                break;
+
             keyend_ptr  = line;
             keyend_ptr += strlen(key) + 1;
             tmpVersion  = strtoul(keyend_ptr,NULL,0);
             break;
         }
-    }   
+    }
 
     if (!keyend_ptr)
     {
         DEBUG_WRAP(DebugMessage(DEBUG_REPUTATION,
                 "Invalid file format %s\n", version_file););
-        return NO_FILE;
-    }    
+        fclose(fp);
+        return SF_ENOENT;
+    }
 
     if (tmpVersion > UINT_MAX) //someone tampers with the file
-        *shmemVersion = 1; 
-    else 
+        *shmemVersion = 1;
+    else
         *shmemVersion = (uint32_t)tmpVersion;
 
     fclose(fp);
@@ -465,8 +543,9 @@ int GetLatestShmemDataSetVersionOnDisk(uint32_t* shmemVersion)
             "version information being returned is %u\n", *shmemVersion););
 
     return SF_SUCCESS;
-}    
+}
 
+#ifdef DEBUG_MSGS
 void PrintListInfo (bool *zones, uint32_t listid)
 {
     char zonesInfo[MAX_MANIFEST_LINE_LENGTH];
@@ -486,31 +565,24 @@ void PrintListInfo (bool *zones, uint32_t listid)
         buf_len -= bytesOutput;
 
     }
-    DEBUG_WRAP(DebugMessage(DEBUG_REPUTATION,
-                        "List %li has zones defined: %s \n", listid, zonesInfo););
+    DebugMessage(DEBUG_REPUTATION, "List %li has zones defined: %s \n",
+            listid, zonesInfo);
 }
 
 void PrintDataFiles()
 {
     int i;
 
-    for (i=0;i< file_count;i++)
+    for (i=0;i< filelist_count;i++)
     {
-        DEBUG_WRAP(DebugMessage(DEBUG_REPUTATION,
-                "File %s of type %d found \n",
-                filelist_ptr[i]->filename, filelist_ptr[i]->filetype););
+        DebugMessage(DEBUG_REPUTATION, "File %s of type %d found \n",
+                filelist_ptr[i]->filename, filelist_ptr[i]->filetype);
+
         if (filelist_ptr[i]->listid)
         {
             PrintListInfo(filelist_ptr[i]->zones, filelist_ptr[i]->listid);
         }
     }
-
 }
-
-void FreeShmemDataFileList()
-{
-    FreeShmemDataFileListFiles();
-    free(filelist_ptr);
-    return;
-}
+#endif /* DEBUG_MSGS */
 

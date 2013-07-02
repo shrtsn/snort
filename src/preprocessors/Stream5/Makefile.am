@@ -28,4 +28,12 @@ snort_stream5_session.o \
 stream5_paf.o \
 stream5_common.o
 
+if BUILD_HA
+libstream5_a_SOURCES += \
+stream5_ha.c \
+stream5_ha.h
+libstream5_a_LIBADD += \
+stream5_ha.o
+endif
+
 INCLUDES = @INCLUDES@

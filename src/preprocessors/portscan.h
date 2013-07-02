@@ -131,14 +131,14 @@ typedef struct s_PS_PKT
 
 #define PS_ALERT_GENERATED                 255
 
-int ps_init(PortscanConfig *, int, int, int, IPSET *, IPSET *, IPSET *, unsigned long);
+int ps_init(struct _SnortConfig *, PortscanConfig *, int, int, int, IPSET *, IPSET *, IPSET *, unsigned long);
 void ps_cleanup(void);
 void ps_reset(void);
 
 int  ps_detect(PS_PKT *p);
 void ps_tracker_print(PS_TRACKER *tracker);
 
-int ps_get_protocols(tSfPolicyId policyId);
+int ps_get_protocols(struct _SnortConfig *sc, tSfPolicyId policyId);
 void ps_init_hash(unsigned long);
 
 #endif

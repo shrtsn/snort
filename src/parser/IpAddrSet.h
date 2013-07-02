@@ -9,7 +9,7 @@
  * published by the Free Software Foundation.  You may not use, modify or
  * distribute this program under any other version of the GNU General
  * Public License.
- * 
+ *
  * This program is distributed in the hope that it will be useful,
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
@@ -33,7 +33,8 @@
 
 
 void IpAddrSetDestroy(IpAddrSet *);
-IpAddrSet *IpAddrSetParse(char *);
+struct _SnortConfig;
+IpAddrSet *IpAddrSetParse(struct _SnortConfig *, char *);
 
 
 

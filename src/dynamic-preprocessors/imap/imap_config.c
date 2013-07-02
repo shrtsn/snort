@@ -59,7 +59,6 @@ extern const IMAPToken imap_known_cmds[];
 
 /* Private functions */
 static int  ProcessPorts(IMAPConfig *, char *, int);
-static int  ProcessImapMemcap(IMAPConfig *, char *, int);
 static int  ProcessDecodeDepth(IMAPConfig *, char *, int, char *, DecodeType);
 
 /*
@@ -86,12 +85,18 @@ void IMAP_ParseArgs(IMAPConfig *config, char *args)
         return;
 
     config->ports[IMAP_DEFAULT_SERVER_PORT / 8]     |= 1 << (IMAP_DEFAULT_SERVER_PORT % 8);
+    config->max_mime_mem = DEFAULT_IMAP_MEMCAP;
     config->memcap = DEFAULT_IMAP_MEMCAP;
     config->b64_depth = DEFAULT_DEPTH;
     config->qp_depth = DEFAULT_DEPTH;
     config->uu_depth = DEFAULT_DEPTH;
     config->bitenc_depth = DEFAULT_DEPTH;
     config->max_depth = MIN_DEPTH;
+    config->log_config.log_filename = 0;
+    config->log_config.log_mailfrom = 0;
+    config->log_config.log_rcptto = 0;
+    config->log_config.log_email_hdrs = 0;
+    config->log_config.email_hdrs_log_depth = 0;
 
     *errStr = '\0';
 
@@ -99,13 +104,23 @@ void IMAP_ParseArgs(IMAPConfig *config, char *args)
 
     while ( arg != NULL )
     {
+        unsigned long value = 0;
+
         if ( !strcasecmp(CONF_PORTS, arg) )
         {
             ret = ProcessPorts(config, errStr, errStrLen);
         }
         else if ( !strcasecmp(CONF_IMAP_MEMCAP, arg) )
         {
-            ret = ProcessImapMemcap(config, errStr, errStrLen);
+            ret = _dpd.checkValueInRange(strtok(NULL, CONF_SEPARATORS), CONF_IMAP_MEMCAP,
+                    MIN_IMAP_MEMCAP, MAX_IMAP_MEMCAP, &value);
+            config->memcap = (uint32_t)value;
+        }
+        else if ( !strcasecmp(CONF_MAX_MIME_MEM, arg) )
+        {
+            ret = _dpd.checkValueInRange(strtok(NULL, CONF_SEPARATORS), CONF_MAX_MIME_MEM,
+                    MIN_MIME_MEM, MAX_MIME_MEM, &value);
+            config->max_mime_mem = (int)value;
         }
         else if ( !strcasecmp(CONF_B64_DECODE, arg) )
         {
@@ -177,8 +192,8 @@ void IMAP_CheckConfig(IMAPConfig *pPolicyConfig, tSfPolicyUserContextId context)
 
     if (pPolicyConfig == defaultConfig)
     {
-        if (!pPolicyConfig->memcap)
-            pPolicyConfig->memcap = DEFAULT_IMAP_MEMCAP;
+        if (!pPolicyConfig->max_mime_mem)
+            pPolicyConfig->max_mime_mem = DEFAULT_MAX_MIME_MEM;
 
         if(!pPolicyConfig->b64_depth || !pPolicyConfig->qp_depth
                 || !pPolicyConfig->uu_depth || !pPolicyConfig->bitenc_depth)
@@ -203,12 +218,15 @@ void IMAP_CheckConfig(IMAPConfig *pPolicyConfig, tSfPolicyUserContextId context)
             pPolicyConfig->max_depth = max;
         }
 
+        if (!pPolicyConfig->memcap)
+            pPolicyConfig->memcap = DEFAULT_IMAP_MEMCAP;
+
     }
     else if (defaultConfig == NULL)
     {
-        if (pPolicyConfig->memcap)
+        if (pPolicyConfig->max_mime_mem)
         {
-            DynamicPreprocessorFatalMessage("%s(%d) => IMAP: memcap must be "
+            DynamicPreprocessorFatalMessage("%s(%d) => IMAP: max_mime_mem must be "
                    "configured in the default config.\n",
                     *(_dpd.config_file), *(_dpd.config_line));
         }
@@ -244,6 +262,7 @@ void IMAP_CheckConfig(IMAPConfig *pPolicyConfig, tSfPolicyUserContextId context)
     }
     else
     {
+        pPolicyConfig->max_mime_mem = defaultConfig->max_mime_mem;
         pPolicyConfig->memcap = defaultConfig->memcap;
         pPolicyConfig->max_depth = defaultConfig->max_depth;
         if(pPolicyConfig->disabled)
@@ -347,6 +366,9 @@ void IMAP_PrintConfig(IMAPConfig *config)
 
     _dpd.logMsg("    IMAP Memcap: %u\n",
             config->memcap);
+
+    _dpd.logMsg("    MIME Max Mem: %d\n",
+            config->max_mime_mem);
 
     if(config->b64_depth > -1)
     {
@@ -516,47 +538,6 @@ static int ProcessPorts(IMAPConfig *config, char *ErrorString, int ErrStrLen)
 
     return 0;
 }
-
-static int ProcessImapMemcap(IMAPConfig *config, char *ErrorString, int ErrStrLen)
-{
-    char *endptr;
-    char *value;
-    uint32_t imap_memcap = 0;
-    if (config == NULL)
-    {
-        snprintf(ErrorString, ErrStrLen, "IMAP config is NULL.\n");
-        return -1;
-    }
-
-    value = strtok(NULL, CONF_SEPARATORS);
-    if ( value == NULL )
-    {
-        snprintf(ErrorString, ErrStrLen,
-                "Invalid format for IMAP config option 'memcap'.");
-        return -1;
-    }
-    imap_memcap = strtoul(value, &endptr, 10);
-
-    if((value[0] == '-') || (*endptr != '\0'))
-    {
-        snprintf(ErrorString, ErrStrLen,
-            "Invalid format for IMAP config option 'memcap'.");
-        return -1;
-    }
-
-    if (imap_memcap < MIN_IMAP_MEMCAP || imap_memcap > MAX_IMAP_MEMCAP)
-    {
-        snprintf(ErrorString, ErrStrLen,
-                "Invalid value for memcap."
-                "It should range between %d and %d.",
-                MIN_IMAP_MEMCAP, MAX_IMAP_MEMCAP);
-        return -1;
-    }
-
-    config->memcap = imap_memcap;
-    return 0;
-}
-
 
 static int ProcessDecodeDepth(IMAPConfig *config, char *ErrorString, int ErrStrLen, char *decode_type, DecodeType type)
 {

@@ -1,3 +1,19 @@
+2013-07-24 - Snort 2.9.5.3
+
+[*] Improvements
+* Performance improvements to eliminate some unnecessary work, reduction
+  of sizes of data structures, and cleanup of processing for HTTP normalized
+  buffers.
+
+* Cap the number of expected connections (eg FTP data channel) to prevent
+  memory growth
+
+* Address issue with reloading reputation lookup tables when more addresses
+  are added.
+
+* Address issue with potential hang during shutdown of control socket config
+  reload processing thread.
+
 2013-06-11 - Snort 2.9.5
 
 [*] New additions

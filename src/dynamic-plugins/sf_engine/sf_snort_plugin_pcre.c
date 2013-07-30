@@ -224,6 +224,7 @@ static int pcreMatchInternal(void *p, PCREInfo* pcre_info, const uint8_t **curso
     int pcre_found;
     int relative = 0;
     SFSnortPacket *sp = (SFSnortPacket *) p;
+    unsigned hb_type, len;
 
     /* Input validation */
     if (!p || !pcre_info)
@@ -241,83 +242,32 @@ static int pcreMatchInternal(void *p, PCREInfo* pcre_info, const uint8_t **curso
         relative = 1;
     }
 
-    if (pcre_info->flags & (CONTENT_BUF_URI | CONTENT_BUF_POST | CONTENT_BUF_HEADER | CONTENT_BUF_METHOD | CONTENT_BUF_COOKIE | CONTENT_BUF_RAW_URI | CONTENT_BUF_RAW_HEADER |CONTENT_BUF_RAW_COOKIE | CONTENT_BUF_STAT_CODE | CONTENT_BUF_STAT_MSG))
+    hb_type = HTTP_CONTENT(pcre_info->flags);
+    buffer_start = _ded.getHttpBuffer(hb_type, &len);
+
+    if ( buffer_start )
     {
-        int i;
-        for (i=0; i<sp->num_uris; i++)
+        buffer_len = len;
+
+        if (relative)
         {
-            switch (i)
-            {
-                case HTTP_BUFFER_URI:
-                    if (!(pcre_info->flags & CONTENT_BUF_URI))
-                        continue; /* Go to next, not looking at URI buffer */
-                    break;
-                case HTTP_BUFFER_HEADER:
-                    if (!(pcre_info->flags & CONTENT_BUF_HEADER))
-                        continue; /* Go to next, not looking at HEADER buffer */
-                    break;
-                case HTTP_BUFFER_CLIENT_BODY:
-                    if (!(pcre_info->flags & CONTENT_BUF_POST))
-                        continue; /* Go to next, not looking at POST buffer */
-                    break;
-                case HTTP_BUFFER_METHOD:
-                    if (!(pcre_info->flags & CONTENT_BUF_METHOD))
-                        continue; /* Go to next, not looking at METHOD buffer */
-                    break;
-                case HTTP_BUFFER_COOKIE:
-                    if (!(pcre_info->flags & CONTENT_BUF_COOKIE))
-                        continue; /* Go to next, not looking at COOKIE buffer */
-                    break;
-                case HTTP_BUFFER_RAW_URI:
-                    if (!(pcre_info->flags & CONTENT_BUF_RAW_URI))
-                        continue;
-                    break;
-                case HTTP_BUFFER_RAW_HEADER:
-                    if (!(pcre_info->flags & CONTENT_BUF_RAW_HEADER))
-                        continue;
-                    break;
-                case HTTP_BUFFER_RAW_COOKIE:
-                    if (!(pcre_info->flags & CONTENT_BUF_RAW_COOKIE))
-                        continue;
-                    break;
-                case HTTP_BUFFER_STAT_CODE:
-                    if (!(pcre_info->flags & CONTENT_BUF_STAT_CODE))
-                        continue;
-                    break;
-                case HTTP_BUFFER_STAT_MSG:
-                    if (!(pcre_info->flags & CONTENT_BUF_STAT_MSG))
-                        continue;
-                    break;
-                default:
-                    /* Uh, what buffer is this? */
-                    return CONTENT_NOMATCH;
-            }
-
-            buffer_start = _ded.uriBuffers[i]->uriBuffer;
-            buffer_len = _ded.uriBuffers[i]->uriLength;
-
-            if (!buffer_start || !buffer_len)
-                continue;
-
-            if (relative)
-            {
-                if ( checkCursorSimple(*cursor, pcre_info->flags,
-                    buffer_start, buffer_start+buffer_len, 0) == CURSOR_OUT_OF_BOUNDS )
+            if ( checkCursorSimple(*cursor, pcre_info->flags,
+                buffer_start, buffer_start+buffer_len, 0) == CURSOR_OUT_OF_BOUNDS )
 
                 buffer_len = (buffer_start + buffer_len) - *cursor;
                 buffer_start = *cursor;
-            }
+        }
 
-            pcre_found = pcre_test(pcre_info, (const char *)buffer_start, buffer_len, 0, &pcre_offset);
+        pcre_found = pcre_test(
+            pcre_info, (const char *)buffer_start, buffer_len, 0, &pcre_offset);
 
-            if (pcre_found)
+        if (pcre_found)
+        {
+            if (cursor)
             {
-                if (cursor)
-                {
-                    *cursor = buffer_start + pcre_offset;
-                }
-                return RULE_MATCH;
+                *cursor = buffer_start + pcre_offset;
             }
+            return RULE_MATCH;
         }
         return RULE_NOMATCH;
     }

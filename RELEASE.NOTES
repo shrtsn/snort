@@ -1,4 +1,19 @@
-2013-07-24 - Snort 2.9.5.3
+2013-09-12 - Snort 2.9.5.5
+
+[*] Improvements
+* Address issue with SMTP preprocessor and the ignore_tls_data configuration
+  to correctly stop inspection after an SMTP session is encrypted.
+
+* Disable all rule evaluation (as opposed to just rules with fast patterns)
+  for packets on a previously blocked session.
+
+* Corrected when perfmon preprocessor writes stats to occur as soon as
+  both the time and packet count criteria are met.
+
+* Enforce same restrictions on relative PCRE for HTTP buffers from
+  shared library rules as already existed with text rules.
+
+2013-07-22 - Snort 2.9.5.3
 
 [*] Improvements
 * Performance improvements to eliminate some unnecessary work, reduction

@@ -1,3 +1,24 @@
+2013-09-02 Steven Sturges <ssturges@sourcefire.com>
+Snort 2.9.5.5
+	* src/preprocessors/Stream5/snort_stream5_tcp.c:
+	  disable all detection (not just content-base) for packets on previously
+	  blocked sessions
+
+	* src/preprocessors/perf.c:
+	  Write perfmon entry when both packet count and time conditions are met,
+	  rather than waiting for a multiple of the packet count after the time is
+	  reached.
+
+	* src/dynamic-preprocessors/smtp/snort_smtp.c:
+	  Stop inspection of the entire session when TLS data is present with
+	  ignore_tls_data enabled in SMTP - Check for midstream pickups and
+	  gaps when we miss server hello, and stop inspection as soon as we get
+	  client hello when ignore_tls_data is turned on
+
+	* src/dynamic-plugins/sf_engine/sf_snort_plugin_pcre.c:
+	  changed pcre relative match with HTTP buffers to be not allowed in .so
+	  rules (same as in text rules)
+
 2013-07-03 Steven Sturges <ssturges@sourcefire.com>
 Snort 2.9.5.3
     * src/preprocessors/Stream5/snort_stream5_tcp.c:

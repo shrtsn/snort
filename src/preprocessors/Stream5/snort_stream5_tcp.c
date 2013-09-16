@@ -4863,7 +4863,7 @@ int Stream5ProcessTcp(Packet *p, Stream5LWSession *lwssn,
                         "Blocking %s packet as session was blocked\n",
                         p->packet_flags & PKT_FROM_SERVER ?
                         "server" : "client"););
-            DisableDetect(p);
+            DisableAllDetect(p);
             /* Still want to add this number of bytes to totals */
             SetPreprocBit(p, PP_PERFMONITOR);
 

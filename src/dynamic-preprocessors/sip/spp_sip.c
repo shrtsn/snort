@@ -342,6 +342,9 @@ static void SIPmain( void* ipacketp, void* contextp )
     assert((IsUDP(packetp) || IsTCP(packetp)) &&
         packetp->payload && packetp->payload_size);
 
+    if ( packetp->flags & FLAG_STREAM_INSERT )
+        return;
+
     PREPROC_PROFILE_START(sipPerfStats);
 
     sip_eval_config = sfPolicyUserDataGetCurrent(sip_config);

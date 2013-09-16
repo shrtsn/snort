@@ -248,65 +248,51 @@ static int pcreMatchInternal(void *p, PCREInfo* pcre_info, const uint8_t **curso
     if ( buffer_start )
     {
         buffer_len = len;
-
         if (relative)
         {
-            if ( checkCursorSimple(*cursor, pcre_info->flags,
-                buffer_start, buffer_start+buffer_len, 0) == CURSOR_OUT_OF_BOUNDS )
-
-                buffer_len = (buffer_start + buffer_len) - *cursor;
-                buffer_start = *cursor;
-        }
-
-        pcre_found = pcre_test(
-            pcre_info, (const char *)buffer_start, buffer_len, 0, &pcre_offset);
-
-        if (pcre_found)
-        {
-            if (cursor)
-            {
-                *cursor = buffer_start + pcre_offset;
-            }
-            return RULE_MATCH;
-        }
-        return RULE_NOMATCH;
-    }
-
-    if ((pcre_info->flags & CONTENT_BUF_NORMALIZED) && _ded.Is_DetectFlag(SF_FLAG_DETECT_ALL))
-    {
-        if(_ded.Is_DetectFlag(SF_FLAG_ALT_DETECT))
-        {
-            buffer_start = _ded.altDetect->data;
-            buffer_len = _ded.altDetect->len;
-        }
-        else
-        {
-            buffer_start = _ded.altBuffer->data;
-            buffer_len = _ded.altBuffer->len;
+            DEBUG_WRAP(DebugMessage(DEBUG_PATTERN_MATCH,"PCRE unsupported configuration : both relative & uri options specified\n"););
+            return RULE_NOMATCH;
         }
     }
     else
     {
-        buffer_start = sp->payload;
 
-        if(sp->normalized_payload_size)
-            buffer_len = sp->normalized_payload_size;
+        if ((pcre_info->flags & CONTENT_BUF_NORMALIZED) && _ded.Is_DetectFlag(SF_FLAG_DETECT_ALL))
+        {
+            if(_ded.Is_DetectFlag(SF_FLAG_ALT_DETECT))
+            {
+                buffer_start = _ded.altDetect->data;
+                buffer_len = _ded.altDetect->len;
+            }
+            else
+            {
+                buffer_start = _ded.altBuffer->data;
+                buffer_len = _ded.altBuffer->len;
+            }
+        }
         else
-            buffer_len = sp->payload_size;
-    }
+        {
+            buffer_start = sp->payload;
 
-    if (!buffer_start || !buffer_len)
-        return RULE_NOMATCH;
+            if(sp->normalized_payload_size)
+                buffer_len = sp->normalized_payload_size;
+            else
+                buffer_len = sp->payload_size;
+        }
 
-    if (relative)
-    {
-        if ( checkCursorSimple(*cursor, pcre_info->flags, buffer_start, buffer_start+buffer_len,
-            pcre_info->offset) == CURSOR_OUT_OF_BOUNDS )
+        if (!buffer_start || !buffer_len)
             return RULE_NOMATCH;
+        if (relative)
+        {
+            if ( checkCursorSimple(*cursor, pcre_info->flags, buffer_start, buffer_start+buffer_len,
+                pcre_info->offset) == CURSOR_OUT_OF_BOUNDS )
+                return RULE_NOMATCH;
 
-        buffer_len = (buffer_start + buffer_len) - *cursor;
-        buffer_start = *cursor;
+            buffer_len = (buffer_start + buffer_len) - *cursor;
+            buffer_start = *cursor;
+        }
     }
+
 
     pcre_found = pcre_test(pcre_info, (const char *)buffer_start, buffer_len, pcre_info->offset, &pcre_offset);
 

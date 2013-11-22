@@ -1,3 +1,23 @@
+2013-10-18 Steven Sturges <ssturges@sourcefire.com>
+Snort 2.9.5.6
+	* src/build.h:
+	  updating build number to 208
+
+	* src/preprocessors/Stream5/snort_stream5_tcp.c:
+	  add NULL check for preprocessors that check for PAF before
+	  they check for any actual tcp session
+
+	* src/detection-plugins/: sp_byte_check.c, sp_byte_jump.c,
+	  sp_isdataat.c, sp_pattern_match.c:
+	  Test if the byte extracted distance and/or offset is within
+	  bounds of the search buffer.  Thanks to Nathan Fowler for
+	  noting the issue.
+
+	* src/preprocessors/HttpInspect/client/hi_client.c:
+	  clear cookie normalization buffer to avoid accidental null
+	  dereference in pipelined request.  Thanks to Michael Galapchuk
+	  for reporting the problem.
+
 2013-09-02 Steven Sturges <ssturges@sourcefire.com>
 Snort 2.9.5.5
 	* src/preprocessors/Stream5/snort_stream5_tcp.c:

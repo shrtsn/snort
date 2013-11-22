@@ -1803,6 +1803,7 @@ static int uniSearchReal(const char *data, int dlen, PatternMatchData *pmd, int 
     const char *end_ptr = data + dlen;
     const char *base_ptr = start_ptr;
     uint32_t extract_offset, extract_depth, extract_distance, extract_within;
+    int search_start = 0;
 
     if(pmd->use_doe != 1)
     {
@@ -1866,17 +1867,26 @@ static int uniSearchReal(const char *data, int dlen, PatternMatchData *pmd, int 
     // or offset/depth parameters.
     if ((pmd->distance != 0) || (pmd->within != 0))
     {
-        if (pmd->distance != 0)
+        // This covers the pmd->distance > buffer case
+        if (pmd->distance > depth)
         {
+            depth = 0;
+        }
+        else if (pmd->distance != 0)
+        {
+            search_start = (base_ptr - start_ptr) + pmd->distance;
             base_ptr += pmd->distance;
             depth -= pmd->distance;
         }
 
         // If the distance is negative and puts us before start_ptr
         // set base_ptr to start_ptr and adjust depth based on within.
-        if (base_ptr < start_ptr)
+        if (search_start < 0)
         {
-            int delta = (int)pmd->within - (start_ptr - base_ptr);
+            int delta = (int)pmd->within + search_start;
+            // base_ptr is before start_ptr and the within is before start_ptr as well. Cannot re-adjust.
+            if(delta < 0)
+                return -1;
             base_ptr = start_ptr;
             depth = ((pmd->within == 0) || (delta > dlen)) ? dlen : delta;
         }
@@ -1884,17 +1894,36 @@ static int uniSearchReal(const char *data, int dlen, PatternMatchData *pmd, int 
         {
             depth = (int)pmd->within;
         }
+        search_start = 0;
     }
     else if ((pmd->offset != 0) || (pmd->depth != 0))
     {
-        if (pmd->offset != 0)
+        if (pmd->offset > depth)
         {
+            depth = 0;
+        }
+        else if (pmd->offset != 0)
+        {
+            search_start = pmd->offset;
             base_ptr += pmd->offset;
             depth -= pmd->offset;
         }
 
-        if ((pmd->depth != 0) && (pmd->depth < depth))
+        // If the distance is negative and puts us before start_ptr
+        // set base_ptr to start_ptr and adjust depth based on pmd->depth.
+        if (search_start < 0)
+        {
+            int delta = (int)pmd->depth + search_start;
+            // base_ptr is before start_ptr and the depth is before start_ptr as well. Cannot re-adjust.
+            if(delta < 0)
+                return -1;
+            base_ptr = start_ptr;
+            depth = ((pmd->depth == 0) || (delta > dlen)) ? dlen : delta;
+        } 
+        else if ((pmd->depth != 0) && (pmd->depth < depth))
+        {
             depth = pmd->depth;
+        }
     }
 
     // If the pattern size is greater than the amount of data we have to

@@ -2558,9 +2558,12 @@ static inline const u_char *hi_client_extract_header(
                 Client->request.header_raw = NULL;\
                 Client->request.header_raw_size = 0;\
                 Client->request.header_norm = NULL; \
+                Client->request.header_norm_size = 0 ;\
                 Client->request.cookie.cookie = NULL;\
                 Client->request.cookie.cookie_end = NULL;\
                 Client->request.cookie.next = NULL;\
+                Client->request.cookie_norm = NULL;\
+                Client->request.cookie_norm_size = 0;\
     } while(0);
 
 #define CLR_METHOD(Client) \

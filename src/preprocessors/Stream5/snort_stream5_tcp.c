@@ -905,8 +905,13 @@ void** Stream5GetPAFUserDataTcp (Stream5LWSession* lwssn, bool to_server)
 
 bool Stream5IsPafActiveTcp (Stream5LWSession* lwssn, bool to_server)
 {
-    TcpSession* tcpssn = (TcpSession *)lwssn->proto_specific_data->data;
+    TcpSession* tcpssn;
     FlushMgr* fm;
+
+    if ( !lwssn->proto_specific_data )
+        return false;
+
+    tcpssn = (TcpSession *)lwssn->proto_specific_data->data;
 
     if ( !tcpssn )
         return false;
@@ -922,9 +927,14 @@ bool Stream5IsPafActiveTcp (Stream5LWSession* lwssn, bool to_server)
 
 bool Stream5ActivatePafTcp (Stream5LWSession* lwssn, bool to_server)
 {
-    TcpSession* tcpssn = (TcpSession *)lwssn->proto_specific_data->data;
+    TcpSession* tcpssn;
     StreamTracker* trk;
     FlushMgr* fm;
+
+    if ( !lwssn->proto_specific_data )
+        return false;
+
+    tcpssn = (TcpSession *)lwssn->proto_specific_data->data;
 
     if ( !tcpssn )
         return false;

@@ -1,14 +1,14 @@
 /*
  **  $Id$
  **
- **  sfcontrol.c
+ **  snort_dump_packets.c
  **
  **  Copyright (C) 2014 Cisco and/or its affiliates. All rights reserved.
  **  Copyright (C) 2002-2013 Sourcefire, Inc.
  **  Author(s):  Ron Dempster <rdempster@sourcefire.com>
  **
  **  NOTES
- **  5.5.11 - Initial Source Code. Dempster
+ **  3.4.14 - Initial Source Code. Dempster
  **
  **  This program is free software; you can redistribute it and/or modify
  **  it under the terms of the GNU General Public License Version 2 as
@@ -53,74 +53,26 @@
 #define PATH_MAX 4096
 #endif
 
-typedef enum
-{
-    PRINT_MODE_FAST,
-    PRINT_MODE_DETAIL
-}PrintMode;
-
-#define PRINT_MODE_FAST_KEYWORD  "-text"
-
 struct _CS_MESSAGE
+{
+    CSMessageHeader hdr;
+    uint8_t msg[0];
+} __attribute__((packed));
+
+typedef struct _CS_MESSAGE CSMessage;
+
+struct _CS_RESPONSE_MESSAGE
 {
     CSMessageHeader hdr;
     CSMessageDataHeader msg_hdr;
     uint8_t msg[4096];
 } __attribute__((packed));
 
-typedef struct _CS_MESSAGE CSMessage;
-
-static void DumpHex(FILE *fp, const uint8_t *data, unsigned len)
-{
-    char str[18];
-    unsigned i;
-    unsigned pos;
-    char c;
-
-    for (i=0, pos=0; i<len; i++, pos++)
-    {
-        if (pos == 17)
-        {
-            str[pos] = 0;
-            fprintf(fp, "  %s\n", str);
-            pos = 0;
-        }
-        else if (pos == 8)
-        {
-            str[pos] = ' ';
-            pos++;
-            fprintf(fp, "%s", " ");
-        }
-        c = (char)data[i];
-        if (isprint(c) && (c == ' ' || !isspace(c)))
-            str[pos] = c;
-        else
-            str[pos] = '.';
-        fprintf(fp, "%02X ", data[i]);
-    }
-    if (pos)
-    {
-        str[pos] = 0;
-        for (; pos < 17; pos++)
-        {
-            if (pos == 8)
-            {
-                pos++;
-                fprintf(fp, "%s", "    ");
-            }
-            else
-            {
-                fprintf(fp, "%s", "   ");
-            }
-        }
-        fprintf(fp, "  %s\n", str);
-    }
-}
+typedef struct _CS_RESPONSE_MESSAGE CSResponseMessage;
 
 static void DisplayUsage(const char *progname)
 {
-    fprintf(stderr, "Usage %s <snort log dir> <command> [-text]"
-        "[\"sub command string\"]\n",progname);
+    fprintf(stderr, "Usage %s <snort log dir> [-a daq address space id (0-65535)] <snort log dir> [<file name> [<bpf>]]\n", progname);
 }
 
 static int SendMessage(int socket_fd, const CSMessage *msg, uint32_t len)
@@ -224,61 +176,78 @@ int main(int argc, char *argv[])
     int rval;
     char socket_fn[PATH_MAX];
     int socket_fd;
+    int current_arg;
+    uint16_t address_space_id = 0;
+    unsigned address_space_id_len = 0;
     char *p;
-    CSMessage *message;
-    unsigned long type;
-    const char *sep;
     ssize_t len;
-    PrintMode mode = PRINT_MODE_DETAIL;
-    const char *extra;
-    unsigned int extra_len = 0;
+    const char *sep;
+    const char* dump_file_name = NULL;
+    unsigned dump_file_name_len = 0;
+    const char* bpf = NULL;
+    unsigned bpf_len = 0;
+    CSMessage *message;
+    uint32_t extra_len;
+    CSResponseMessage response;
 
-    if (argc < 3 || argc > 5 || !*argv[1] || !*argv[2])
-    {
-        DisplayUsage(argv[0]);
-        exit(-1);
-    }
-    else if (argc > 3)
-    {
-        int idx = 3;
-
-        if((strlen(PRINT_MODE_FAST_KEYWORD) == strlen(argv[idx])) &&
-           (strcmp(PRINT_MODE_FAST_KEYWORD,argv[idx]) == 0))
-        {
-            mode = PRINT_MODE_FAST;
-            idx ++;
-        }
-
-        if (argc > idx)
-        {
-             extra = argv[idx];
-             extra_len = strlen(extra) + 1;
-        }
-    }
-
-    type = strtoul(argv[2], &p, 0);
-    if (*p || type > CS_TYPE_MAX)
+    if (argc < 2)
     {
         DisplayUsage(argv[0]);
         exit(-1);
     }
 
-    len = strlen(argv[1]);
-    if (len && argv[1][len - 1] == '/')
+    current_arg = 1;
+    if (strcmp(argv[current_arg], "-a") == 0)
+    {
+        unsigned long tmp;
+
+        current_arg++;
+        if (current_arg >= argc)
+        {
+            DisplayUsage(argv[0]);
+            exit(-1);
+        }
+        tmp = strtoul(argv[current_arg], &p, 0);
+        if (*p || tmp > UINT16_MAX)
+        {
+            DisplayUsage(argv[0]);
+            exit(-1);
+        }
+        address_space_id = (uint16_t)tmp;
+        current_arg++;
+    }
+
+    if (current_arg >= argc)
+    {
+        DisplayUsage(argv[0]);
+        exit(-1);
+    }
+    len = strlen(argv[current_arg]);
+    if (len && argv[current_arg][len - 1] == '/')
         sep = "";
     else
         sep = "/";
+    snprintf(socket_fn, sizeof(socket_fn), "%s%s%s", argv[current_arg], sep, CONTROL_FILE);
+    current_arg++;
 
-    snprintf(socket_fn, sizeof(socket_fn), "%s%s%s", argv[1], sep, CONTROL_FILE);
-    ConnectToUnixSocket(socket_fn, &socket_fd);
-
-    if (extra_len > sizeof(message->msg))
+    if (current_arg < argc)
     {
-        fprintf(stderr, "snort_control: message is too long.\n");
-        exit(-1);
+        address_space_id_len = sizeof(address_space_id);
+        dump_file_name = argv[current_arg];
+        dump_file_name_len = strlen(dump_file_name) + 1;
+        current_arg++;
+        if (current_arg < argc)
+        {
+            bpf = argv[current_arg];
+            bpf_len = strlen(bpf) + 1;
+        }
+        else
+            bpf_len = 1;
     }
 
-    message = malloc(sizeof *message);
+    extra_len = address_space_id_len + dump_file_name_len + bpf_len;
+    ConnectToUnixSocket(socket_fn, &socket_fd);
+    message = malloc(sizeof *message + extra_len);
     if (message == NULL)
     {
         fprintf(stderr, "snort_control: could not allocate message.\n");
@@ -286,16 +255,26 @@ int main(int argc, char *argv[])
     }
 
     message->hdr.version = htons(CS_HEADER_VERSION);
-    message->hdr.type = htons((uint16_t)type);
+    message->hdr.type = htons((uint16_t)CS_TYPE_DUMP_PACKETS);
     message->hdr.length = 0;
 
-    if (extra_len)
+    if (address_space_id_len)
     {
-        message->hdr.length = htonl(extra_len + sizeof(message->msg_hdr));
+        uint8_t* msg = message->msg;
+        message->hdr.length = htonl(extra_len);
 
-        message->msg_hdr.code = 0;
-        message->msg_hdr.length = htons(extra_len);
-        memcpy(message->msg, extra, extra_len);
+        *((uint16_t*)msg) = address_space_id;
+        msg += sizeof(address_space_id);
+        snprintf((char*)msg, dump_file_name_len, "%s", dump_file_name);
+        msg[dump_file_name_len - 1] = 0;
+        msg += dump_file_name_len;
+        if (bpf_len > 1)
+        {
+            snprintf((char*)msg, bpf_len, "%s", bpf);
+            msg[bpf_len - 1] = 0;
+        }
+        else
+            *msg = 0;
     }
 
     if ((rval = SendMessage(socket_fd, message, extra_len)) < 0)
@@ -310,11 +289,12 @@ int main(int argc, char *argv[])
         close(socket_fd);
         exit(-1);
     }
+    free(message);
 
     do
     {
         /* Reusing the same CSMessage to capture the response */
-        if ((rval = ReadResponse(socket_fd, &message->hdr)) < 0)
+        if ((rval = ReadResponse(socket_fd, &response.hdr)) < 0)
         {
             fprintf(stderr, "Failed to read the response: %s\n", strerror(errno));
             close(socket_fd);
@@ -327,31 +307,31 @@ int main(int argc, char *argv[])
             exit(-1);
         }
 
-        if (message->hdr.version != CS_HEADER_VERSION)
+        if (response.hdr.version != CS_HEADER_VERSION)
         {
             printf("snort_control: bad response version\n");
             close(socket_fd);
             exit(-1);
         }
 
-        if (message->hdr.length)
+        if (response.hdr.length)
         {
 
-            if (message->hdr.length < sizeof(message->msg_hdr))
+            if (response.hdr.length < sizeof(response.msg_hdr))
             {
                 printf("snort_control: response message is too small\n");
                 close(socket_fd);
                 exit(-1);
             }
 
-            if (message->hdr.length > sizeof(message->msg))
+            if (response.hdr.length > sizeof(response.msg))
             {
                 printf("snort_control: response message is too large\n");
                 close(socket_fd);
                 exit(-1);
             }
 
-            if ((rval = ReadData(socket_fd, (uint8_t *)message+sizeof(message->hdr), message->hdr.length)) < 0)
+            if ((rval = ReadData(socket_fd, (uint8_t *)(&response)+sizeof(response.hdr), response.hdr.length)) < 0)
             {
                 fprintf(stderr, "Failed to read the response data: %s\n", strerror(errno));
                 close(socket_fd);
@@ -364,35 +344,23 @@ int main(int argc, char *argv[])
                 exit(-1);
             }
 
-            message->msg_hdr.code = ntohl(message->msg_hdr.code);
-            message->msg_hdr.length = ntohs(message->msg_hdr.length);
+            response.msg_hdr.code = ntohl(response.msg_hdr.code);
+            response.msg_hdr.length = ntohs(response.msg_hdr.length);
 
-            if (mode == PRINT_MODE_DETAIL)
+            if (response.msg_hdr.length == response.hdr.length - sizeof(response.msg_hdr))
             {
-                fprintf(stdout, "Response %04X with code %d and length %u\n",
-                    message->hdr.type, message->msg_hdr.code, message->msg_hdr.length);
-                DumpHex(stdout, message->msg, message->msg_hdr.length);
+                response.msg[response.msg_hdr.length-1] = 0;
+                fprintf(stdout, "Response %04X with code %d (%s)\n",
+                    response.hdr.type, response.msg_hdr.code, response.msg);
             }
-            else if (mode == PRINT_MODE_FAST)
-            {
-                if (message->msg_hdr.length == message->hdr.length - sizeof(message->msg_hdr))
-                {
-                    message->msg[message->msg_hdr.length-1] = 0;
-                    fprintf(stdout, "Response %04X with code %d (%s)\n",
-                        message->hdr.type, message->msg_hdr.code, message->msg);
-                }
-                else
-                    fprintf(stdout, "Response %04X with code %d\n", message->hdr.type, message->msg_hdr.code);
-            }
+            else
+                fprintf(stdout, "Response %04X with code %d\n", response.hdr.type, response.msg_hdr.code);
         }
         else
         {
-            if (mode == PRINT_MODE_DETAIL)
-                printf("Response %04X without data\n", message->hdr.type);
-            else
-                printf("Response %04X\n", message->hdr.type);
+            printf("Response %04X\n", response.hdr.type);
         }
-    } while (message->hdr.type == CS_HEADER_DATA);
+    } while (response.hdr.type == CS_HEADER_DATA);
     return 0;
 }
 
